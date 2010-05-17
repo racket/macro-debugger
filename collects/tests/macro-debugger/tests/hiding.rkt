@@ -1,5 +1,5 @@
 #lang scheme/base
-(require schemeunit)
+(require racunit)
 (require macro-debugger/model/debug
          "../test-setup.ss")
 (provide specialized-hiding-tests)
