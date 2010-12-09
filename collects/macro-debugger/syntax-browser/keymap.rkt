@@ -1,10 +1,9 @@
 #lang racket/base
 (require racket/class
-         racket/gui
+         racket/gui/base
          racket/pretty
          unstable/gui/notify
-         "interfaces.rkt"
-         "partition.rkt")
+         "interfaces.rkt")
 (provide syntax-keymap%)
 
 (define keymap/popup%
@@ -119,7 +118,7 @@
                (demand-callback
                 (lambda (i)
                   (let ([stx (selected-syntax)])
-                    (when stx
+                    (when (identifier? stx)
                       (send i set-label
                             (format "Format ~s ~a" (syntax-e stx) (cadr sym+desc)))))))
                (callback
