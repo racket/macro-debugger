@@ -19,7 +19,7 @@
   (lambda (stx)
     (raise-syntax-error #f "definitions keyword used out of context" stx)))
 
-(define-syntax (parser stx)
+(define-syntax (parser* stx)
   (syntax-case stx ()
     [(parser form ...)
      (let ([stop-list (list #'begin #'options #'productions #'definitions)]
@@ -47,3 +47,10 @@
          #'(let ()
              def ...
              (#%expression (yacc:parser opt ... (grammar prod ...))))))]))
+
+(define-syntax-rule (parser . content)
+  ;; Ensure that local expansion doesn't add
+  ;; marks due to use of a macro in the enclosing
+  ;; binding scope:
+  (let ()
+    (parser* . content)))
