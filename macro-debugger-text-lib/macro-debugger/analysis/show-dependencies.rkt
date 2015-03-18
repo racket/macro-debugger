@@ -11,7 +11,7 @@
 
 ;; A Table is hash[resolved-module-path => (listof mpi-list)]
 
-(define (get-dependencies-table ms #:include? include?)
+(define (get-dependencies-table ms #:phase0 phase0 #:include? include?)
   (define visited (make-hash)) ;; Table
   (define (loop m ctx relto)
     (let* ([resolved (resolve-module-path-index* m relto)]
@@ -27,6 +27,7 @@
           (unless (symbol? resolved-base)
             (let ([imports (get-module-imports resolved)])
               (for* ([phase+mods (in-list imports)]
+                     #:unless (and phase0 (not (equal? 0 (car phase+mods))))
                      [mod (in-list (cdr phase+mods))])
                 (loop mod ctx resolved-base))))))))
   (for ([m (in-list ms)])
@@ -70,20 +71,21 @@
          ;; obviously, we don't care that much about performance in this case
          (string<? (format "~s" A) (format "~s" B))]))
 
-;; get-dependencies : module-path ... #:exclude (listof module-path)
+;; get-dependencies : module-path ... #:exclude (listof module-path) #:phase0 boolean?
 ;;                 -> (listof (list module-path (listof module-path)))
 (define (get-dependencies #:exclude [exclude null]
                           #:exclude-deps [exclude-deps null]
+                          #:phase0 [phase0 #f]
                           . module-paths)
   (let* ([table
-          (get-dependencies-table #:include? #f module-paths)]
+          (get-dependencies-table #:include? #f #:phase0 phase0 module-paths)]
          [exclude-table
-          (get-dependencies-table #:include? #t exclude)]
+          (get-dependencies-table #:include? #t #:phase0 phase0 exclude)]
          [exclude-deps-roots
           (for/hash ([mod (in-list exclude-deps)])
             (values (resolve-module-path-index* (module-path-index-join mod #f) #f) #t))]
          [exclude-deps-table
-          (get-dependencies-table #:include? #f exclude-deps)])
+          (get-dependencies-table #:include? #f #:phase0 phase0 exclude-deps)])
     (for ([key (in-hash-keys exclude-table)])
       (hash-remove! table key))
     (for ([key (in-hash-keys exclude-deps-table)])
@@ -95,10 +97,12 @@
                            #:exclude-deps [exclude-deps null]
                            #:show-context? [context? #f]
                            #:multi-line-context? [multi-line-context? #f]
+                           #:phase0 [phase0 #f]
                            . module-paths)
   (for ([dep (in-list (apply get-dependencies
                              #:exclude exclude
                              #:exclude-deps exclude-deps
+                             #:phase0 phase0
                              module-paths))])
     (let ([mod (car dep)]
           [direct-requirers (cadr dep)])
@@ -128,6 +132,7 @@
   (define multi-line-context? #f)
   (define excludes null)
   (define exclude-deps null)
+  (define phase0 #f)
   (command-line
    #:program (short-program+command-name)
    #:argv argv
@@ -147,6 +152,8 @@
     (set! exclude-deps (cons mod exclude-deps))]
    [("-b") "Same as --exclude racket/base"
     (set! excludes (cons 'racket/base excludes))]
+   [("--runtime-only") "Show only phase-0 dependencies"
+    (set! phase0 #t)]
    #:args module-path
    (let ()
      (define (->modpath x)
@@ -165,6 +172,7 @@
             #:exclude-deps (map ->modpath exclude-deps)
             #:show-context? context?
             #:multi-line-context? multi-line-context?
+            #:phase0 phase0
             (map ->modpath module-path)))))
 
 (module* main #f
