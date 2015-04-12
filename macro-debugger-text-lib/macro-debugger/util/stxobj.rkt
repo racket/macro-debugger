@@ -4,5 +4,5 @@
 
 (define (get-marks stx)
   (define info (syntax-debug-info stx))
-  (for ([e (in-list (hash-ref info 'context))])
+  (for/list ([e (in-list (hash-ref info 'context))])
     (vector-ref e 0)))
