@@ -3,7 +3,7 @@
          racket/match
          racket/gui/base
          framework
-         unstable/class-iop
+         racket/class/iop
          macro-debugger/syntax-browser/interfaces
          "util.rkt"
          macro-debugger/util/mpi

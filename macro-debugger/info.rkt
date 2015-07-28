@@ -3,6 +3,7 @@
 (define collection 'multi)
 
 (define deps '("base"
+               "class-iop-lib"
                "compatibility-lib"
                "data-lib"
                "gui-lib"
@@ -10,7 +11,6 @@
                "images-gui-lib"
                "parser-tools-lib"
                "unstable-lib"
-               "unstable-list-lib"
                "macro-debugger-text-lib"))
 (define build-deps '("racket-index"
                      "rackunit-lib"

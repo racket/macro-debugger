@@ -3,7 +3,7 @@
          racket/match
          syntax/stx
          unstable/find
-         unstable/class-iop
+         racket/class/iop
          "interfaces.rkt"
          "step-display.rkt"
          macro-debugger/model/deriv

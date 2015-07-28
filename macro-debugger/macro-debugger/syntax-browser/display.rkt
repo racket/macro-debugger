@@ -4,7 +4,7 @@
          racket/promise
          data/interval-map
          framework
-         unstable/class-iop
+         racket/class/iop
          "pretty-printer.rkt"
          macro-debugger/syntax-browser/interfaces
          "prefs.rkt"

@@ -2,7 +2,7 @@
 (require racket/class
          racket/gui/base
          racket/match
-         unstable/class-iop
+         racket/class/iop
          "interfaces.rkt"
          macro-debugger/model/hiding-policies
          macro-debugger/util/mpi

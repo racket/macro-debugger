@@ -1,7 +1,7 @@
 #lang racket/base
 (require racket/class
          racket/gui/base
-         unstable/class-iop
+         racket/class/iop
          macro-debugger/syntax-browser/interfaces
          macro-debugger/syntax-browser/partition
          "prefs.rkt"

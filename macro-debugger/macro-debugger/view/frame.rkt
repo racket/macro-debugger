@@ -3,7 +3,7 @@
          racket/path
          racket/gui/base
          framework
-         unstable/class-iop
+         racket/class/iop
          "interfaces.rkt"
          "stepper.rkt"
          (prefix-in sb: "../syntax-browser/embed.rkt")

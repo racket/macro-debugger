@@ -1,5 +1,5 @@
 #lang racket/base
-(require unstable/class-iop
+(require racket/class/iop
          (prefix-in sb: macro-debugger/syntax-browser/interfaces))
 (provide (all-defined-out))
 

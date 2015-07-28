@@ -2,7 +2,7 @@
 (require racket/class
          racket/match
          racket/gui/base
-         unstable/class-iop
+         racket/class/iop
          "interfaces.rkt"
          "extensions.rkt"
          "hiding-panel.rkt"

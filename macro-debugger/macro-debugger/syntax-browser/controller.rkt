@@ -1,6 +1,6 @@
 #lang racket/base
 (require racket/class
-         unstable/class-iop
+         racket/class/iop
          macro-debugger/syntax-browser/interfaces
          macro-debugger/syntax-browser/partition
          unstable/gui/notify)
