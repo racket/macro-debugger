@@ -6,7 +6,7 @@
          "interfaces.rkt"
          macro-debugger/model/hiding-policies
          macro-debugger/util/mpi
-         unstable/gui/notify)
+         framework/notify)
 (provide macro-hiding-prefs-widget%)
 
 (define mode:disable "Disable")
@@ -74,7 +74,7 @@ TODO
            (parent customize-panel)))
 
     (define mode-selector
-      (choice/notify-box
+      (notify:choice/notify-box
        top-line-panel
        "Macro hiding: "
        (list mode:disable mode:standard mode:custom)

@@ -14,7 +14,7 @@
          "cursor.rkt"
          "gui-util.rkt"
          "../syntax-browser/util.rkt"
-         unstable/gui/notify
+         framework/notify
          images/compile-time
          images/gui
          (for-syntax racket/base
@@ -86,7 +86,7 @@
       (cursor:next terms))
 
     ;; current-step-index : notify of number/#f
-    (define-notify current-step-index (new notify-box% (value #f)))
+    (notify:define-notify current-step-index (new notify:notify-box% (value #f)))
 
     ;; add-deriv : Deriv -> void
     (define/public (add-deriv d)

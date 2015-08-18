@@ -3,7 +3,7 @@
          racket/class/iop
          macro-debugger/syntax-browser/interfaces
          macro-debugger/syntax-browser/partition
-         unstable/gui/notify)
+         framework/notify)
 (provide controller%)
 
 ;; displays-manager-mixin
@@ -26,7 +26,7 @@
 (define selection-manager-mixin
   (mixin (displays-manager<%>) (selection-manager<%>)
     (inherit-field displays)
-    (define-notify selected-syntax (new notify-box% (value #f)))
+    (notify:define-notify selected-syntax (new notify:notify-box% (value #f)))
 
     (super-new)
     (listen-selected-syntax
@@ -52,7 +52,7 @@
 (define secondary-relation-mixin
   (mixin (displays-manager<%>) (secondary-relation<%>)
     (inherit-field displays)
-    (define-notify identifier=? (new notify-box% (value #f)))
+    (notify:define-notify identifier=? (new notify:notify-box% (value #f)))
 
     (listen-identifier=?
      (lambda (name+proc)

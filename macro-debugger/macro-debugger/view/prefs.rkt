@@ -3,7 +3,7 @@
          framework/preferences
          "interfaces.rkt"
          "../syntax-browser/prefs.rkt"
-         unstable/gui/notify
+         framework/notify
          unstable/gui/prefs)
 (provide pref:macro-step-limit
          pref:close-on-reset-console?
@@ -59,7 +59,7 @@
     (init-field readonly?)
 
     (define-syntax-rule (define-pref-notify* (name pref) ...)
-      (begin (define-notify name (notify-box/pref pref #:readonly? readonly?)) ...))
+      (begin (notify:define-notify name (notify:notify-box/pref pref #:readonly? readonly?)) ...))
 
     (define-pref-notify*
       (width pref:width)

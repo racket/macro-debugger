@@ -8,7 +8,7 @@
          "stepper.rkt"
          (prefix-in sb: "../syntax-browser/embed.rkt")
 	 (prefix-in sb: macro-debugger/syntax-browser/interfaces)
-         unstable/gui/notify)
+         framework/notify)
 (provide macro-stepper-frame-mixin)
 
 (define-syntax override/return-false
@@ -124,9 +124,9 @@
            (callback (lambda _ (send/i widget widget<%> show-in-new-frame))))
       (new separator-menu-item% (parent file-menu)))
 
-    (menu-option/notify-box stepper-menu
-                            "View syntax properties"
-                            (get-field props-shown? config))
+    (notify:menu-option/notify-box stepper-menu
+                                   "View syntax properties"
+                                   (get-field props-shown? config))
 
     (let ([id-menu
            (new (get-menu%)
@@ -160,9 +160,9 @@
 
     (new separator-menu-item% (parent stepper-menu))
 
-    (menu-option/notify-box stepper-menu
-                            "Show macro hiding panel"
-                            (get-field show-hiding-panel? config))
+    (notify:menu-option/notify-box stepper-menu
+                                   "Show macro hiding panel"
+                                   (get-field show-hiding-panel? config))
 
     (new (get-menu-item%)
          (label "Remove selected term")
@@ -186,38 +186,38 @@
                          'always
                          'over-limit))
               (send/i widget widget<%> update/preserve-view))))
-      (menu-option/notify-box extras-menu
-                              "Factor out common context?"
-                              (get-field split-context? config))
-      (menu-option/notify-box extras-menu
-                              "Highlight redex/contractum"
-                              (get-field highlight-foci? config))
+      (notify:menu-option/notify-box extras-menu
+                                     "Factor out common context?"
+                                     (get-field split-context? config))
+      (notify:menu-option/notify-box extras-menu
+                                     "Highlight redex/contractum"
+                                     (get-field highlight-foci? config))
       #|
-      (menu-option/notify-box extras-menu
-                              "Highlight frontier"
-                              (get-field highlight-frontier? config))
+      (notify:menu-option/notify-box extras-menu
+                                     "Highlight frontier"
+                                     (get-field highlight-frontier? config))
       |#
-      (menu-option/notify-box extras-menu
-                              "Include renaming steps"
-                              (get-field show-rename-steps? config))
-      (menu-option/notify-box extras-menu
-                              "One term at a time"
-                              (get-field one-by-one? config))
-      (menu-option/notify-box extras-menu
-                              "Refresh on resize"
-                              (get-field refresh-on-resize? config))
-      (menu-option/notify-box extras-menu
-                              "Close old stepper on Run"
-                              (get-field close-on-reset-console? config))
-      (menu-option/notify-box extras-menu
-                              "Draw binding arrows"
-                              (get-field draw-arrows? config))
-      (menu-option/notify-box extras-menu
-                              "Enable reader abbreviations"
-                              (get-field pretty-abbrev? config))
-      (menu-option/notify-box extras-menu
-                              "Extra navigation"
-                              (get-field extra-navigation? config)))
+      (notify:menu-option/notify-box extras-menu
+                                     "Include renaming steps"
+                                     (get-field show-rename-steps? config))
+      (notify:menu-option/notify-box extras-menu
+                                     "One term at a time"
+                                     (get-field one-by-one? config))
+      (notify:menu-option/notify-box extras-menu
+                                     "Refresh on resize"
+                                     (get-field refresh-on-resize? config))
+      (notify:menu-option/notify-box extras-menu
+                                     "Close old stepper on Run"
+                                     (get-field close-on-reset-console? config))
+      (notify:menu-option/notify-box extras-menu
+                                     "Draw binding arrows"
+                                     (get-field draw-arrows? config))
+      (notify:menu-option/notify-box extras-menu
+                                     "Enable reader abbreviations"
+                                     (get-field pretty-abbrev? config))
+      (notify:menu-option/notify-box extras-menu
+                                     "Extra navigation"
+                                     (get-field extra-navigation? config)))
 
     ;; fixup-menu : menu -> void
     ;; Delete separators at beginning/end and duplicates in middle
