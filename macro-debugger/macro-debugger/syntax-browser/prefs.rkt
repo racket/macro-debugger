@@ -2,8 +2,7 @@
 (require racket/class
          framework/preferences
          macro-debugger/syntax-browser/interfaces
-         framework/notify
-         unstable/gui/prefs)
+         framework/notify)
 (provide prefs-base%
          syntax-prefs-base%
          syntax-prefs%
@@ -17,13 +16,13 @@
 (preferences:set-default 'SyntaxBrowser:PropertiesPanelShown #t boolean?)
 (preferences:set-default 'SyntaxBrowser:DrawArrows? #t boolean?)
 
-(define pref:width (pref:get/set 'SyntaxBrowser:Width))
-(define pref:height (pref:get/set 'SyntaxBrowser:Height))
-(define pref:props-percentage (pref:get/set 'SyntaxBrowser:PropertiesPanelPercentage))
-(define pref:props-shown? (pref:get/set 'SyntaxBrowser:PropertiesPanelShown))
-(define pref:draw-arrows? (pref:get/set 'SyntaxBrowser:DrawArrows?))
+(define pref:width (preferences:get/set 'SyntaxBrowser:Width))
+(define pref:height (preferences:get/set 'SyntaxBrowser:Height))
+(define pref:props-percentage (preferences:get/set 'SyntaxBrowser:PropertiesPanelPercentage))
+(define pref:props-shown? (preferences:get/set 'SyntaxBrowser:PropertiesPanelShown))
+(define pref:draw-arrows? (preferences:get/set 'SyntaxBrowser:DrawArrows?))
 
-(define pref:invert-colors? (pref:get/set 'framework:white-on-black?))
+(define pref:invert-colors? (preferences:get/set 'framework:white-on-black?))
 
 (define prefs-base%
   (class object%
