@@ -1,6 +1,6 @@
 #lang racket/base
 (require racket/contract/base
-         unstable/struct)
+         racket/struct)
 
 (provide/contract
  [find

@@ -1,7 +1,7 @@
 #lang racket/base
 (require racket/pretty
          racket/class/iop
-         unstable/struct
+         racket/struct
          "interfaces.rkt"
          "../model/stx-util.rkt")
 (provide (all-defined-out))
