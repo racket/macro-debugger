@@ -63,8 +63,9 @@
 ;; ==== Partition choices ====
 
 (define partition-choices
-  `(("Macro scopes" . ,new-macro-scopes-partition)
-    ("All scopes" . ,new-all-scopes-partition)))
+  (make-parameter
+   `(("By macro scopes" . ,new-macro-scopes-partition)
+     ("By all scopes" . ,new-all-scopes-partition))))
 
 ;; ==== Identifier relations ====
 

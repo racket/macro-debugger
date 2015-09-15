@@ -9,6 +9,7 @@
                       macro-hiding-mode
                       show-hiding-panel?
                       identifier=?
+                      primary-partition
                       highlight-foci?
                       highlight-frontier?
                       show-rename-steps?

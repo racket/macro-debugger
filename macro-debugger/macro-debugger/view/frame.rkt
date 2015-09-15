@@ -8,6 +8,7 @@
          "stepper.rkt"
          (prefix-in sb: "../syntax-browser/embed.rkt")
 	 (prefix-in sb: macro-debugger/syntax-browser/interfaces)
+	 (prefix-in sb: macro-debugger/syntax-browser/partition)
          framework/notify)
 (provide macro-stepper-frame-mixin)
 
@@ -128,29 +129,45 @@
                                    "View syntax properties"
                                    (get-field props-shown? config))
 
+    (let ([partition-menu
+           (new (get-menu%)
+                (label "Foreground colors")
+                (parent stepper-menu))])
+      (for ([p (in-list (sb:partition-choices))])
+        (define this-choice
+          (new checkable-menu-item%
+               (label (car p))
+               (parent partition-menu)
+               (callback
+                (lambda _ (send/i controller sb:controller<%> set-primary-partition-factory
+                             (cdr p))))))
+        (send/i controller sb:controller<%> listen-primary-partition-factory
+                (lambda (func) (send this-choice check (eq? func (cdr p)))))))
+
     (let ([id-menu
            (new (get-menu%)
                 (label "Identifier=?")
                 (parent stepper-menu))])
-      (for-each (lambda (p)
-                  (let ([this-choice
-                         (new checkable-menu-item%
-                              (label (car p)) 
-                              (parent id-menu)
-                              (callback
-                               (lambda _ 
-                                 (send/i controller sb:controller<%> set-identifier=? p))))])
-                    (send/i controller sb:controller<%> listen-identifier=?
-                           (lambda (name+func)
-                             (send this-choice check
-                                   (eq? (car name+func) (car p)))))))
-                (sb:identifier=-choices)))
+      (for ([p (in-list (sb:identifier=-choices))])
+        (define this-choice
+          (new checkable-menu-item%
+               (label (car p))
+               (parent id-menu)
+               (callback
+                (lambda _ (send/i controller sb:controller<%> set-identifier=? (cdr p))))))
+        (send/i controller sb:controller<%> listen-identifier=?
+                (lambda (func) (send this-choice check (eq? func (cdr p)))))))
 
-    (let ([identifier=? (send/i config config<%> get-identifier=?)])
-      (when identifier=?
-        (let ([p (assoc identifier=? (sb:identifier=-choices))])
-          (send/i controller sb:controller<%> set-identifier=? p))))
+    (cond [(assoc (send/i config config<%> get-identifier=?)
+                  (sb:identifier=-choices))
+           => (lambda (p)
+                (send/i controller sb:controller<%> set-identifier=? (cdr p)))])
 
+    (cond [(assoc (send/i config config<%> get-primary-partition)
+                  (sb:partition-choices))
+           => (lambda (p)
+                (send/i controller sb:controller<%> set-primary-partition-factory (cdr p)))])
+    
     (new (get-menu-item%)
          (label "Clear selection")
          (parent stepper-menu)

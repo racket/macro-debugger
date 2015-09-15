@@ -203,9 +203,10 @@
            (parent superarea)
            (stop-callback (lambda _ (stop-processing)))))
 
-    (send/i sbc sb:controller<%>
-           listen-selected-syntax
-           (lambda (stx) (send/i macro-hiding-prefs hiding-prefs<%> set-syntax stx)))
+    (send/i sbc sb:controller<%> listen-selected-syntax
+            (lambda (stx) (send/i macro-hiding-prefs hiding-prefs<%> set-syntax stx)))
+    (send/i sbc sb:controller<%> listen-primary-partition
+            (lambda (_p) (update/preserve-view)))
     (send config listen-pretty-abbrev?
           (lambda (_) (update/preserve-view)))
     (send*/i config config<%>

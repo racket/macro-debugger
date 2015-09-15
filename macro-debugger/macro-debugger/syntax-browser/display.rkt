@@ -187,7 +187,7 @@
                    (send/i config config<%> get-colors)))))
       (define overflow-style (color-style (translate-color "darkgray")))
       (define color-partition
-        (send/i controller mark-manager<%> get-primary-partition))
+        (send/i controller controller<%> get-primary-partition))
       (define offset start-position)
       ;; Optimization: don't call change-style when new style = old style
       (let tr*loop ([trs (send/i range range<%> get-treeranges)] [old-style #f])
@@ -234,10 +234,7 @@
     ;; in the relation with it.
     (define/private (apply-secondary-relation-styles selected-syntax)
       (when (identifier? selected-syntax)
-        (let* ([name+relation
-                (send/i controller secondary-relation<%>
-                        get-identifier=?)]
-               [relation (and name+relation (cdr name+relation))]
+        (let* ([relation (send/i controller controller<%> get-identifier=?)]
                [secondary-highlight-d (get-secondary-highlight-d)])
           (when relation
             (for ([id (in-list (send/i range range<%> get-identifier-list))])
