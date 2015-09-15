@@ -3,8 +3,7 @@
          framework/preferences
          "interfaces.rkt"
          "../syntax-browser/prefs.rkt"
-         framework/notify
-         unstable/gui/prefs)
+         framework/notify)
 (provide pref:macro-step-limit
          pref:close-on-reset-console?
          macro-stepper-config-base%
@@ -33,26 +32,26 @@
 (preferences:set-default 'MacroStepper:RefreshOnResize? #t boolean?)
 (preferences:set-default 'MacroStepper:CloseOnResetConsole? #t boolean?)
 
-(define pref:width (pref:get/set 'MacroStepper:Frame:Width))
-(define pref:height (pref:get/set 'MacroStepper:Frame:Height))
-(define pref:props-shown? (pref:get/set 'MacroStepper:PropertiesShown?))
-(define pref:props-percentage (pref:get/set 'MacroStepper:PropertiesPanelPercentage))
-(define pref:draw-arrows? (pref:get/set 'MacroStepper:DrawArrows?))
+(define pref:width (preferences:get/set 'MacroStepper:Frame:Width))
+(define pref:height (preferences:get/set 'MacroStepper:Frame:Height))
+(define pref:props-shown? (preferences:get/set 'MacroStepper:PropertiesShown?))
+(define pref:props-percentage (preferences:get/set 'MacroStepper:PropertiesPanelPercentage))
+(define pref:draw-arrows? (preferences:get/set 'MacroStepper:DrawArrows?))
 
-(define pref:macro-hiding-mode (pref:get/set 'MacroStepper:MacroHidingMode))
-(define pref:show-hiding-panel? (pref:get/set 'MacroStepper:ShowHidingPanel?))
-(define pref:identifier=? (pref:get/set 'MacroStepper:IdentifierComparison))
-(define pref:highlight-foci? (pref:get/set 'MacroStepper:HighlightFoci?))
-(define pref:highlight-frontier? (pref:get/set 'MacroStepper:HighlightFrontier?))
-(define pref:show-rename-steps? (pref:get/set 'MacroStepper:ShowRenameSteps?))
-(define pref:suppress-warnings? (pref:get/set 'MacroStepper:SuppressWarnings?))
-(define pref:one-by-one? (pref:get/set 'MacroStepper:OneByOne?))
-(define pref:extra-navigation? (pref:get/set 'MacroStepper:ExtraNavigation?))
-(define pref:debug-catch-errors? (pref:get/set 'MacroStepper:DebugCatchErrors?))
-(define pref:split-context? (pref:get/set 'MacroStepper:SplitContext?))
-(define pref:macro-step-limit (pref:get/set 'MacroStepper:MacroStepLimit))
-(define pref:refresh-on-resize? (pref:get/set 'MacroStepper:RefreshOnResize?))
-(define pref:close-on-reset-console? (pref:get/set 'MacroStepper:CloseOnResetConsole?))
+(define pref:macro-hiding-mode (preferences:get/set 'MacroStepper:MacroHidingMode))
+(define pref:show-hiding-panel? (preferences:get/set 'MacroStepper:ShowHidingPanel?))
+(define pref:identifier=? (preferences:get/set 'MacroStepper:IdentifierComparison))
+(define pref:highlight-foci? (preferences:get/set 'MacroStepper:HighlightFoci?))
+(define pref:highlight-frontier? (preferences:get/set 'MacroStepper:HighlightFrontier?))
+(define pref:show-rename-steps? (preferences:get/set 'MacroStepper:ShowRenameSteps?))
+(define pref:suppress-warnings? (preferences:get/set 'MacroStepper:SuppressWarnings?))
+(define pref:one-by-one? (preferences:get/set 'MacroStepper:OneByOne?))
+(define pref:extra-navigation? (preferences:get/set 'MacroStepper:ExtraNavigation?))
+(define pref:debug-catch-errors? (preferences:get/set 'MacroStepper:DebugCatchErrors?))
+(define pref:split-context? (preferences:get/set 'MacroStepper:SplitContext?))
+(define pref:macro-step-limit (preferences:get/set 'MacroStepper:MacroStepLimit))
+(define pref:refresh-on-resize? (preferences:get/set 'MacroStepper:RefreshOnResize?))
+(define pref:close-on-reset-console? (preferences:get/set 'MacroStepper:CloseOnResetConsole?))
 
 (define macro-stepper-config-base%
   (class* prefs-base% (config<%>)

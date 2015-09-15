@@ -10,14 +10,12 @@
                "images-lib"
                "images-gui-lib"
                "parser-tools-lib"
-               "unstable-lib"
                "macro-debugger-text-lib"
                ("draw-lib" #:version "1.7")))
 (define build-deps '("racket-index"
                      "rackunit-lib"
                      "scribble-lib"
-                     "racket-doc"
-                     "unstable-doc"))
+                     "racket-doc"))
 
 (define pkg-desc "The macro debugger tool")
 
