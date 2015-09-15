@@ -37,7 +37,7 @@
 ;; mark-manager-mixin
 (define mark-manager-mixin
   (mixin () (mark-manager<%>)
-    (init-field/i [primary-partition partition<%> (new-bound-partition)])
+    (init-field/i [primary-partition partition<%> (new-macro-scopes-partition)])
     (super-new)
 
     ;; get-primary-partition : -> partition
@@ -46,7 +46,7 @@
 
     ;; reset-primary-partition : -> void
     (define/public-final (reset-primary-partition)
-      (set! primary-partition (new-bound-partition)))))
+      (set! primary-partition (new-macro-scopes-partition)))))
 
 ;; secondary-relation-mixin
 (define secondary-relation-mixin

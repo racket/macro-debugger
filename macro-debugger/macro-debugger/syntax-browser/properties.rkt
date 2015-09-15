@@ -7,8 +7,7 @@
          racket/class/iop
          macro-debugger/syntax-browser/interfaces
          "util.rkt"
-         macro-debugger/util/mpi
-         macro-debugger/util/stxobj)
+         macro-debugger/util/mpi)
 (provide properties-view%
          properties-snip%)
 
