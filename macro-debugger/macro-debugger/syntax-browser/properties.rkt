@@ -264,9 +264,14 @@
 
     ;; display-marks : syntax -> void
     (define/private (display-marks stx)
-      (display "Marks: " key-sd)
-      (display (format "~s\n" (get-marks stx)) #f)
-      (display "\n" #f))
+      (for ([phase '(0 1 -1)])
+        (define info (syntax-debug-info stx phase))
+        (define ctx (hash-ref info 'context null))
+        (when (pair? ctx)
+          (display (format "Scopes at phase ~s:\n" phase) key-sd)
+          (for ([scope (in-list ctx)])
+            (display (format "~s\n" scope) #f))
+          (display "\n" #f))))
 
     ;; display-taint : syntax -> void
     (define/private (display-taint stx)
