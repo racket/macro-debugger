@@ -1,5 +1,6 @@
 #lang racket/base
-(require racket/class
+(require (only-in racket/list [range l:range])
+         racket/class
          racket/match
          racket/gui/base
          framework
@@ -42,7 +43,7 @@
 
     ;; text : text%
     (field (text (new color-text%)))
-    (field (pdisplayer (new properties-displayer% (text text))))
+    (field (pdisplayer (new properties-displayer% (text text) (view this))))
 
     (send/i controller selection-manager<%> listen-selected-syntax
             (lambda (stx)
@@ -141,7 +142,8 @@
 ;; properties-displayer%
 (define properties-displayer%
   (class* object% ()
-    (init-field text)
+    (init-field text
+                view)
 
     ;; display-null-info : -> void
     (define/public (display-null-info)
@@ -262,16 +264,30 @@
                     keys))
         (display "\n" #f)))
 
+    (define marks-phase 0)
+
     ;; display-marks : syntax -> void
     (define/private (display-marks stx)
-      (for ([phase '(0 1 -1)])
+      (for ([phase (append (l:range (add1 marks-phase))
+                           (reverse (l:range (- marks-phase) 0)))])
         (define info (syntax-debug-info stx phase))
         (define ctx (hash-ref info 'context null))
         (when (pair? ctx)
           (display (format "Scopes at phase ~s:\n" phase) key-sd)
           (for ([scope (in-list ctx)])
             (display (format "~s\n" scope) #f))
-          (display "\n" #f))))
+          (display "\n" #f)))
+      (display "Show scopes at more phases\n"
+               link-sd
+               (lambda _
+                 (set! marks-phase (add1 marks-phase))
+                 (send view refresh)))
+      (when (positive? marks-phase)
+        (display "Show scopes at fewer phases\n"
+                 link-sd
+                 (lambda _
+                   (set! marks-phase (max 0 (sub1 marks-phase)))
+                   (send view refresh)))))
 
     ;; display-taint : syntax -> void
     (define/private (display-taint stx)
@@ -297,7 +313,7 @@
 
     (define/public (display-subkv/value k v)
       (display-subkv k v)
-      #;
+      #|
       (begin
         (display (format "~a:\n" k) sub-key-sd)
         (let* ([value-text (new text:standard-style-list% (auto-wrap #t))]
@@ -310,14 +326,17 @@
           (send value-text lock #t)
           (send text insert value-snip)
           (send text insert "\n")
-          #;(send ecanvas add-wide-snip value-snip))))
+          #|(send ecanvas add-wide-snip value-snip)|#))
+      |#)
 
     ;; display : string style-delta -> void
-    (define/private (display item sd)
+    (define/private (display item sd [clickback #f])
       (let ([p0 (send text last-position)])
         (send text insert item)
         (let ([p1 (send text last-position)])
-          (send text change-style sd p0 p1))))
+          (send text change-style sd p0 p1)
+          (when clickback
+            (send text set-clickback p0 p1 clickback)))))
 
     (super-new)))
 
@@ -345,6 +364,12 @@
 (define sub-key-sd
   (let ([sd (new style-delta%)])
     (send sd set-delta-foreground "blue")
+    sd))
+
+(define link-sd
+  (let ([sd (new style-delta%)])
+    (send sd set-delta-foreground "blue")
+    (send sd set-underlined-on #t)
     sd))
 
 (define n/a-sd
