@@ -554,8 +554,8 @@
     ;; then the body is processed as a list (since it has already been
     ;; processed as a block)
     (EB/EL
-     [(EB) $1]
-     [(EL) $1])
+     [((? EB)) $1]
+     [((? EL)) $1])
 
     ;; Blocks
     ;; EB Answer = BlockDerivation
