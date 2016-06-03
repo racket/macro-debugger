@@ -46,9 +46,10 @@
          here-mpi?
          mpi->key
          mpi->list
+         mpi->module-path
          mpi-list->module-path)
 
-;; get-module-derivation : module-path -> (values compiled Deriv)
+;; get-module-code/trace : module-path -> (values compiled Deriv)
 (define (get-module-code/trace modpath)
   (let-values ([(path subs)
                 (match (resolve-module-path modpath #f)
@@ -118,6 +119,9 @@
         [(? path?)
          (path->string (simplify-path collapsed #f))] ;; to get rid of "./" at beginning
         [_ collapsed]))))
+
+(define (mpi->module-path mpi)
+  (mpi-list->module-path (list mpi)))
 
 ;; --------
 
