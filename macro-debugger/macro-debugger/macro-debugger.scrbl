@@ -620,9 +620,16 @@ same as the direct cost.
 Here are some known limitations:
 @itemlist[
 
-@item{The Macro Profiler uses macro scopes to determine what terms
-were introduced by another macro, so certain kinds of hygiene-breaking
-macros can confuse the profiler.}
+@item{Term size is an imperfect proxy for compiled code size. For
+example, a macro might generate a large expression that it knows the
+compiler will turn into a small expression via constant propagation
+and dead code elimination (see the ``Macro-Writer's Bill of
+Rights''). The profiler will overestimate the code-size cost of such a
+macro.}
+
+@item{The Macro Profiler uses scopes to determine what terms were
+introduced by a macro, so it can be confused by certain kinds of
+hygiene-breaking macros.}
 
 @item{The profiler calculates the costs of @racket[local-expand]
 assuming that is used only on macro arguments, and that the result is
