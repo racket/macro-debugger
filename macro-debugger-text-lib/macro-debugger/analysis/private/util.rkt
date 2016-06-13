@@ -130,7 +130,8 @@
     (simplify-module-path collapsed)))
 
 (define (mpi->module-path mpi)
-  (simplify-module-path (collapse-module-path-index mpi)))
+  (cond [(here-mpi? mpi) "this module"]
+        [else (simplify-module-path (collapse-module-path-index mpi))]))
 
 ;; --------
 
