@@ -71,6 +71,12 @@
 ;;   -- total, mean (rounded), count, stddev, raw data
 ;; An IndirectStats is Nat -- total
 
+(define (pe->total pe) (second pe))
+(define (pe->direct pe) (first (third pe)))
+(define (pe->count pe) (third (third pe)))
+(define (pe->totalmean pe) (/ (pe->total pe) (pe->count pe)))
+(define (pe->directmean pe) (/ (pe->direct pe) (pe->count pe)))
+
 (define (profinfo->profile profinfo)
   (list (profinfo-init-size profinfo)
         (profinfo-final-size profinfo)
@@ -81,7 +87,7 @@
             (define entries
               (for/list ([(id direct) (in-free-id-table direct)])
                 (list id (free-id-table-ref indirect id 0) direct)))
-            (values ph (sort entries > #:key cadr))))))
+            (values ph entries)))))
 
 ;; A DirectTable is FreeIdTable[DirectStats]
 ;; An IndirectTable is FreeIdTable[IndirectStats]
@@ -119,7 +125,13 @@
          (free-identifier=? a b (phase))]
         [else (eq? a b)]))
 
-(define (print-profile pr)
+;; print-profile : Profile
+;;                 #:sort (U 'total 'direct 'totalmean 'directmean)
+;;                 #:excludes (Listof (Id Nat -> Boolean))
+;;              -> Void
+(define (print-profile pr
+                       #:sort [sort-order 'total]
+                       #:excludes [excludes null])
   (match pr
     [(list init-size final-size p)
      (printf "Initial code size: ~s\n" init-size)
@@ -128,9 +140,32 @@
        (printf "~a\n" (make-string 40 #\-))
        (printf "Phase ~s\n" ph)
        (parameterize ((phase ph))
-         (for ([pe (in-list pes)])
+         (for ([pe (in-list (sort pes > #:key (sort-order->key sort-order)))]
+               #:unless (for/or ([exclude (in-list excludes)]) (exclude (car pe) ph)))
            (print-entry pe)))
        (printf "\n"))]))
+
+(define (sort-order->key so)
+  (case so
+    [(total) pe->total]
+    [(direct) pe->direct]
+    [(totalmean) pe->totalmean]
+    [(directmean) pe->directmean]))
+
+;; make-exclude : String -> (Id Nat -> Boolean)
+(define ((make-exclude prefix) id ph)
+  (match (identifier-binding id ph)
+    [(list* def-mpi def-sym _)
+     (let loop ([mod (mpi->module-path def-mpi)])
+       (match mod
+         [(? string?) (string-prefix? mod prefix)]
+         [(? symbol?) (loop (symbol->string mod))]
+         [(? path?) (loop (path->string mod))]
+         [(list 'submod mod _ ...) (loop mod)]
+         [(list 'file mod) (loop mod)]
+         [(list 'lib mod) (loop mod)]
+         [_ #f]))]
+    [_ #f]))
 
 (define (print-entry e)
   (match e
@@ -379,6 +414,8 @@
 
 (module+ main
   (define mode 'auto)
+  (define the-sort-order 'total)
+  (define the-excludes null)
 
   (define (->modpath x)
     (cond [(string? x)
@@ -399,7 +436,18 @@
     (set! mode 'file)]
    [("-m" "--module-path") "Interpret arguments as module-paths"
     (set! mode 'module-path)]
+   [("-s" "--sort") sort-order
+    "Sort entries by <sort-order> (one of total, totalmean, direct, or directmean)"
+    (let ([so (string->symbol sort-order)])
+      (unless (memq so '(total totalmean direct directmean))
+        (error 'profile "expected one of (total, totalmean, direct, or directmean) for sort order, given: ~a" so))
+      (set! the-sort-order so))]
+   #:multi
+   [("-x" "--exclude") prefix "Exclude macros defined in modules starting with <prefix> from output"
+    (set! the-excludes (cons (make-exclude prefix) the-excludes))]
    #:args module-path
    (let ()
-     (print-profile (profile (map ->modpath module-path)))))
+     (print-profile (profile (map ->modpath module-path))
+                    #:sort the-sort-order
+                    #:excludes the-excludes)))
   (void))
