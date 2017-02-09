@@ -20,3 +20,5 @@
 (define pkg-desc "The macro debugger tool")
 
 (define pkg-authors '(ryanc))
+
+(define version "1.1")
