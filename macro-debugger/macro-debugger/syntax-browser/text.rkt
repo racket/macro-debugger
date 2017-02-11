@@ -463,7 +463,9 @@ Like clickbacks, but:
                 (text:region-data-mixin
                  (text:hide-caret/selection-mixin
                   (text:foreground-color-mixin
-                   (editor:standard-style-list-mixin text:basic%)))))))))
+                   (text:searching-mixin
+                    (editor:keymap-mixin
+                     (editor:standard-style-list-mixin text:basic%)))))))))))
       (inherit set-autowrap-bitmap get-style-list)
       (define/override (default-style-name) browser-text-default-style-name)
       (super-new (auto-wrap #t))

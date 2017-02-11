@@ -32,6 +32,12 @@
     (define -split-panel
       (new panel:horizontal-dragable% (parent -main-panel)))
     (define -text (new browser-text%))
+    (let loop ([win parent])
+      (cond
+        [(is-a? win frame:searchable<%>)
+         (send win set-text-to-search -text)]
+        [(is-a? win area-container<%>)
+         (loop (send win get-parent))]))
     (define -ecanvas
       (new canvas:color% (parent -split-panel) (editor -text)))
     (define -props-panel
