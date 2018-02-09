@@ -283,15 +283,19 @@
     (PrimModule
      (#:args e1 e2 rs)
      [(prim-module ! (? PrepareEnv) OptTag rename-one
-                   (? OptCheckImmediateMacro) OptTag !
+                   (? OptCheckImmediateMacro) OptTagAndCheckImmediateMacro !
                    (? EE) rename-one)
-      (make p:module e1 e2 rs $2 $3 $4 $5 $6 $7 $8 $9 $10)])
+      (make p:module e1 e2 rs $2 $3 $4 $5 $6 (and $7 (car $7)) (and $7 (cadr $7)) $8 $9 $10)])
     (OptTag
      [() #f]
      [(tag) $1])
     (OptCheckImmediateMacro
      [() #f]
      [((? CheckImmediateMacro)) $1])
+    (OptTagAndCheckImmediateMacro
+     [() (list #f #f)]
+     [(tag) (list $1 #f)]
+     [(tag CheckImmediateMacro) (list $1 $2)])
 
     ;; FIXME: workaround for problem in expander instrumentation:
     ;;   observer not propagated correctly to expand_all_provides
