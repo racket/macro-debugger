@@ -2,6 +2,7 @@
 
 (define collection 'multi)
 (define deps '("base"
+               "db-lib"
                "class-iop-lib"
                "parser-tools-lib"))
 
