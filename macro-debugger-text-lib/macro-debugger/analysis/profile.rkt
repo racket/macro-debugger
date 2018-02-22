@@ -253,8 +253,24 @@
        (recur rhss body)]
       [(p:letrec-values _ _ _ _ renames rhss body)
        (recur rhss body)]
-      [(p:letrec-syntaxes+values _ _ _ _ srenames prep sbindrhss vrenames vrhss body tag)
-       (recur prep sbindrhss vrhss body)]
+      [(p:letrec-syntaxes+values z1 _ rs _ srenames prep sbindrhss vrenames vrhss body tag)
+       (recur prep sbindrhss vrhss body)
+       (when tag ;; means syntax bindings get dropped
+         (define rhss-size
+           (for/sum ([bind (in-list (or sbindrhss null))])
+             (+ (term-size (node-z2 (bind-syntaxes-rhs bind)))
+                ;; 2 for (svars . (srhs . ())) pairs
+                ;; FIXME: also count svars term-size (in srename?)
+                2)))
+         (define lsv-id (and (pair? rs) (resolves->macro-id rs (phase))))
+         (define z1-scope (get-macro-scope z1 scope=>context (phase)))
+         (define context (hash-ref scope=>context z1-scope null))
+         (define context* (cons (fr lsv-id (phase)) context))
+         (when lsv-id
+           (push! mocs (moc context* 0 0 (- rhss-size)))
+           (when #f
+             (eprintf "* lsv-id-id = ~e\n" lsv-id)
+             (eprintf "  ctx       = ~e\n" context))))]
       [(p:provide _ _ _ _ inners ?2)
        (recur inners)]
       [(p:require _ _ _ _ locals)
