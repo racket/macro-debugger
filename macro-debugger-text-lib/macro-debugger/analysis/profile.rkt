@@ -171,8 +171,6 @@
       ;; ====
       [(mrule z1 z2 rs ?1 me1 locals me2 ?2 etx next)
        (define macro-id (and (pair? rs) (resolves->macro-id rs (phase))))
-       (when (and macro-id (eq? (syntax-e macro-id) 'bytes-ref))
-         (eprintf "weird:\n~v\n\n" deriv))
        (define macro-scope (and z1 me1 (get-new-scope z1 me1 (phase))))
        (define z1-scope (get-macro-scope z1 scope=>context (phase)))
        (define context (hash-ref scope=>context z1-scope null))
@@ -181,7 +179,6 @@
          (hash-set! scope=>context macro-scope context*))
        (recur locals next)
        (when macro-id
-         (define delta (- (term-size etx) (term-size z1)))
          (define adj (apply + (map profile/local (or locals null))))
          (push! mocs (moc context* (term-size z1) (term-size etx) adj))
          (when #f
