@@ -508,7 +508,7 @@
 ;; DB Schema
 (require db/base db/sqlite3)
 
-(define SCHEMA-VERSION 0)
+(define SCHEMA-VERSION 1)
 
 ;; get-profile-db : Path -> DB
 (define (get-profile-db db-file)
@@ -532,61 +532,95 @@
               "schema version" SCHEMA-VERSION)
   ;; ---- raw data ----
   (query-exec
+   db (~a "create table id_module "
+          "(id integer primary key, mod text, unique (mod))"))
+  (query-exec
+   db (~a "create table id_macro "
+          "(id integer primary key, m_sym text, m_src text, m_etc text, "
+          "unique (m_sym, m_src, m_etc))"))
+  (query-exec
    db (~a "create table mocs "
-          "(expmod text, ctr integer, start integer, end integer, adj integer, "
-          "primary key (expmod, ctr))"))
+          "(expmod integer, ctr integer, start integer, end integer, adj integer, "
+          "primary key (expmod, ctr), "
+          "foreign key (expmod) references id_module (id) on delete cascade)"))
   (query-exec
    db (~a "create table mocctx "
-          "(expmod text, ctr integer, depth integer, "
-          " m_sym text, m_src text, m_etc text, phase integer, "
-          " primary key (expmod, ctr, depth), "
-          " foreign key (expmod, ctr) references mocs (expmod, ctr) on delete cascade)"))
+          "(expmod integer, ctr integer, depth integer, macro integer, phase integer, "
+          "primary key (expmod, ctr, depth), "
+          "foreign key (expmod, ctr) references mocs (expmod, ctr) on delete cascade, "
+          "foreign key (macro) references id_macro (id) on delete cascade)"))
   ;; ---- views ----
   (query-exec
    db (~a "create view mocs_direct "
-          "as select expmod, ctr, m_sym, m_src, m_etc, phase, (end - start + adj) as cost "
+          "as select expmod, ctr, macro, phase, (end - start + adj) as cost "
           "from mocs natural inner join mocctx "
           "where mocctx.depth = 0"))
   (query-exec
    db (~a "create view mocs_indirect "
-          "as select distinct expmod, ctr, m_sym, m_src, m_etc, phase, (end - start + adj) as cost "
+          "as select distinct expmod, ctr, macro, phase, (end - start + adj) as cost "
           "from mocs natural inner join mocctx"))
   (query-exec
    db (~a "create view cost_direct as "
-          "select m_sym, m_src, m_etc, phase, "
+          "select macro, phase, "
           " sum(cost) as dtotal, count(ctr) as dcount, avg(cost) as dmean "
-          "from mocs_direct group by m_sym, m_src, m_etc, phase"))
+          "from mocs_direct group by macro, phase"))
   (query-exec
    db (~a "create view cost_indirect as "
-          "select m_sym, m_src, m_etc, phase, sum(cost) as itotal "
-          "from mocs_indirect group by m_sym, m_src, m_etc, phase"))
+          "select macro, phase, sum(cost) as itotal "
+          "from mocs_indirect group by macro, phase"))
   (query-exec
-   db (~a "create view cost_summary as "
-          "select m_sym, m_src, m_etc, phase, "
+   db (~a "create view cost_summary_pre as "
+          "select macro, phase, "
           " dcount, dtotal, dmean, itotal, (1.0 * itotal / dcount) as imean "
           "from cost_direct natural inner join cost_indirect"))
+  (query-exec
+   db (~a "create view cost_summary as "
+          "select m_sym, m_src, m_etc, phase, dcount, dtotal, dmean, itotal, imean "
+          "from cost_summary_pre inner join id_macro on (cost_summary_pre.macro = id_macro.id)"))
   )
+
+(define frame=>key (make-weak-fr-hash))
+(define (frame->key db f)
+  (define (notfound)
+    (match-define (list f-sym f-src f-etc) (frame->external f))
+    (or (query-maybe-value db "select id from id_macro where m_sym = ? and m_src = ? and m_etc = ?"
+                           f-sym f-src f-etc)
+        (let ([next (add1 (query-value db "select coalesce(max(id),0) from id_macro"))])
+          (query-exec db "insert into id_macro (id, m_sym, m_src, m_etc) values (?,?,?,?)"
+                      next f-sym f-src f-etc)
+          next)))
+  (dict-ref! frame=>key f notfound))
+
+(define mod=>key (make-weak-hash))
+(define (mod->key db m)
+  (define (notfound)
+    (define ext (mod->external m))
+    (or (query-maybe-value db "select id from id_module where mod = ?" ext)
+        (let ([next (add1 (query-value db "select coalesce(max(id),0) from id_module"))])
+          (query-exec db "insert into id_module (id, mod) values (?,?)" next ext)
+          next)))
+  (dict-ref! mod=>key m notfound))
 
 ;; db-update! : DB ModulePath (Listof MOC) -> ProfInfo
 (define (db-update! db modpath mocs)
-  (define mod-ext (mod->external modpath))
-  (query-exec db "delete from mocs where expmod = ?" mod-ext)
-  (query-exec db "delete from mocctx where expmod = ?" mod-ext)
+  (define mod-id (mod->key db modpath))
+  (query-exec db "delete from mocs where expmod = ?" mod-id)
+  (query-exec db "delete from mocctx where expmod = ?" mod-id)
   (for ([m (in-list mocs)] [ctr (in-naturals)])
     (match-define (moc ctx init final adj) m)
-    (query-exec db "insert into mocs (expmod, ctr, start, end, adj) values (?, ?, ?, ?, ?)"
-                mod-ext ctr init final adj)
+    (query-exec db "insert into mocs (expmod, ctr, start, end, adj) values (?,?,?,?,?)"
+                mod-id ctr init final adj)
     (for ([f (in-list ctx)] [depth (in-naturals)])
-      (match-define (list f-sym f-src f-etc) (frame->external f))
-      (query-exec db (string-append
-                      "insert into mocctx"
-                      " (expmod, ctr, depth, m_sym, m_src, m_etc, phase)"
-                      " values (?,?,?,?,?,?,?)")
-                  mod-ext ctr depth f-sym f-src f-etc (fr-phase f)))))
+      (query-exec db "insert into mocctx (expmod, ctr, depth, macro, phase) values (?,?,?,?,?)"
+                  mod-id ctr depth (frame->key db f) (fr-phase f)))))
 
+;; db-has-mod? : DB ModulePath -> Boolean
 (define (db-has-mod? db rmodpath)
   (define mod-ext (mod->external rmodpath))
-  (not (zero? (query-value db "select count(*) from mocs where expmod = ?" mod-ext))))
+  (cond [(query-maybe-value db "select id from id_module where mod = ?" mod-ext)
+         => (lambda (mod-id)
+              (not (zero? (query-value db "select count(*) from mocs where expmod = ?" mod-id))))]
+        [else #f]))
 
 ;; ============================================================
 
