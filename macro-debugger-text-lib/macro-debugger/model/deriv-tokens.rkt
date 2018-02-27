@@ -28,8 +28,8 @@
   (visit                ; syntax
    resolve              ; identifier
    enter-macro          ; syntax
-   macro-pre-transform  ; syntax
-   macro-post-transform ; (cons syntax syntax)
+   macro-pre-x          ; syntax
+   macro-post-x         ; (cons syntax syntax)
    exit-macro           ; syntax
    enter-prim           ; syntax
    exit-prim            ; syntax
@@ -45,10 +45,10 @@
    module-body          ; (list-of (cons syntax boolean))
    syntax-error         ; exn
    lift-loop            ; syntax = new form (let or begin; let if for_stx)
-   lift/let-loop        ; syntax = new let form
+   letlift-loop         ; syntax = new let form
    module-lift-loop     ; syntaxes = def-lifts, in reverse order lifted (???)
    module-lift-end-loop ; syntaxes = statement-lifts ++ provide-lifts, in order lifted
-   lift                 ; (cons (listof id) syntax)
+   lift-expr            ; (cons (listof id) syntax)
    lift-statement       ; syntax
    lift-require         ; (cons syntax (cons syntax syntax))
    lift-provide         ; syntax
@@ -59,13 +59,17 @@
    exit-local           ; syntax
 
    local-bind           ; (listof identifier)
-   opaque               ; opaque-syntax
+   opaque-expr          ; opaque-syntax
 
    variable             ; (cons identifier identifier)
    tag                  ; syntax
 
    rename-one           ; syntax
    rename-list          ; (list-of syntax)
+   lambda-renames       ; (cons syntax syntax)
+   let-renames          ; (cons (listof syntax) syntax)
+   letrec-syntaxes-renames ; (cons (listof syntax) (cons (listof syntax) syntax))
+   block-renames        ; (cons syntax syntax) ... contains both pre+post
 
    top-begin            ; identifier
 
@@ -79,27 +83,20 @@
    local-mess           ; (listof event)
    ))
 
-(define-tokens renames-tokens
-  (renames-lambda           ; (cons syntax syntax)
-   renames-case-lambda      ; (cons syntax syntax)
-   renames-let              ; (cons (listof syntax) syntax)
-   renames-letrec-syntaxes  ; (cons (listof syntax) (cons (listof syntax) syntax))
-   renames-block            ; (cons syntax syntax) ... different, contains both pre+post
-   ))
-
 ;; Empty tokens
 (define-tokens prim-tokens
-  (prim-module prim-#%module-begin
+  (prim-module prim-module-begin
    prim-define-syntaxes prim-define-values
-   prim-if prim-wcm prim-begin prim-begin0 prim-#%app prim-lambda
-   prim-case-lambda prim-let-values prim-let*-values prim-letrec-values 
+   prim-if prim-with-continuation-mark
+   prim-begin prim-begin0 prim-#%app prim-lambda
+   prim-case-lambda prim-let-values prim-letrec-values 
    prim-letrec-syntaxes+values prim-#%datum prim-#%top prim-stop
    prim-quote prim-quote-syntax prim-require prim-require-for-syntax
    prim-require-for-template prim-provide
    prim-set!
-   prim-expression
-   prim-varref
-   prim-#%stratified-body
+   prim-#%expression
+   prim-#%variable-reference
+   prim-#%stratified
    prim-begin-for-syntax
    prim-submodule prim-submodule*
    ))
@@ -137,23 +134,22 @@
     (12  block->list             ,token-block->list)
     (13  next-group              ,token-next-group)
     (14  block->letrec           ,token-block->letrec)
-    (16  renames-let             ,token-renames-let)
-    (17  renames-lambda          ,token-renames-lambda)
-    (18  renames-case-lambda     ,token-renames-case-lambda)
-    (19  renames-letrec-syntaxes ,token-renames-letrec-syntaxes)
+    (16  let-renames             ,token-let-renames)
+    (17  lambda-renames          ,token-lambda-renames)
+    (19  letrec-syntaxes-renames ,token-letrec-syntaxes-renames)
     (20  phase-up)
-    (21  macro-pre-transform     ,token-macro-pre-transform)
-    (22  macro-post-transform    ,token-macro-post-transform)
+    (21  macro-pre-x             ,token-macro-pre-x)
+    (22  macro-post-x            ,token-macro-post-x)
     (23  module-body             ,token-module-body)
-    (24  renames-block           ,token-renames-block)
+    (24  block-renames           ,token-block-renames)
 
     (100 prim-stop)
     (101 prim-module)
-    (102 prim-#%module-begin)
+    (102 prim-module-begin)
     (103 prim-define-syntaxes)
     (104 prim-define-values)
     (105 prim-if)
-    (106 prim-wcm)
+    (106 prim-with-continuation-mark)
     (107 prim-begin)
     (108 prim-begin0)
     (109 prim-#%app)
@@ -176,31 +172,31 @@
     (126 enter-check             ,token-enter-check)
     (127 exit-check              ,token-exit-check)
     (128 lift-loop               ,token-lift-loop)
-    (129 lift                    ,token-lift)
+    (129 lift-expr               ,token-lift-expr)
     (130 enter-local             ,token-enter-local)
     (131 exit-local              ,token-exit-local)
     (132 local-pre               ,token-local-pre)
     (133 local-post              ,token-local-post)
     (134 lift-statement          ,token-lift-statement)
-    (135 lift-end-loop           ,token-module-lift-end-loop)
-    (136 lift/let-loop           ,token-lift/let-loop)
+    (135 module-lift-end-loop    ,token-module-lift-end-loop)
+    (136 letlift-loop            ,token-letlift-loop)
     (137 module-lift-loop        ,token-module-lift-loop)
-    (138 prim-expression)
+    (138 prim-#%expression)
     (141 start                   ,token-start)
     (142 tag                     ,token-tag)
     (143 local-bind              ,token-local-bind)
     (144 enter-bind              ,token-enter-bind)
     (145 exit-bind               ,token-exit-bind)
-    (146 opaque                  ,token-opaque)
+    (146 opaque-expr             ,token-opaque-expr)
     (147 rename-list             ,token-rename-list)
     (148 rename-one              ,token-rename-one)
-    (149 prim-varref)
+    (149 prim-#%variable-reference)
     (150 lift-require            ,token-lift-require)
     (151 lift-provide            ,token-lift-provide)
     (152 track-origin            ,token-track-origin)
     (153 local-value             ,token-local-value)
     (154 local-value-result      ,token-local-value-result)
-    (155 prim-#%stratified-body)
+    (155 prim-#%stratified)
     (156 prim-begin-for-syntax)
     (157 prepare-env)
     (158 prim-submodule)
