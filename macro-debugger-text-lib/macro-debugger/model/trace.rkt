@@ -95,7 +95,7 @@
   (define macro-stack null) ;; (listof (cons (U stx 'local-bind) nat))
   (define (add! x y)
     (set! counter (add1 counter))
-    (set! events (cons (cons (signal->symbol x) y) events)))
+    (set! events (cons (cons x y) events)))
   (define add!/check
     (let ([limit (trace-macro-limit)]
           [handler (trace-limit-handler)]
