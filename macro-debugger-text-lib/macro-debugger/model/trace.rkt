@@ -188,7 +188,7 @@
              e))]))
     (emit 'return e2)
     e2)
-  (emit 'start)
+  (emit 'start-ecte)
   (expand/cte (namespace-syntax-introduce (datum->syntax #f stx))))
 
 ;; eval-compile-time-part : syntax boolean -> void

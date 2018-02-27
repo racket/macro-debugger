@@ -54,58 +54,82 @@
     rename-list
     tag
     IMPOSSIBLE
-    start
+    start start-top start-ecte
     top-non-begin
     prepare-env)
 
     ;; Entry point
    (productions
     (Expansion
-     [(start EE/Lifts) $2]
-     [(start EE/Lifts/Interrupted) $2]
-     [(start ExpandCTE) $2]
-     [(start ExpandCTE/Interrupted) $2]))
+     ;; [(start EE/Lifts) $2]
+     ;; [(start EE/Lifts/Interrupted) $2]
+     [(start-ecte ExpandCTE) $2]
+     [(start-ecte ExpandCTE/Interrupted) $2]
+     [(MainExpand) $1]
+     [(MainExpand/Interrupted) $1]))
 
    (productions/I
 
+    ;; ----------------------------------------
+    ;; ./trace.rkt expand/compile-time-evals
+
     (ExpandCTE
      ;; The first 'Eval' is there for---I believe---lazy phase 1 initialization.
-     [(visit start (? Eval) (? CheckImmediateMacro/Lifts)
-             top-non-begin start (? EE) (? Eval) return)
-      (make ecte $1 $9 $3 $4 $7 $8)]
-     [(visit start Eval CheckImmediateMacro/Lifts
-             top-begin (? NextExpandCTEs) return)
-      (begin
-        (unless (list? $6)
-          (error "NextExpandCTEs returned non-list ~s" $6))
-        (make ecte $1 $7 $3 $4
-              (make p:begin $5 $7 (list (stx-car $5)) #f
-                    (make lderiv (cdr (stx->list $5))
-                          (and $7 (cdr (stx->list $7)))
-                          #f
-                          $6))
-              null))])
-
-    (CheckImmediateMacro/Lifts
-     [((? CheckImmediateMacro))
-      $1]
-     [(CheckImmediateMacro lift-loop)
-      (let ([e1 (wderiv-e1 $1)]
-            [e2 $2])
-        (make lift-deriv e1 e2 $1 $2 (make p:stop $2 $2 null #f)))])
+     [(visit (? MainExpandToTop) top-non-begin (? MainExpand) (? Eval) return)
+      (make ecte $1 $6 null $2 $4 $5)]
+     [(visit MainExpandToTop top-begin (? NextExpandCTEs) return)
+      (make ecte $1 $5 null $2
+            (let ([b-e1 $3] [b-e2 $5])
+              (make p:begin b-e1 b-e2 (list (stx-car b-e1)) #f
+                    (derivs->lderiv (stx-cdr b-e1) $4)))
+            null)])
 
     (NextExpandCTEs
      (#:skipped null)
      [() null]
      [(next (? ExpandCTE) (? NextExpandCTEs)) (cons $2 $3)])
 
-    ;; Expand with possible lifting
-    (EE/Lifts
-     [((? EE)) $1]
-     [(EE lift-loop (? EE/Lifts))
-      (let ([e1 (wderiv-e1 $1)]
-            [e2 (wderiv-e2 $3)])
-        (make lift-deriv e1 e2 $1 $2 $3))])
+    ;; ----------------------------------------
+    ;; src/eval/main.rkt expand and expand-to-top-form
+
+    (MainExpand
+     [(start-top (? PTLL)) $2])
+
+    (MainExpandToTop
+     [(start-top (? PTLL)) $2])
+
+    (PTLL ;; per-top-level loop
+     [(visit (? ECL) return)
+      $2]
+     [(visit ECL (? EE))
+      (let ([e2 (and $3 (node-z2 $3))])
+        (make ecte $1 e2 null $2 $3 null))]
+     [(visit ECL lift-loop (? PTLL))
+      (make lift-deriv $1 (wderiv-e2 $4) $2 $3 $4)]
+     [(visit ECL prim-begin ! (? NextPTLLs) return)
+      (make ecte $1 $6 null $2
+            (let* ([b-e1 (and $2 (node-z2 $2))]
+                   [ld (and b-e1 (derivs->lderiv (stx-cdr b-e1) $5))])
+              (make p:begin b-e1 $6 (list (stx-car b-e1)) $4 ld))
+            null)]
+     [(visit ECL prim-begin-for-syntax ! (? PrepareEnv) (? NextPTLLs) return)
+      (make ecte $1 $7 null $2
+            (let* ([b-e1 (and $2 (node-z2 $2))]
+                   [ld (and b-e1 (derivs->lderiv (stx-cdr b-e1) $6))])
+              (make p:begin-for-syntax b-e1 $7 (list (stx-car b-e1)) $4 $5 ld null))
+            null)])
+
+    (NextPTLLs
+     (#:skipped null)
+     [() null]
+     [(next (? PTLL) (? NextPTLLs)) (cons $2 $3)])
+
+    (ECL ;; expand-capturing-lifts
+     [((? CheckImmediateMacro)) $1])
+
+    ;; ----------------------------------------
+    ;; EE = src/expander/expand/main.rkt expand
+    ;; CheckImmediateMacro = like EE but with ctx w/ only-immediate?=#t
 
     ;; Expand, convert lifts to let (rhs of define-syntaxes, mostly)
     (EE/LetLifts
@@ -233,8 +257,8 @@
       (make local-mess $1)]
      ;; -- Not really local actions, but can occur during evaluation
      ;; called 'expand' (not 'local-expand') within transformer
-     [(start (? EE)) #f]
-     [(start (? CheckImmediateMacro)) #f])
+     #;[((? MainExpand)) #f]
+     #;[((? MainExpandToTop)) #f])
 
     (LocalExpand/Inner
      [(start (? EE)) $2]
@@ -622,3 +646,7 @@
      [(next (? EE) (? EL*)) (cons $2 $3)])
 
     )))
+
+(define (derivs->lderiv es1 ds)
+  (define es2 (map node-z2 ds))
+  (lderiv (stx->list es1) (and es2 (andmap values es2)) #f ds))

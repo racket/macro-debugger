@@ -8,6 +8,8 @@
 
 (define-tokens basic-empty-tokens
   (start                ; .
+   start-top            ; .
+   start-ecte           ; .
    next                 ; .
    next-group           ; .
    phase-up             ; .
@@ -110,6 +112,8 @@
     (#f  EOF)
     (#f  error                   ,token-syntax-error)
     (#f  start                   ,token-start)
+    (#f  start-top               ,token-start-top)
+    (#f  start-ecte              ,token-start-ecte)
     (#f  top-begin               ,token-top-begin)
     (#f  top-non-begin           ,token-top-non-begin)
     (#f  local-remark            ,token-local-remark)
@@ -202,7 +206,7 @@
     (158 prim-submodule)
     (159 prim-submodule*)
     (160 exit-local-bind)
-    ))
+    (201 start-top               ,token-start-top)))
 
 (define (signal->symbol sig)
   (if (symbol? sig)
