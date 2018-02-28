@@ -60,8 +60,6 @@
     ;; Entry point
    (productions
     (Expansion
-     ;; [(start EE/Lifts) $2]
-     ;; [(start EE/Lifts/Interrupted) $2]
      [(start-ecte ExpandCTE) $2]
      [(start-ecte ExpandCTE/Interrupted) $2]
      [(MainExpand) $1]
@@ -252,11 +250,7 @@
      [(local-mess)
       ;; Represents subsequence of event stream incoherent due to
       ;; jump (eg, macro catches exn raised from within local-expand).
-      (make local-mess $1)]
-     ;; -- Not really local actions, but can occur during evaluation
-     ;; called 'expand' (not 'local-expand') within transformer
-     #;[((? MainExpand)) #f]
-     #;[((? MainExpandToTop)) #f])
+      (make local-mess $1)])
 
     (LocalExpand/Inner
      [(start (? EE)) $2]
