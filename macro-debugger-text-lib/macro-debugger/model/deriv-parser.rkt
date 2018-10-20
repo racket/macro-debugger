@@ -231,8 +231,10 @@
       (make local-bind $1 #f $2 $3)]
      [(track-origin)
       (make track-origin (car $1) (cdr $1))]
-     [(local-value ! Resolves local-value-result local-value-binding)
-      (make local-value $1 $2 $3 $4 $5)]
+     [(local-value Resolves ! local-value-result local-value-binding)
+      ;; FIXME: (... ! Resolves ! ...) represents possibilities better,
+      ;; but that would be ambiguous and require structure change.
+      (make local-value $1 $3 $2 $4 $5)]
      [(local-remark)
       (make local-remark $1)]
      [(local-artificial-step)
