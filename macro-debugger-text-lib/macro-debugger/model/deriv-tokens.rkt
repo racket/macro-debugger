@@ -34,7 +34,7 @@
    enter-block          ; Syntaxes
    finish-block         ; (list Syntax)           -- list w/ one {let,letrec}-values form
    block->list          ; #f -- FIXME
-   block->letrec        ; (list* syntaxes syntaxes syntaxes) -- (list* idss rhss bodys)
+   block->letrec        ; (list* Syntaxes Syntaxes Syntaxes) -- (list* idss rhss bodys)
    splice               ; syntaxes
    enter-list           ; Syntaxes
    exit-list            ; Syntaxes
@@ -64,10 +64,10 @@
 
    rename-one           ; syntax
    rename-list          ; (listof syntax)
-   lambda-renames       ; (list* syntax syntaxes)   -- (list* renamed-formals renamed-body)
-   let-renames          ; (list* syntaxes syntax)   -- (list* renamed-vbindings renamed-body)
-   letrec-syntaxes-renames ; (list* syntaxes syntaxes syntax) -- (list* ren-sbindings ren-vbindings ren-body)
-   block-renames        ; (cons syntax syntax)      -- (list* init-stxs renamed-stxs)
+   lambda-renames       ; (list* Syntax Syntaxes)   -- (list* renamed-formals renamed-body)
+   let-renames          ; (list* Syntaxes Syntaxes) -- (list* renamed-vbindings renamed-body)
+   letrec-syntaxes-renames ; (list* Syntaxes Syntaxes Syntaxes) -- (list* ren-sbindings ren-vbindings ren-body)
+   block-renames        ; (list* Syntaxes Syntaxes) -- (list* init-stxs renamed-stxs)
 
    top-begin            ; identifier
 
