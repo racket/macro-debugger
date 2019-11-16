@@ -553,8 +553,10 @@
         [BlockPass ?block pass1]
         [#:pass2]
         [#:if (block:letrec? pass2)
-              ([BlockLetrec ?block pass2]
-               [#:walk es2 'block->letrec])  ;; FIXME: new message?
+              ([#:pass1]
+               [BlockLetrec ?block pass2]
+               [#:pass2]
+               [#:walk es2 'finish-letrec])
               ([#:rename ?block (wlderiv-es1 pass2)]
                [#:set-syntax (wlderiv-es1 pass2)]
                [List ?block pass2])])]

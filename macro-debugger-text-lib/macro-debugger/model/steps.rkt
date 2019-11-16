@@ -85,6 +85,7 @@
     (local-lift       . "Macro lifted expression to top-level")
     (module-lift      . "Macro lifted declaration to end of module")
     (block->letrec    . "Transform block to letrec")
+    (finish-letrec    . "Finish letrec")
     (splice-block     . "Splice block-level begin")
     (splice-module    . "Splice module-level begin")
     (splice-lifts     . "Splice definitions from lifted expressions")
