@@ -38,7 +38,7 @@
     visit resolve next next-group return
     enter-macro macro-pre-x macro-post-x exit-macro
     enter-prim exit-prim
-    enter-block block->list block->letrec splice
+    enter-block block->list block->letrec finish-block splice
     enter-list exit-list
     enter-check exit-check
     local-post exit-local exit-local/expr
@@ -572,11 +572,14 @@
     ;; EB Answer = BlockDerivation
     (EB
      [(enter-block block-renames (? BlockPass1) block->list (? EL))
-      (make bderiv $1 (and $5 (wlderiv-es2 $5))
-            $2 $3 'list $5)]
-     [(enter-block block-renames BlockPass1 block->letrec (? EE))
-      (make bderiv $1 (and $5 (list (wderiv-e2 $5)))
-            $2 $3 'letrec $5)])
+      (make bderiv $1 (and $5 (wlderiv-es2 $5)) $2 $3 $5)]
+     [(enter-block block-renames BlockPass1 block->letrec
+                   (? ESBBRLoop) (? EL) finish-block)
+      (make bderiv $1 $7 $2 $3
+            (let ([stx `(letrec-values ,(map list (car $4) (cadr $4)) ,@(cddr $4))])
+              (block:letrec stx $5 $6)))])
+    (ESBBRLoop
+     [((? NextEEs)) $1])
 
     ;; BlockPass1 Answer = (list-of BRule)
     (BlockPass1

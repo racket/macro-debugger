@@ -135,9 +135,12 @@
 (define-struct (lderiv node) (?1 derivs) #:transparent)
 
 ;; A BDeriv is
-;;   (make-bderiv <Node(Stxs)> BlockRenames (list-of BRule) (U 'list 'letrec) LDeriv/Deriv)
-;;   pass2 is Deriv if 'letrec, LDeriv if 'list
-(define-struct (bderiv node) (renames pass1 trans pass2) #:transparent)
+;;   (make-bderiv <Node(Stxs)> BlockRenames (list-of BRule) (U LDeriv BlockLetrec))
+(define-struct (bderiv node) (renames pass1 pass2) #:transparent)
+
+;; A BlockLetrec is
+;;   (block:letrec Syntax (Listof Deriv) LDeriv)
+(define-struct block:letrec (stx rhss lderiv) #:transparent)
 
 ;; A BRule is one of
 ;;   (make-b:error exn)

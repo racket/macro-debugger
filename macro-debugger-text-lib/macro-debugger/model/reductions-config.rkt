@@ -345,8 +345,8 @@
          null]
         [(pair? x)
          (append (foci (car x))
-                 (foci (cdr x)))]))
-
+                 (foci (cdr x)))]
+        [else null]))
 
 ;; RS: the reductions monad
 

@@ -32,8 +32,9 @@
    exit-prim            ; syntax
    return               ; syntax
    enter-block          ; syntaxes
-   block->list          ; syntaxes
-   block->letrec        ; syntax(es?)
+   finish-block         ; (list syntax)
+   block->list          ; #f -- FIXME
+   block->letrec        ; (list syntaxes syntaxes syntaxes) -- (idss rhss bodys)
    splice               ; syntaxes
    enter-list           ; syntaxes
    exit-list            ; syntaxes
@@ -129,6 +130,7 @@
    'splice                  token-splice
    'block->list             token-block->list
    'next-group              token-next-group
+   'finish-block            token-finish-block
    'block->letrec           token-block->letrec
    'let-renames             token-let-renames
    'lambda-renames          token-lambda-renames

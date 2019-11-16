@@ -546,17 +546,15 @@
 ;; Block  : BlockDerivation -> RST
 (define (Block bd)
   (match/count bd
-    [(Wrap bderiv (es1 es2 renames pass1 trans pass2))
+    [(Wrap bderiv (es1 es2 renames pass1 pass2))
      (R [#:pattern ?block]
         [#:rename ?block (cdr renames) 'rename-block]
         [#:pass1]
         [BlockPass ?block pass1]
         [#:pass2]
-        [#:if (eq? trans 'letrec)
-              (;; FIXME: foci (difficult because of renaming?)
-               [#:walk (list (wderiv-e1 pass2)) 'block->letrec]
-               [#:pattern (?expr)]
-               [Expr ?expr pass2])
+        [#:if (block:letrec? pass2)
+              ([BlockLetrec ?block pass2]
+               [#:walk es2 'block->letrec])  ;; FIXME: new message?
               ([#:rename ?block (wlderiv-es1 pass2)]
                [#:set-syntax (wlderiv-es1 pass2)]
                [List ?block pass2])])]
@@ -569,6 +567,14 @@
         [Expr (?form ...) derivs])]
     [#f
      (R)]))
+
+(define (BlockLetrec b)
+  (match/count b
+    [(block:letrec letrec-stx rhss body)
+     (R [#:walk (list letrec-stx) 'block->letrec]
+        [#:pattern ((?letrec-values ([?ids ?rhs] ...) . ?body))]
+        [Expr (?rhs ...) rhss]
+        [List ?body body])]))
 
 ;; BlockPass : (list-of BRule) -> RST
 (define (BlockPass brules)
