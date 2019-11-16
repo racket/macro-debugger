@@ -35,7 +35,7 @@
    finish-block         ; (list Syntax)           -- list w/ one {let,letrec}-values form
    block->list          ; #f -- FIXME
    block->letrec        ; (list* Syntaxes Syntaxes Syntaxes) -- (list* idss rhss bodys)
-   splice               ; syntaxes
+   splice               ; Syntaxes                -- contains (append spliced-stxs previous-stxs)
    enter-list           ; Syntaxes
    exit-list            ; Syntaxes
    enter-check          ; syntax
