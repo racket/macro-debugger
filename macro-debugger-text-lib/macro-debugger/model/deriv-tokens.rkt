@@ -22,22 +22,22 @@
    ))
 
 (define-tokens basic-tokens
-  (visit                ; syntax
+  (visit                ; Syntax
    resolve              ; identifier
-   enter-macro          ; syntax
-   macro-pre-x          ; syntax
-   macro-post-x         ; (cons syntax syntax)
-   exit-macro           ; syntax
-   enter-prim           ; syntax
-   exit-prim            ; syntax
-   return               ; syntax
-   enter-block          ; syntaxes
-   finish-block         ; (list syntax)
+   enter-macro          ; Syntax                  -- orig-stx
+   macro-pre-x          ; Syntax                  -- marked-cleaned-stx
+   macro-post-x         ; (list* Syntax Syntax)   -- (list* transformed-stx marked-cleaned-stx)
+   exit-macro           ; Syntax                  -- unmarked-transformed-stx
+   enter-prim           ; Syntax
+   exit-prim            ; Syntax
+   return               ; Syntax
+   enter-block          ; Syntaxes
+   finish-block         ; (list Syntax)           -- list w/ one {let,letrec}-values form
    block->list          ; #f -- FIXME
-   block->letrec        ; (list syntaxes syntaxes syntaxes) -- (idss rhss bodys)
+   block->letrec        ; (list* syntaxes syntaxes syntaxes) -- (list* idss rhss bodys)
    splice               ; syntaxes
-   enter-list           ; syntaxes
-   exit-list            ; syntaxes
+   enter-list           ; Syntaxes
+   exit-list            ; Syntaxes
    enter-check          ; syntax
    exit-check           ; syntax
    module-body          ; (list-of (cons syntax boolean))
@@ -63,11 +63,11 @@
    tag                  ; syntax
 
    rename-one           ; syntax
-   rename-list          ; (list-of syntax)
-   lambda-renames       ; (cons syntax syntax)
-   let-renames          ; (cons (listof syntax) syntax)
-   letrec-syntaxes-renames ; (cons (listof syntax) (cons (listof syntax) syntax))
-   block-renames        ; (cons syntax syntax) ... contains both pre+post
+   rename-list          ; (listof syntax)
+   lambda-renames       ; (list* syntax syntaxes)   -- (list* renamed-formals renamed-body)
+   let-renames          ; (list* syntaxes syntax)   -- (list* renamed-vbindings renamed-body)
+   letrec-syntaxes-renames ; (list* syntaxes syntaxes syntax) -- (list* ren-sbindings ren-vbindings ren-body)
+   block-renames        ; (cons syntax syntax)      -- (list* init-stxs renamed-stxs)
 
    top-begin            ; identifier
 
