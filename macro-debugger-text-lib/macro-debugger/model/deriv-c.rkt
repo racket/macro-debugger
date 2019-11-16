@@ -75,12 +75,12 @@
 (define-struct (p:set! prule) (id-resolves ?2 rhs) #:transparent)
 (define-struct (p:set!-macro prule) (deriv) #:transparent)
 
-;;   (make-p:#%app <Base> Stx LDeriv)
-;;   (make-p:begin <Base> LDeriv)
-;;   (make-p:begin0 <Base> Deriv LDeriv)
-(define-struct (p:#%app prule) (lderiv) #:transparent)
-(define-struct (p:begin prule) (lderiv) #:transparent)
-(define-struct (p:begin0 prule) (first lderiv) #:transparent)
+;;   (make-p:#%app <Base> Stx Derivs)
+;;   (make-p:begin <Base> Derivs)
+;;   (make-p:begin0 <Base> Derivs)
+(define-struct (p:#%app prule) (derivs) #:transparent)
+(define-struct (p:begin prule) (derivs) #:transparent)
+(define-struct (p:begin0 prule) (derivs) #:transparent)
 
 ;;   (make-p:lambda <Base> LambdaRenames BDeriv)
 ;;   (make-p:case-lambda <Base> (list-of CaseLambdaClause))

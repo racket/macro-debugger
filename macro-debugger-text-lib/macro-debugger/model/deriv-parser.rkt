@@ -77,8 +77,7 @@
      [(visit MainExpandToTop top-begin (? NextExpandCTEs) return)
       (make ecte $1 $5 null $2
             (let ([b-e1 $3] [b-e2 $5])
-              (make p:begin b-e1 b-e2 (list (stx-car b-e1)) #f
-                    (derivs->lderiv (stx-cdr b-e1) $4)))
+              (make p:begin b-e1 b-e2 (list (stx-car b-e1)) #f $4))
             null)])
 
     (NextExpandCTEs
@@ -105,9 +104,8 @@
       (make lift-deriv $1 (wderiv-e2 $4) $2 $3 $4)]
      [(visit ECL prim-begin ! (? NextPTLLs) return)
       (make ecte $1 $6 null $2
-            (let* ([b-e1 (and $2 (node-z2 $2))]
-                   [ld (and b-e1 (derivs->lderiv (stx-cdr b-e1) $5))])
-              (make p:begin b-e1 $6 (list (stx-car b-e1)) $4 ld))
+            (let* ([b-e1 (and $2 (node-z2 $2))])
+              (make p:begin b-e1 $6 (list (stx-car b-e1)) $4 $5))
             null)]
      [(visit ECL prim-begin-for-syntax ! (? PrepareEnv) (? NextPTLLs) return)
       (make ecte $1 $7 null $2
@@ -447,20 +445,18 @@
     ;; Sequence-containing expressions
     (PrimBegin
      (#:args e1 e2 rs)
-     [(prim-begin ! (? EL))
+     [(prim-begin ! (? NextEEs))
       (make p:begin e1 e2 rs $2 $3)])
 
     (PrimBegin0
      (#:args e1 e2 rs)
-     [(prim-begin0 ! next (? EE) next (? EL))
-      (make p:begin0 e1 e2 rs $2 $4 $6)])
+     [(prim-begin0 ! (? NextEEs))
+      (make p:begin0 e1 e2 rs $2 $3)])
 
     (Prim#%App
      (#:args e1 e2 rs)
-     [(prim-#%app !)
-      (make p:#%app e1 e2 rs $2 #f)]
-     [(prim-#%app (? EL))
-      (make p:#%app e1 e2 rs #f $2)])
+     [(prim-#%app ! (? NextEEs))
+      (make p:#%app e1 e2 rs $2 $3)])
 
     ;; Binding expressions
     (PrimLambda

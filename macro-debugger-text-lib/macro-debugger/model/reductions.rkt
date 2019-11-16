@@ -152,20 +152,19 @@
         [Expr KEY key]
         [Expr MARK mark]
         [Expr BODY body])]
-    [(Wrap p:begin (e1 e2 rs ?1 lderiv))
+    [(Wrap p:begin (e1 e2 rs ?1 derivs))
      (R [! ?1]
-        [#:pattern (?begin . ?lderiv)]
-        [List ?lderiv lderiv])]
-    [(Wrap p:begin0 (e1 e2 rs ?1 first lderiv))
+        [#:pattern (?begin ?form ...)]
+        [Expr (?form ...) derivs])]
+    [(Wrap p:begin0 (e1 e2 rs ?1 derivs))
      (R [! ?1]
-        [#:pattern (?begin0 FIRST . LDERIV)]
-        [Expr FIRST first]
-        [List LDERIV lderiv])]
-    [(Wrap p:#%app (e1 e2 rs ?1 lderiv))
+        [#:pattern (?begin0 ?form ...)]
+        [Expr (?form ...) derivs])]
+    [(Wrap p:#%app (e1 e2 rs ?1 derivs))
      (R [! ?1]
-        [#:pattern (?app . LDERIV)]
-        [#:if lderiv
-              ([List LDERIV lderiv])
+        [#:pattern (?app ?e ...)]
+        [#:if (pair? derivs)
+              ([Expr (?e ...) derivs])
               ([#:walk e2 'macro])])]
     [(Wrap p:lambda (e1 e2 rs ?1 renames body))
      (R [! ?1]

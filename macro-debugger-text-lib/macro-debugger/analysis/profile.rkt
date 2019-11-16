@@ -239,12 +239,12 @@
        (recur rhs)]
       [(p:set!-macro _ _ _ _ deriv)
        (recur deriv)]
-      [(p:#%app _ _ _ _ lderiv)
-       (recur lderiv)]
-      [(p:begin _ _ _ _ lderiv)
-       (recur lderiv)]
-      [(p:begin0 _ _ _ _ first lderiv)
-       (recur first lderiv)]
+      [(p:#%app _ _ _ _ derivs)
+       (recur derivs)]
+      [(p:begin _ _ _ _ derivs)
+       (recur derivs)]
+      [(p:begin0 _ _ _ _ derivs)
+       (recur derivs)]
       [(p:lambda _ _ _ _ renames body)
        (recur body)]
       [(p:case-lambda _ _ _ _ renames+bodies)
