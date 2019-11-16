@@ -145,8 +145,7 @@
                    (finish-letrec (#%stratified-body (letrec-values ([(x) 'a]) 'b)))
                    (macro (letrec-values ([(x) 'a]) 'b))]
           [#:hidden-steps
-           (block->letrec (#%stratified-body (letrec-values ([(x) 'a]) (#%stratified-body 'b))))
-           #;(finish-letrec (#%stratified-body (letrec-values ([(x) 'a]) 'b)))])
+           (block->letrec (#%stratified-body (letrec-values ([(x) 'a]) (#%stratified-body 'b))))])
    (testK "internal define-values in begin"
           (#%stratified-body (begin (define-values (x) 'a)) 'b)
           [#:steps
@@ -157,8 +156,7 @@
            (macro (letrec-values ([(x) 'a]) 'b))]
           [#:hidden-steps
            (splice-block (#%stratified-body (define-values (x) 'a) 'b))
-           (block->letrec (#%stratified-body (letrec-values ([(x) 'a]) (#%stratified-body 'b))))
-           #;(finish-letrec (#%stratified-body (letrec-values ([(x) 'a]) 'b)))])
+           (block->letrec (#%stratified-body (letrec-values ([(x) 'a]) (#%stratified-body 'b))))])
    (testK "internal begin, then define-values"
           (#%stratified-body (begin) (define-values (x) 'a) 'b)
           [#:steps
@@ -223,8 +221,7 @@
            ]
           [#:hidden-steps
            (rename-lambda (lambda () 'a (define-values (x) 'b) 'c))
-           (block->letrec (lambda () (letrec-values ([() (begin 'a (values))] [(x) 'b]) 'c)))
-           #;(finish-letrec (lambda () (let-values ([() (begin 'a (values))]) (let-values ([(x) 'b]) 'c))))])]
+           (block->letrec (lambda () (letrec-values ([() (begin 'a (values))] [(x) 'b]) 'c)))])]
 
   [#:suite
    "Top-level begin"
