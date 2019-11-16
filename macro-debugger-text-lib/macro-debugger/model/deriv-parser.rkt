@@ -576,7 +576,11 @@
      [(enter-block block-renames BlockPass1 block->letrec
                    (? ESBBRLoop) (? EL) finish-block)
       (make bderiv $1 $7 $2 $3
-            (let ([stx `(letrec-values ,(map list (car $4) (cadr $4)) ,@(cddr $4))])
+            (let* ([letrec-values-id
+                    (syntax-case $7 ()
+                      [((letX . _)) (datum->syntax #'letX 'letrec-values)]
+                      [_ (datum->syntax #f 'letrec-values)])]
+                   [stx `(,letrec-values-id ,(map list (car $4) (cadr $4)) ,@(cddr $4))])
               (block:letrec stx $5 $6)))])
     (ESBBRLoop
      [((? NextEEs)) $1])
