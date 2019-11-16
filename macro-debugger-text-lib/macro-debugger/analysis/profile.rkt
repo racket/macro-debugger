@@ -253,9 +253,9 @@
        (recur rhss body)]
       [(p:letrec-values _ _ _ _ renames rhss body)
        (recur rhss body)]
-      [(p:letrec-syntaxes+values z1 _ rs _ srenames prep sbindrhss vrenames vrhss body tag)
+      [(p:letrec-syntaxes+values z1 _ rs _ srenames prep sbindrhss vrhss body)
        (recur prep sbindrhss vrhss body)
-       (when tag ;; means syntax bindings get dropped
+       (when #t ;; syntax bindings get dropped
          (define rhss-size
            (for/sum ([bind (in-list (or sbindrhss null))])
              (+ (term-size (node-z2 (bind-syntaxes-rhs bind)))

@@ -87,13 +87,13 @@
 ;;   (make-p:let-values <Base> LetRenames (list-of Deriv) BDeriv)
 ;;   (make-p:letrec-values <Base> LetRenames (list-of Deriv) BDeriv)
 ;;   (make-p:letrec-syntaxes+values <Base> LSVRenames PrepareExpEnv
-;;      (list-of BindSyntaxes) (list-of Deriv) BDeriv ?Stx)
+;;      (list-of BindSyntaxes) (list-of Deriv) BDeriv)
 (define-struct (p:lambda prule) (renames body) #:transparent)
 (define-struct (p:case-lambda prule) (renames+bodies) #:transparent)
 (define-struct (p:let-values prule) (renames rhss body) #:transparent)
 (define-struct (p:letrec-values prule) (renames rhss body) #:transparent)
 (define-struct (p:letrec-syntaxes+values prule)
-  (srenames prep sbindrhss vrenames vrhss body tag)
+  (srenames prep sbindrhss vrhss body)
   #:transparent)
 
 ;;   (make-p:provide <Base> (listof Deriv) ?exn)

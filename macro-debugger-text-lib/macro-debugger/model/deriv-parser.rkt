@@ -1,5 +1,6 @@
 #lang racket/base
 (require (for-syntax racket/base)
+         racket/match
          syntax/stx
          "yacc-ext.rkt"
          "yacc-interrupted.rkt"
@@ -46,8 +47,7 @@
     local-value-result local-value-binding
     phase-up module-body
     lambda-renames
-    let-renames
-    letrec-syntaxes-renames
+    letX-renames
     block-renames
     rename-one
     rename-list
@@ -485,24 +485,32 @@
 
     (PrimLetValues
      (#:args e1 e2 rs)
-     [(prim-let-values ! let-renames (? NextEEs) next-group (? EB/EL))
-      (make p:let-values e1 e2 rs $2 $3 $4 $6)])
+     [(prim-let-values ! letX-renames (? NextEEs) (? EB))
+      (let ([rename (and $3 (match $3
+                              [(list* _ _ val-idss val-rhss bodys)
+                               (cons (map list val-idss val-rhss) bodys)]))])
+        (make p:let-values e1 e2 rs $2 rename $4 $5))])
 
     (PrimLetrecValues
      (#:args e1 e2 rs)
-     [(prim-letrec-values ! let-renames (? NextEEs) next-group (? EB/EL))
-      (make p:letrec-values e1 e2 rs $2 $3 $4 $6)])
+     [(prim-letrec-values ! letX-renames (? NextEEs) (? EB))
+      (let ([rename (and $3 (match $3
+                              [(list* _ _ val-idss val-rhss bodys)
+                               (cons (map list val-idss val-rhss) bodys)]))])
+        (make p:letrec-values e1 e2 rs $2 rename $4 $5))])
 
     (PrimLetrecSyntaxes+Values
      (#:args e1 e2 rs)
-     [(prim-letrec-syntaxes+values ! letrec-syntaxes-renames
-       (? PrepareEnv) (? NextBindSyntaxess) next-group (? EB/EL) OptTag)
-      (make p:letrec-syntaxes+values e1 e2 rs $2 $3 $4 $5 #f null $7 $8)]
-     [(prim-letrec-syntaxes+values letrec-syntaxes-renames
-       PrepareEnv NextBindSyntaxess next-group
-       prim-letrec-values
-       let-renames (? NextEEs) next-group (? EB/EL) OptTag)
-      (make p:letrec-syntaxes+values e1 e2 rs #f $2 $3 $4 $7 $8 $10 $11)])
+     [(prim-letrec-syntaxes+values
+       ! letX-renames
+       (? PrepareEnv) (? NextBindSyntaxess) next-group
+       (? ESBBRLoop) (? EB))
+      (let ([rename (and $3 (match $3
+                              [(list* stx-idss stx-rhss val-idss val-rhss bodys)
+                               (list* (map list stx-idss stx-rhss)
+                                      (map list val-idss val-rhss)
+                                      bodys)]))])
+        (make p:letrec-syntaxes+values e1 e2 rs $2 rename $4 $5 $7 $8))])
 
     ;; Atomic expressions
     (Prim#%Datum

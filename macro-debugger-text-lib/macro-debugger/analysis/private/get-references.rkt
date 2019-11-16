@@ -159,7 +159,7 @@
        (recur rhss body)]
       [(p:letrec-values _ _ _ _ renames rhss body)
        (recur rhss body)]
-      [(p:letrec-syntaxes+values _ _ _ _ srenames prep sbindrhss vrenames vrhss body tag)
+      [(p:letrec-syntaxes+values _ _ _ _ srenames prep sbindrhss vrhss body)
        (recur prep sbindrhss vrhss body)]
       [(p:provide _ _ _ _ inners ?2)
        (recur inners)]

@@ -192,7 +192,7 @@
         [Expr (?rhs ...) rhss]
         [Block ?body body])]
     [(Wrap p:letrec-syntaxes+values
-           (e1 e2 rs ?1 srenames prep srhss vrenames vrhss body tag))
+           (e1 e2 rs ?1 srenames prep srhss vrhss body))
      (R [! ?1]
         [#:pattern ?form]
         [PrepareEnv ?form prep]
@@ -202,18 +202,12 @@
                    srenames
                    'rename-lsv]
         [#:binders #'(?svars ... ?vvars ...)]
-        [#:when (pair? srhss) ;; otherwise, we're coming from a block expansion
-                [BindSyntaxes (?srhs ...) srhss]]
-        ;; If vrenames is #f, no var bindings to rename
-        [#:when vrenames
-                [#:rename (((?vvars ?vrhs) ...) . ?body) vrenames 'rename-lsv]
-                [#:binders #'(?vvars ...)]]
+        [BindSyntaxes (?srhs ...) srhss]
         [Expr (?vrhs ...) vrhss]
         [Block ?body body]
         [#:pass2]
         [#:pattern ?form]
-        [#:when tag
-                [#:walk tag 'lsv-remove-syntax]])]
+        [#:walk e2 'lsv-remove-syntax])]
     [(Wrap p:#%datum (e1 e2 rs ?1))
      (R [! ?1]
         [#:hide-check rs]

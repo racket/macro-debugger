@@ -65,8 +65,10 @@
    rename-one           ; syntax
    rename-list          ; (listof syntax)
    lambda-renames       ; (list* Syntax Syntaxes)   -- (list* renamed-formals renamed-body)
-   let-renames          ; (list* Syntaxes Syntaxes) -- (list* renamed-vbindings renamed-body)
-   letrec-syntaxes-renames ; (list* Syntaxes Syntaxes Syntaxes) -- (list* ren-sbindings ren-vbindings ren-body)
+   letX-renames         ; (list* Syntaxes Syntaxes Syntaxes Syntaxes Syntaxes)
+   ;                    ;   -- (list* ren-stx-idss ren-stx-rhss ren-val-idss ren-val-rhss bodys)
+   ;;let-renames          ; (list* Syntaxes Syntaxes) -- (list* renamed-vbindings renamed-body)
+   ;;letrec-syntaxes-renames ; (list* Syntaxes Syntaxes Syntaxes) -- (list* ren-sbindings ren-vbindings ren-body)
    block-renames        ; (list* Syntaxes Syntaxes) -- (list* init-stxs renamed-stxs)
 
    top-begin            ; identifier
@@ -132,9 +134,8 @@
    'next-group              token-next-group
    'finish-block            token-finish-block
    'block->letrec           token-block->letrec
-   'let-renames             token-let-renames
    'lambda-renames          token-lambda-renames
-   'letrec-syntaxes-renames token-letrec-syntaxes-renames
+   'letX-renames            token-letX-renames
    'macro-pre-x             token-macro-pre-x
    'macro-post-x            token-macro-post-x
    'module-body             token-module-body
