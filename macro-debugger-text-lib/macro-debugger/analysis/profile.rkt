@@ -290,8 +290,10 @@
       [(p:#%variable-reference _ _ _ _) (void)]
       [(lderiv _ _ ?1 derivs)
        (recur derivs)]
-      [(bderiv _ _ _ pass1 trans pass2)
+      [(bderiv _ _ _ pass1 pass2)
        (recur pass1 pass2)]
+      [(block:letrec _ rhss body)
+       (recur rhss body)]
       [(b:error ?1) (void)]
       [(b:expr head)
        (recur head)]
