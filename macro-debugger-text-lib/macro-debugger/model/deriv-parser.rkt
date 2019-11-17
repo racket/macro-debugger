@@ -31,7 +31,7 @@
             (src-pos)
             (tokens basic-empty-tokens basic-tokens prim-tokens)
             (end EOF)
-            #| (debug "/tmp/DEBUG-PARSER.txt") |#
+            (debug "/tmp/DEBUG-PARSER.txt")
             (error deriv-error))
 
    ;; tokens
@@ -52,6 +52,7 @@
     rename-one
     rename-list
     tag
+    stop/return rename-transformer tag/context
     IMPOSSIBLE
     start start-top start-ecte
     top-non-begin
@@ -97,7 +98,7 @@
     (PTLL ;; per-top-level loop
      [(visit (? ECL) return)
       $2]
-     [(visit ECL (? EE))
+     [(visit ECL (? ExpandSingle))
       (let ([e2 (and $3 (node-z2 $3))])
         (make ecte $1 e2 null $2 $3 null))]
      [(visit ECL lift-loop (? PTLL))
@@ -120,12 +121,17 @@
      [(next (? PTLL) (? NextPTLLs)) (cons $2 $3)])
 
     (ECL ;; expand-capturing-lifts
-     [((? CheckImmediateMacro)) $1])
+     [((? EE)) $1])
+
+    (ExpandSingle
+     [((? ECL)) $1]
+     [(ECL lift-loop (? ExpandSingle))
+      (make lift-deriv (wderiv-e1 $1) (wderiv-e2 $3) $1 $2 $3)])
 
     ;; ----------------------------------------
     ;; EE = src/expander/expand/main.rkt expand
-    ;; CheckImmediateMacro = like EE but with ctx w/ only-immediate?=#t
 
+    ;; expand/capture-lifts from src/expander/expand/main.rkt
     ;; Expand, convert lifts to let (rhs of define-syntaxes, mostly)
     (EE/LetLifts
      [((? EE)) $1]
@@ -144,6 +150,9 @@
     (PrepareEnv
      [(prepare-env (? Eval)) $2])
 
+    (CheckImmediateMacro
+     [((? EE)) $1])
+#|
     ;; Expansion of an expression to primitive form
     (CheckImmediateMacro
      [(enter-check (? CheckImmediateMacro/Inner) exit-check)
@@ -157,6 +166,7 @@
      [(visit Resolves tag (? MacroStep) return (? CheckImmediateMacro/Inner))
       (let ([mnode ($4 $3 $2 ($6 $5 e2))])
         (make tagrule $1 (wderiv-e2 mnode) $3 mnode))])
+|#
 
     ;; Expansion of multiple expressions, next-separated
     (NextEEs
@@ -169,24 +179,30 @@
     ;; Expand expression (term)
     (EE
      [(visit Resolves (? EE/k))
-      ($3 $1 $2)]
-     [(visit Resolves tag (? EE/k))
-      (let ([next ($4 $3 $2)])
-        (make tagrule $1 (wderiv-e2 next) $3 next))]
-     [(visit opaque-expr)
-      (make p:stop $1 $2 null #f)])
+      ($3 $1 $2)])
 
     (EE/k
      (#:args e1 rs)
      [(!!)
       (make p:unknown e1 #f rs $1)]
+     [(stop/return)
+      (make p:stop e1 $1 rs #f)]
      [(variable return)
       (make p:variable e1 $2 rs #f)]
+     [(tag (? EE/k))
+      (let ([next ($2 $1 rs)])
+        (make tagrule e1 (wderiv-e2 next) $1 next))]
+     [(tag/context (? EE))
+      (make tagrule e1 (wderiv-e2 $2) $1 $2)]
+     [(opaque-expr)
+      (make p:stop e1 $1 rs #f)]
      [(enter-prim (? Prim) exit-prim return)
       (begin
         (unless (eq? $3 $4)
           (eprintf "warning: exit-prim and return differ:\n~s\n~s\n" $3 $4))
         ($2 $1 $3 rs))]
+     [(rename-transformer visit Resolves (? EE/k))
+      ($4 e1 (append rs (list $1)))]
      [((? MacroStep) (? EE))
       ($1 e1 rs $2)])
 

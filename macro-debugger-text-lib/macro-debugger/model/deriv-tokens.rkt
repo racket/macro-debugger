@@ -50,6 +50,9 @@
    lift-statement       ; syntax
    lift-require         ; (cons syntax (cons syntax syntax))
    lift-provide         ; syntax
+   stop/return          ; Syntax
+   tag/context          ; Syntax
+   rename-transformer   ; Syntax
 
    enter-local          ; syntax
    local-pre            ; syntax
@@ -143,6 +146,9 @@
    'phase-up                #t
    'prepare-env             #t
    'exit-local-bind         #t
+   'stop/return             token-stop/return
+   'tag/context             token-tag/context
+   'rename-transformer      token-rename-transformer
 
    'prim-stop               #t
    'prim-module             #t
