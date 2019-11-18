@@ -31,7 +31,7 @@
             (src-pos)
             (tokens basic-empty-tokens basic-tokens prim-tokens)
             (end EOF)
-            (debug "/tmp/DEBUG-PARSER.txt")
+            #| (debug "/tmp/DEBUG-PARSER.txt") |#
             (error deriv-error))
 
    ;; tokens
@@ -152,21 +152,6 @@
 
     (CheckImmediateMacro
      [((? EE)) $1])
-#|
-    ;; Expansion of an expression to primitive form
-    (CheckImmediateMacro
-     [(enter-check (? CheckImmediateMacro/Inner) exit-check)
-      ($2 $1 $3)])
-    (CheckImmediateMacro/Inner
-     (#:args le1 e2)
-     [(!)
-      (make p:stop le1 e2 null $1)]
-     [(visit Resolves (? MacroStep) return (? CheckImmediateMacro/Inner))
-      ($3 $1 $2 ($5 $4 e2))]
-     [(visit Resolves tag (? MacroStep) return (? CheckImmediateMacro/Inner))
-      (let ([mnode ($4 $3 $2 ($6 $5 e2))])
-        (make tagrule $1 (wderiv-e2 mnode) $3 mnode))])
-|#
 
     ;; Expansion of multiple expressions, next-separated
     (NextEEs
@@ -328,28 +313,6 @@
     (AddModuleBegin
      [(! tag (? EE) !)
       (list $1 $2 $3 $4)])
-
-#|
-EnsureModuleBegin =
-| rename-one { . | Expand { . | AddModuleBegin } }
-| AddModuleBegin
-|#
-#|
-     [(prim-module ! (? PrepareEnv) OptTag rename-one
-                   (? OptCheckImmediateMacro) (? OptTagAndCheckImmediateMacro) !
-                   (? EE) rename-one)
-      (make p:module e1 e2 rs $2 $3 $4 $5 $6 (and $7 (car $7)) (and $7 (cadr $7)) $8 $9 $10)])
-    (OptTag
-     [() #f]
-     [(tag) $1])
-    (OptCheckImmediateMacro
-     [() #f]
-     [((? CheckImmediateMacro)) $1])
-    (OptTagAndCheckImmediateMacro
-     [() (list #f #f)]
-     [(tag) (list $1 #f)]
-     [(tag (? CheckImmediateMacro)) (list $1 $2)])
-|#
 
     ;; FIXME: workaround for problem in expander instrumentation:
     ;;   observer not propagated correctly to expand_all_provides
