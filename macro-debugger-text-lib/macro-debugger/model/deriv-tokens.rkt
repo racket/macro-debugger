@@ -30,8 +30,9 @@
    exit-macro           ; Syntax                  -- unmarked-transformed-stx
    enter-prim           ; Syntax
    exit-prim            ; Syntax
-   exit-prim/return     ; Syntax
    return               ; Syntax
+   stop/return          ; Syntax
+   exit-prim/return     ; Syntax
    enter-block          ; Syntaxes
    finish-block         ; (list Syntax)           -- list w/ one {let,letrec}-values form
    block->list          ; #f -- FIXME
@@ -51,8 +52,6 @@
    lift-statement       ; syntax
    lift-require         ; (cons syntax (cons syntax syntax))
    lift-provide         ; syntax
-   stop/return          ; Syntax
-   tag/context          ; Syntax
    rename-transformer   ; Syntax
 
    enter-local          ; syntax
@@ -65,6 +64,7 @@
 
    variable             ; (cons identifier identifier)
    tag                  ; syntax
+   tag/context          ; Syntax
 
    rename-one           ; syntax
    rename-list          ; (listof syntax)

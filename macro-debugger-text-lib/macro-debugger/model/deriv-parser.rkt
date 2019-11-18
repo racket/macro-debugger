@@ -41,7 +41,6 @@
     enter-prim exit-prim exit-prim/return
     enter-block block->list block->letrec finish-block splice
     enter-list exit-list
-    enter-check exit-check
     local-post exit-local exit-local/expr
     local-bind enter-bind exit-bind exit-local-bind
     local-value-result local-value-binding
