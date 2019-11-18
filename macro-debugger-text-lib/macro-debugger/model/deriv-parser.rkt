@@ -615,17 +615,11 @@
     ;; EL Answer = ListDerivation
     (EL
      (#:skipped #f)
-     [(enter-list ! (? EL*) exit-list)
+     [(enter-list ! (? NextEEs) exit-list)
       ;; FIXME: Workaround for bug in events
       (if (null? $3)
           (make lderiv null null $2 $3)
           (make lderiv $1 $4 $2 $3))])
-
-    ;; EL* Answer = (listof Derivation)
-    (EL*
-     (#:skipped null)
-     [() null]
-     [(next (? EE) (? EL*)) (cons $2 $3)])
 
     )))
 
