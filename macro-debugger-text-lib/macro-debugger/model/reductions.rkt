@@ -76,25 +76,24 @@
         [#:when (or (not (identifier? e1))
                     (not (bound-identifier=? e1 e2)))
                 [#:walk e2 'resolve-variable]])]
-    [(Wrap p:module (e1 e2 rs ?1 prep tag rename check tag2 check2 ?3 body shift))
+    [(Wrap p:module (e1 e2 rs ?1 prep rename check ?2 tag2 check2 ?3 body shift))
      (R [#:hide-check rs]
         [! ?1]
         [#:pattern ?form]
         [PrepareEnv ?form prep]
         [#:pattern (?module ?name ?language . ?body-parts)]
-        [#:when tag
-                [#:in-hole ?body-parts
-                           [#:walk (list tag) 'tag-module-begin]]]
-        [#:pattern (?module ?name ?language ?body)]
-        [#:rename ?body rename]
+        [#:rename ?body-parts rename]
         [#:pass1]
         [#:when check
-                [Expr ?body check]]
+         [#:pattern (?module ?name ?language ?body)]
+         [Expr ?body check]]
+        [! ?2]
         [#:when tag2
-                [#:in-hole ?body
-                           [#:walk tag2 'tag-module-begin]]]
+         [#:in-hole ?body-parts
+          [#:walk (list tag2) 'tag-module-begin]]]
+        [#:pattern (?module ?name ?language ?body)]
         [#:when check2
-                [Expr ?body check2]]
+         [Expr ?body check2]]
         [#:pass2]
         [! ?3]
         [Expr ?body body]

@@ -30,6 +30,7 @@
    exit-macro           ; Syntax                  -- unmarked-transformed-stx
    enter-prim           ; Syntax
    exit-prim            ; Syntax
+   exit-prim/return     ; Syntax
    return               ; Syntax
    enter-block          ; Syntaxes
    finish-block         ; (list Syntax)           -- list w/ one {let,letrec}-values form
@@ -129,6 +130,7 @@
    'exit-list               token-exit-list
    'enter-prim              token-enter-prim
    'exit-prim               token-exit-prim
+   'exit-prim/return        token-exit-prim/return
    'enter-macro             token-enter-macro
    'exit-macro              token-exit-macro
    'enter-block             token-enter-block

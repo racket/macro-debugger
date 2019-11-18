@@ -38,7 +38,7 @@
    (skipped-token-values
     visit resolve next next-group return
     enter-macro macro-pre-x macro-post-x exit-macro
-    enter-prim exit-prim
+    enter-prim exit-prim exit-prim/return
     enter-block block->list block->letrec finish-block splice
     enter-list exit-list
     enter-check exit-check
@@ -196,11 +196,8 @@
       (make tagrule e1 (wderiv-e2 $2) $1 $2)]
      [(opaque-expr)
       (make p:stop e1 $1 rs #f)]
-     [(enter-prim (? Prim) exit-prim return)
-      (begin
-        (unless (eq? $3 $4)
-          (eprintf "warning: exit-prim and return differ:\n~s\n~s\n" $3 $4))
-        ($2 $1 $3 rs))]
+     [(enter-prim (? Prim) exit-prim/return)
+      ($2 $1 $3 rs)]
      [(rename-transformer visit Resolves (? EE/k))
       ($4 e1 (append rs (list $1)))]
      [((? MacroStep) (? EE))
@@ -313,6 +310,31 @@
 
     (PrimModule
      (#:args e1 e2 rs)
+     [(prim-module ! (? PrepareEnv) rename-one (? EnsureModuleBegin) next (? EE) rename-one)
+      (match $5
+        [(list check1 ?2 tag2 check2 ?3)
+         (make p:module e1 e2 rs $2 $3 $4 check1 ?2 tag2 check2 ?3 $7 $8)])])
+
+    (EnsureModuleBegin
+     (#:skipped '(#f #f #f #f #f))
+     [()
+      (cons #f '(#f #f #f #f))]
+     [((? EE))
+      (cons $1 '(#f #f #f #f))]
+     [(EE (? AddModuleBegin))
+      (cons $1 $2)]
+     [((? AddModuleBegin))
+      (cons #f $1)])
+    (AddModuleBegin
+     [(! tag (? EE) !)
+      (list $1 $2 $3 $4)])
+
+#|
+EnsureModuleBegin =
+| rename-one { . | Expand { . | AddModuleBegin } }
+| AddModuleBegin
+|#
+#|
      [(prim-module ! (? PrepareEnv) OptTag rename-one
                    (? OptCheckImmediateMacro) (? OptTagAndCheckImmediateMacro) !
                    (? EE) rename-one)
@@ -327,6 +349,7 @@
      [() (list #f #f)]
      [(tag) (list $1 #f)]
      [(tag (? CheckImmediateMacro)) (list $1 $2)])
+|#
 
     ;; FIXME: workaround for problem in expander instrumentation:
     ;;   observer not propagated correctly to expand_all_provides
