@@ -562,13 +562,6 @@
       (make p:set! e1 e2 rs $2 (cons $3 $4) $5 $7)]
      [(prim-set! Resolves (? MacroStep) (? EE))
       (make p:set!-macro e1 e2 rs #f ($3 e1 $2 $4))])
-    
-    ;; When an internal-definition context expands to `let`, `letrec`, etc.,
-    ;; then the body is processed as a list (since it has already been
-    ;; processed as a block)
-    (EB/EL
-     [((? EB)) $1]
-     [((? EL)) $1])
 
     ;; Blocks
     ;; EB Answer = BlockDerivation
