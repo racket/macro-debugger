@@ -149,9 +149,6 @@
     (PrepareEnv
      [(prepare-env (? Eval)) $2])
 
-    (CheckImmediateMacro
-     [((? EE)) $1])
-
     ;; Expansion of multiple expressions, next-separated
     (NextEEs
      (#:skipped null)
@@ -251,7 +248,7 @@
 
     (LocalExpand/Inner
      [(start (? EE)) $2]
-     [((? CheckImmediateMacro)) $1])
+     [((? EE)) $1])
 
     (OptLifted
      [(lift-loop) $1]
@@ -601,14 +598,13 @@
     (BRule
      [(next !!)
       (make b:error $2)]
-     [(next (? CheckImmediateMacro))
+     [(next (? EE))
       (make b:expr $2)]
-     [(next CheckImmediateMacro prim-begin ! splice !)
+     [(next EE prim-begin ! splice !)
       (make b:splice $2 $4 $5 $6)]
-     [(next CheckImmediateMacro prim-define-values ! rename-one !)
+     [(next EE prim-define-values ! rename-one !)
       (make b:defvals $2 $4 $5 $6)]
-     [(next CheckImmediateMacro
-            prim-define-syntaxes ! rename-one ! (? PrepareEnv) (? BindSyntaxes))
+     [(next EE prim-define-syntaxes ! rename-one ! (? PrepareEnv) (? BindSyntaxes))
       (make b:defstx $2 $4 $5 $6 $7 $8)])
 
     ;; BindSyntaxes Answer = Derivation
