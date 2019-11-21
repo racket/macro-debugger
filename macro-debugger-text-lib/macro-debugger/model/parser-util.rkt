@@ -34,7 +34,7 @@
 (define-syntax (define-tokens stx)
   (check-top-level stx)
   (syntax-parse stx
-    [(_ name (~alt (~seq #:tokens (vtoken:id ...)) (~seq #:empty-tokens (etoken:id ...))) ...)
+    [(_ name:id (~alt (~seq #:tokens (vtoken:id ...)) (~seq #:empty-tokens (etoken:id ...))) ...)
      ;; Because of yacc bug, token-group names must have lctx w/ normal #%datum binding!
      ;; So use (format-id #'here _) instead of (generate-temporaries _).
      (with-syntax ([yacc-ename (format-id #'here "~a-empty-tokens" #'name)]
@@ -134,6 +134,7 @@
     [(_ (~alt (~once (~seq #:start start-nt:id ...))
               (~once (~seq #:end (~or* end-token:etoken end-token:vtoken) ...))
               (~once (~seq #:error error-handler:expr))
+              (~optional (~and #:src-pos (~bind [src-pos-clause #'(src-pos)])))
               (~optional (~seq #:debug debug-file:string)))
         ...)
      (define ntdefs null) ;; mutated
@@ -141,11 +142,16 @@
      (define start-nts
        (let ()
          (define seen (make-hasheq)) ;; Symbol => (U nonterminal token-group-id)
+         (define (seen-value=? a b)
+           (or (and (nonterminal? a) (nonterminal? b) (equal? a b))
+               (and (identifier? a) (identifier? b) (free-identifier=? a b))))
          (define (register-symbol! id sym v)
            (cond [(hash-ref seen sym #f)
-                  => (lambda (w)
-                       (or (equal? v w)
-                           (raise-syntax-error #f "symbol conflict" this-syntax id)))]
+                  => (lambda (old)
+                       (cond [(seen-value=? v old) #t]
+                             [else
+                              ;;(begin (eprintf "OLD = ~e\n" old) (eprintf "NEW = ~e\n" v))
+                              (raise-syntax-error #f "symbol conflict" this-syntax id)]))]
                  [else (hash-set! seen sym v) #f]))
          (define (handle-nonterminal nt info) ;; => Void
            (unless (register-symbol! nt (nonterminal-name info) info)
@@ -189,6 +195,7 @@
             (start start-nt* ...)
             (end end-token ...)
             (error error-handler)
+            (~? src-pos-clause)
             (~? (debug debug-file)))))]))
 
 ;; ------------------------------------------------------------
@@ -209,6 +216,7 @@
       [[#:nt !] #'[#:nt !/OK]]
       [[#:nt !!] #f]
       [[#:nt nt:?nt] #'[#:nt nt.okay]]
+      [[#:nt nt:id]  #'[#:nt nt]]
       [_ e]))
 
   (define (process-skip-elem e)
@@ -217,13 +225,14 @@
       [[#:nt !] #'[#:nt !/OK]]
       [[#:nt !!] #'[#:nt !/OK]]
       [[#:nt nt:?nt] #'[#:nt nt.skip]]
+      [[#:nt nt:id] e]
       [[#:t t _ _] #'[#:nt t/Skipped]]))
 
   (define (process-fail-elem e)
     (syntax-parse e
       #:literals (! !!)
       [[#:nt !] #'[#:nt !/Interrupted]]
-      [[#:nt !!] #'[#:nt !/Interupted]]
+      [[#:nt !!] #'[#:nt !/Interrupted]]
       [[#:nt nt:?nt] #'[#:nt nt.fail]]
       [_ #f]))
 
@@ -297,8 +306,8 @@
 (define-syntax ! #f)
 (define-syntax !! #f)
 
-(define-tokens basic-tokens #:tokens (ERROR))
-(use-tokens! basic-tokens)
+(define-tokens error-tokens #:tokens (ERROR))
+(use-tokens! error-tokens)
 
 (define-nt !/OK [() #f])
 (define-nt !/Interrupted [(ERROR) $1])

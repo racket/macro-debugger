@@ -1,9 +1,14 @@
 #lang racket/base
-(require parser-tools/lex
-         "deriv.rkt")
+(require (except-in parser-tools/lex define-tokens)
+         "parser-util.rkt" "deriv.rkt")
 (provide (all-defined-out))
 
-(define-tokens basic-empty-tokens
+;;(define-tokens error-tokens
+;;  (ERROR              ; exn
+;;   ))
+
+(define-tokens macro-expansion-tokens
+  #:empty-tokens
   (start                ; .
    start-top            ; .
    start-ecte           ; .
@@ -15,13 +20,12 @@
    enter-bind           ; .
    exit-bind            ; .
    exit-local-bind      ; .
-   IMPOSSIBLE           ; useful for error-handling clauses that have no
-                        ; NoError counterpart
+   IMPOSSIBLE           ; useful for error-handling clauses that have no NoError counterpart
    top-non-begin        ; .
    prepare-env          ; .
-   ))
+   )
 
-(define-tokens basic-tokens
+  #:tokens
   (visit                ; Syntax
    resolve              ; identifier
    enter-macro          ; Syntax                  -- orig-stx
@@ -43,7 +47,6 @@
    enter-check          ; syntax
    exit-check           ; syntax
    module-body          ; (list-of (cons syntax boolean))
-   syntax-error         ; exn
    lift-loop            ; syntax = new form (let or begin; let if for_stx)
    letlift-loop         ; syntax = new let form
    module-lift-loop     ; syntaxes = def-lifts, in reverse order lifted (???)
@@ -70,9 +73,6 @@
    rename-list          ; (listof syntax)
    lambda-renames       ; (list* Syntax Syntaxes)   -- (list* renamed-formals renamed-body)
    letX-renames         ; (list* Syntaxes Syntaxes Syntaxes Syntaxes Syntaxes)
-   ;                    ;   -- (list* ren-stx-idss ren-stx-rhss ren-val-idss ren-val-rhss bodys)
-   ;;let-renames          ; (list* Syntaxes Syntaxes) -- (list* renamed-vbindings renamed-body)
-   ;;letrec-syntaxes-renames ; (list* Syntaxes Syntaxes Syntaxes) -- (list* ren-sbindings ren-vbindings ren-body)
    block-renames        ; (list* Syntaxes Syntaxes) -- (list* init-stxs renamed-stxs)
 
    top-begin            ; identifier
@@ -85,24 +85,39 @@
    local-value-result   ; boolean
    local-value-binding  ; result of identifier-binding; added by trace.rkt, not expander
    local-mess           ; (listof event)
-   ))
+   )
 
-;; Empty tokens
-(define-tokens prim-tokens
-  (prim-module prim-module-begin
-   prim-define-syntaxes prim-define-values
-   prim-if prim-with-continuation-mark
-   prim-begin prim-begin0 prim-#%app prim-lambda
-   prim-case-lambda prim-let-values prim-letrec-values 
-   prim-letrec-syntaxes+values prim-#%datum prim-#%top prim-stop
-   prim-quote prim-quote-syntax prim-require prim-require-for-syntax
-   prim-require-for-template prim-provide
+  #:empty-tokens
+  (prim-module
+   prim-module-begin
+   prim-define-syntaxes
+   prim-define-values
+   prim-if
+   prim-with-continuation-mark
+   prim-begin
+   prim-begin0
+   prim-#%app
+   prim-lambda
+   prim-case-lambda
+   prim-let-values
+   prim-letrec-values 
+   prim-letrec-syntaxes+values
+   prim-#%datum
+   prim-#%top
+   prim-stop
+   prim-quote
+   prim-quote-syntax
+   prim-require
+   prim-require-for-syntax
+   prim-require-for-template
+   prim-provide
    prim-set!
    prim-#%expression
    prim-#%variable-reference
    prim-#%stratified
    prim-begin-for-syntax
-   prim-submodule prim-submodule*
+   prim-submodule
+   prim-submodule*
    ))
 
 ;; ** Events to tokens
@@ -111,7 +126,7 @@
 (define token-mapping
   (hasheq
    'EOF                     #t
-   'error                   token-syntax-error
+   'error                   token-ERROR
    'start                   token-start
    'start-top               token-start-top
    'start-ecte              token-start-ecte
