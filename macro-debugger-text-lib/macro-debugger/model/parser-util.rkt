@@ -1,6 +1,6 @@
 #lang racket/base
 (require (for-syntax racket/base racket/syntax syntax/parse racket/promise
-                     racket/dict syntax/id-table racket/list)
+                     racket/match racket/dict syntax/id-table racket/list)
          (prefix-in yacc: parser-tools/yacc)
          (prefix-in yacc: parser-tools/lex))
 (provide (all-defined-out))
@@ -66,37 +66,48 @@
   (struct nonterminal (name productions) #:transparent)
 
   ;; A Production is (production (Promise (Listof Elem)) (Listof Nat) Syntax[Expr])
-  (struct production (pattern0 indexes action) #:transparent)
+  (struct production (pattern0 action) #:transparent)
 
   (define (production-pattern p) (force (production-pattern0 p)))
+  (define (production-action-args p lctx)
+    (filter values
+            (for/list ([e (in-list (production-pattern p))] [k (in-naturals 1)])
+              (match e
+                [(t-ref t val? _)   (and val? (format-id lctx "$~a" k #:source t))]
+                [(nt-ref nt val? _) (and val? (format-id lctx "$~a" k #:source nt))]
+                [(const-ref v val?) (and val? #`(quote #,v))]))))
 
-  ;; An Elem is either (t-ref Id Boolean Id) or (nt-ref Id Nonterminal)
+  ;; An Elem is either (t-ref Id Boolean Id) or (nt-ref Id Boolean Nonterminal)
   (struct t-ref (name val? tg) #:transparent)
-  (struct nt-ref (name info) #:transparent)
+  (struct nt-ref (name val? info) #:transparent)
+  (struct const-ref (datum val?) #:transparent)
 
-  (define-syntax-class prod #:attributes ([ast 1] [bind 1] [index 1] rhs)
+  (define-syntax-class prod #:attributes ([ast 1] [bind 1] rhs)
     #:description "production"
     (pattern [(e:elem ...) rhs:expr]
-             #:with (ast ...) #'(e.ast ...)
-             #:with ([bind index] ...)
-             (for/list ([e (in-list (attribute e.bind))]
+             #:with (ast ...)
+             (for/list ([ast (in-list (attribute e.ast))]
+                        [bind (in-list (attribute e.bind))])
+               (ast (and bind #t)))
+             #:with (bind ...)
+             (for/list ([bind (in-list (attribute e.bind))]
                         [ref (in-list (attribute e.ref))]
                         [k (in-naturals 1)]
-                        #:when e)
-               (e k (format-id ref "$~a" k)))))
+                        #:when bind)
+               (bind (format-id ref "$~a" k #:source ref)))))
 
   (define-syntax-class elem #:attributes (ref ast bind)
     #:description "terminal or nonterminal element"
     #:literals (_)
-    (pattern :base-elem #:attr bind (and ($ val?) (lambda (k kid) (list kid k))))
+    (pattern :base-elem #:attr bind (and ($ val?) (lambda (kid) kid)))
     (pattern [_ :base-elem] #:attr bind #f)
-    (pattern [name:id :base-elem] #:when ($ val?) #:attr bind (lambda (k kid) (list #'name k))))
+    (pattern [name:id :base-elem] #:when ($ val?) #:attr bind (lambda (kid) #'name)))
 
   (define-syntax-class base-elem #:attributes (ref ast val?)
     #:description "terminal or nonterminal reference"
-    (pattern ref:etoken #:attr val? #f #:with ast #'[#:t ref #f ref.tg])
-    (pattern ref:vtoken #:attr val? #t #:with ast #'[#:t ref #t ref.tg])
-    (pattern ref:id     #:attr val? #t #:with ast #'[#:nt ref]))
+    (pattern ref:etoken #:attr val? #f #:attr ast (lambda (v?) #`[#:t ref #f ref.tg]))
+    (pattern ref:vtoken #:attr val? #t #:attr ast (lambda (v?) #`[#:t ref #,v? ref.tg]))
+    (pattern ref:id     #:attr val? #t #:attr ast (lambda (v?) #`[#:nt ref #,v?])))
 
   (define (check-nonterminal ntinfo)
     (for ([p (in-list (nonterminal-productions ntinfo))])
@@ -106,11 +117,20 @@
     (let ([v (syntax-local-value nt (lambda () #f))])
       (if (nonterminal? v) v (raise-syntax-error #f "not defined as nonterminal" nt))))
 
+  (define (elem-stx->ast elem-stx)
+    (syntax-case elem-stx ()
+      [[#:t t v? tg] (t-ref #'t (syntax-e #'v?) #'tg)]
+      [[#:nt nt v?] (nt-ref #'nt (syntax-e #'v?) (lookup-nonterminal #'nt))]
+      [[#:const v v?] (const-ref (syntax->datum #'v) (syntax-e #'v?))]))
+
+  (define (elem-ast->stx elem-ast)
+    (match elem-ast
+      [(t-ref t v? tg) #`[#:t #,t #,v? #,tg]]
+      [(nt-ref nt v? _) #`[#:nt #,nt #,v?]]
+      [(const-ref v v?) #`[#:const #,v #,v?]]))
+
   (define (resolve-elems elems)
-    (for/list ([elem (in-list (syntax->list elems))])
-      (syntax-case elem ()
-        [[#:t t v? tg] (t-ref #'t (syntax-e #'v?) #'tg)]
-        [[#:nt nt] (nt-ref #'nt (lookup-nonterminal #'nt))]))))
+    (map elem-stx->ast (syntax->list elems))))
 
 (define-syntax define-nt
   (syntax-parser
@@ -123,7 +143,6 @@
            (define-syntax nt
              (nonterminal 'nt
                           (list (production (delay (resolve-elems (quote-syntax (p.ast ...))))
-                                            (quote (p.index ...))
                                             (quote-syntax action))
                                 ...)))
            (expression/begin-for-syntax
@@ -161,11 +180,9 @@
                                  (production->stx p)))
                          ntdefs))))
          (define (production->stx p)
-           (list (for/list ([e (in-list (production-pattern p))])
-                   (elem->stx e))
+           (list (filter values (map elem->stx (production-pattern p)))
                  (cons (production-action p)
-                       (for/list ([k (in-list (production-indexes p))])
-                         (format-id this-syntax "$~a" k)))))
+                       (production-action-args p this-syntax))))
          (define (elem->stx e)
            (cond [(t-ref? e)
                   (let ([t (t-ref-name e)] [tg (t-ref-tg e)])
@@ -174,7 +191,8 @@
                     (t->stx t))]
                  [(nt-ref? e)
                   (let ([nt (nt-ref-name e)] [info (nt-ref-info e)])
-                    (nt->stx nt info))]))
+                    (nt->stx nt info))]
+                 [else #f]))
          (define (t->stx t)
            (datum->syntax this-syntax (syntax-e t) t))
          (define (nt->stx nt info)
@@ -207,57 +225,56 @@
              #:attr okay (let ([m (regexp-match #rx"^[?](.*)$" (symbol->string (syntax-e #'name)))])
                            (and m (datum->syntax #'name (string->symbol (cadr m)) #'name)))
              #:when ($ okay)
-             #:attr skip (and ($ okay) (format-id #'name "~a/Skipped" ($ okay)))
-             #:attr fail (and ($ okay) (format-id #'name "~a/Interrupted" ($ okay)))))
+             #:attr skip (and ($ okay) (format-id #'name "~a/Skipped" ($ okay) #:source #'name))
+             #:attr fail (and ($ okay) (format-id #'name "~a/Interrupted" ($ okay) #:source #'name))))
 
   (define (process-okay-elem e)
     (syntax-parse e
       #:literals (! !!)
-      [[#:nt !] #'[#:nt !/OK]]
-      [[#:nt !!] #f]
-      [[#:nt nt:?nt] #'[#:nt nt.okay]]
-      [[#:nt nt:id]  #'[#:nt nt]]
+      [[#:nt ! v?] #'[#:const #f v?]]
+      [[#:nt !! v?] #f]
+      [[#:nt nt:?nt v?] #'[#:nt nt.okay v?]]
       [_ e]))
 
   (define (process-skip-elem e)
     (syntax-parse e
       #:literals (! !!)
-      [[#:nt !] #'[#:nt !/OK]]
-      [[#:nt !!] #'[#:nt !/OK]]
-      [[#:nt nt:?nt] #'[#:nt nt.skip]]
-      [[#:nt nt:id] e]
-      [[#:t t _ _] #'[#:nt t/Skipped]]))
+      [[#:nt ! v?] #'[#:const #f v?]]
+      [[#:nt !! v?] #'[#:const #f v?]]
+      [[#:nt nt:?nt v?] #'[#:nt nt.skip v?]]
+      [[#:nt nt:id v?] e]
+      [[#:t t v? _] #'[#:const #f v?]]
+      [[#:const v v?] e]))
 
   (define (process-fail-elem e)
     (syntax-parse e
       #:literals (! !!)
-      [[#:nt !] #'[#:nt !/Interrupted]]
-      [[#:nt !!] #'[#:nt !/Interrupted]]
-      [[#:nt nt:?nt] #'[#:nt nt.fail]]
+      [[#:nt ! v?] #'[#:nt !/Interrupted v?]]
+      [[#:nt !! v?] #'[#:nt !/Interrupted v?]]
+      [[#:nt nt:?nt v?] #'[#:nt nt.fail v?]]
+      [[#:const v v?] e]
       [_ #f]))
 
   (define ((make-nt*-transformer process-X-ast) stx)
     (syntax-case stx ()
-      [(_ nt/X ([ast indexes action] ...))
-       (with-syntax ([([ast* indexes* action*] ...)
+      [(_ nt/X ([ast action] ...))
+       (with-syntax ([([ast* action*] ...)
                       (append* (map process-X-ast
                                     (syntax->list #'(ast ...))
-                                    (syntax->list #'(indexes ...))
                                     (syntax->list #'(action ...))))])
          #'(define-syntax nt/X
              (nonterminal 'nt/X
                           (list (production (delay (resolve-elems (quote-syntax ast*)))
-                                            (quote indexes*)
                                             (quote-syntax action*))
                                 ...))))]))
 
-  (define (process-okay-ast ast indexes action)
+  (define (process-okay-ast ast action)
     (define ast* (map process-okay-elem (syntax->list ast)))
     (cond [(andmap values ast*)
-           (list (list ast* indexes action))]
+           (list (list ast* action))]
           [else null]))
 
-  (define (process-fail-ast ast indexes action)
+  (define (process-fail-ast ast action)
     ;; {fail,skip}-loop : (Listof ElemStx) (Listof ElemStx) -> (Listof (Listof ElemStx))
     (define (fail-loop es acc)
       (cond [(pair? es)
@@ -268,7 +285,7 @@
             [else null]))
     (define (skip-loop es acc)
       (list (append (reverse acc) (map process-skip-elem es))))
-    (map (lambda (ast*) (list ast* indexes action))
+    (map (lambda (ast*) (list ast* action))
          (fail-loop (syntax->list ast) null))))
 
 (define-syntax define-nt*
@@ -287,10 +304,10 @@
        #'(begin
            (define (action p.bind ...) (~? (lambda args p.rhs) p.rhs)) ...
            (define (skipped-action) (~? skipped #f))
-           (define-nt/Okay nt      ([(p.ast ...) (p.index ...) action] ...))
-           (define-nt/Fail nt/Fail ([(p.ast ...) (p.index ...) action] ...))
+           (define-nt/Okay nt      ([(p.ast ...) action] ...))
+           (define-nt/Fail nt/Fail ([(p.ast ...) action] ...))
            (define-syntax nt/Skip
-             (nonterminal 'nt/Skip (list (production null null #'skipped-action))))
+             (nonterminal 'nt/Skip (list (production null #'skipped-action))))
            (expression/begin-for-syntax
             (begin (check-nonterminal (lookup-nonterminal (quote-syntax nt)))
                    (check-nonterminal (lookup-nonterminal (quote-syntax nt/Fail)))))))]))
@@ -309,6 +326,4 @@
 (define-tokens error-tokens #:tokens (ERROR))
 (use-tokens! error-tokens)
 
-(define-nt !/OK [() #f])
 (define-nt !/Interrupted [(ERROR) $1])
-(define-nt t/Skipped [() #f])
