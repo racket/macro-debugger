@@ -70,12 +70,15 @@
 
   (define (production-pattern p) (force (production-pattern0 p)))
   (define (production-action-args p lctx)
-    (filter values
-            (for/list ([e (in-list (production-pattern p))] [k (in-naturals 1)])
-              (match e
-                [(t-ref t val? _)   (and val? (format-id lctx "$~a" k #:source t))]
-                [(nt-ref nt val? _) (and val? (format-id lctx "$~a" k #:source nt))]
-                [(const-ref v val?) (and val? #`(quote #,v))]))))
+    (let loop ([es (production-pattern p)] [k 1] [acc null])
+      (match es
+        [(cons (t-ref t v? _) es*)
+         (loop es* (add1 k) (if v? (cons (format-id lctx "$~a" k #:source t) acc) acc))]
+        [(cons (nt-ref nt v? _) es*)
+         (loop es* (add1 k) (if v? (cons (format-id lctx "$~a" k #:source nt) acc) acc))]
+        [(cons (const-ref v v?) es*)
+         (loop es* k (if v? (cons #`(quote #,v) acc) acc))]
+        ['() (reverse acc)])))
 
   ;; An Elem is either (t-ref Id Boolean Id) or (nt-ref Id Boolean Nonterminal)
   (struct t-ref (name val? tg) #:transparent)
