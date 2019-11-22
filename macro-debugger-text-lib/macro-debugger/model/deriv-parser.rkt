@@ -298,13 +298,17 @@
    [(?ModulePass1 next-group ?ModulePass2 next-group ?ModulePass3)
     (make module-begin/phase $1 $3 $5)])
 
-  (ModulePass1
+  ;; XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+  (ModulePass1  ;; partially-expand-bodys loop
    #:skipped null
    [() null]
-   [(next ?ModulePass1-Part ?ModulePass1)
-    (cons $2 $3)]
    [(module-lift-end-loop ?ModulePass1)
-    (cons (make mod:lift-end $1) $2)])
+    (cons (make mod:lift-end $1) $2)]
+   [(next ?EE module-pass1-case ?ModulePass1 ?ModulePass1/Prim ?ModulePass1)
+    (match $3
+      [(list* lifted-defns lifted-reqs lifted-mods exp-body)
+       (cons (make mod:lift $2 lifted-defns lifted-reqs lifted-mods $4 $5) $6)])])
 
   (ModulePass1-Part
    [(?EE rename-one ?ModulePass1/Prim)
