@@ -254,6 +254,9 @@
    [(?ExpandModule)
     ($1 e2 e2 rs)])
 
+  ;; ----------------------------------------
+  ;; src/expander/expand/module.rkt
+
   (ExpandModule
    #:args (e1 e2 rs)
    [(prim-module ! ?PrepareEnv rename-one ?EnsureModuleBegin next ?EE rename-one)
@@ -408,6 +411,9 @@
    [(?EE ?ModuleProvide/Inner)
     (cons $1 $2)])
 
+  ;; ----------------------------------------
+  ;; src/expander/expand/top.rkt
+
   ;; Definitions
   (PrimDefineSyntaxes
    #:args (e1 e2 rs)
@@ -418,6 +424,28 @@
    #:args (e1 e2 rs)
    [(prim-define-values ! ?EE)
     (make p:define-values e1 e2 rs $2 $3)])
+
+  (PrimBeginForSyntax
+   #:args (e1 e2 rs)
+   [(prim-begin-for-syntax ! ?PrepareEnv ?BeginForSyntax* ?Eval)
+    (make p:begin-for-syntax e1 e2 rs $2 $3 $4 $5)])
+  (BeginForSyntax*
+   [(?EL)
+    (list $1)]
+   [(EL module-lift-loop ?BeginForSyntax*)
+    (cons (make bfs:lift $1 $2) $3)])
+
+  (PrimRequire
+   #:args (e1 e2 rs)
+   [(prim-require ?Eval)
+    (make p:require e1 e2 rs #f $2)])
+
+  (PrimProvide 
+   #:args (e1 e2 rs)
+   [(prim-provide !) (make p:provide e1 e2 rs $2 null #f)])
+
+  ;; ----------------------------------------
+  ;; src/expander/expand/expr.rkt
 
   ;; Simple expressions
   (PrimExpression
@@ -524,15 +552,6 @@
    #:args (e1 e2 rs)
    [(prim-quote-syntax !) (make p:quote-syntax e1 e2 rs $2)])
 
-  (PrimRequire
-   #:args (e1 e2 rs)
-   [(prim-require ?Eval)
-    (make p:require e1 e2 rs #f $2)])
-
-  (PrimProvide 
-   #:args (e1 e2 rs)
-   [(prim-provide !) (make p:provide e1 e2 rs $2 null #f)])
-
   (PrimVarRef
    #:args (e1 e2 rs)
    [(prim-#%variable-reference !)
@@ -542,16 +561,6 @@
    #:args (e1 e2 rs)
    [(prim-#%stratified ! ?EB) (make p:#%stratified-body e1 e2 rs $2 $3)])
 
-  (PrimBeginForSyntax
-   #:args (e1 e2 rs)
-   [(prim-begin-for-syntax ! ?PrepareEnv ?BeginForSyntax* ?Eval)
-    (make p:begin-for-syntax e1 e2 rs $2 $3 $4 $5)])
-  (BeginForSyntax*
-   [(?EL)
-    (list $1)]
-   [(EL module-lift-loop ?BeginForSyntax*)
-    (cons (make bfs:lift $1 $2) $3)])
-
   (PrimSet
    #:args (e1 e2 rs)
    ;; Unrolled to avoid shift/reduce
@@ -560,9 +569,10 @@
    [(prim-set! Resolves ?MacroStep ?EE)
     (make p:set!-macro e1 e2 rs #f ($3 e1 $2 $4))])
 
-  ;; Blocks
-  ;; EB Answer = BlockDerivation
-  (EB
+  ;; ----------------------------------------
+  ;; src/expander/expand/body.rkt
+
+  (EB ;; expand-body
    [(enter-block block-renames ?BlockPass1 block->list ?EL)
     (make bderiv $1 (and $5 (wlderiv-es2 $5)) $2 $3 $5)]
    [(enter-block block-renames BlockPass1 block->letrec
@@ -597,6 +607,8 @@
    [(next EE prim-define-syntaxes ! rename-one ! ?PrepareEnv ?BindSyntaxes)
     (make b:defstx $2 $4 $5 $6 $7 $8)])
 
+  ;; ----------------------------------------
+
   ;; BindSyntaxes Answer = Derivation
   (BindSyntaxes
    [(enter-bind ?EE/LetLifts next ?Eval exit-bind)
@@ -607,6 +619,8 @@
    #:skipped null
    [() null]
    [(next ?BindSyntaxes ?NextBindSyntaxess) (cons $2 $3)])
+
+  ;; ----------------------------------------
 
   ;; Lists
   ;; EL Answer = ListDerivation
