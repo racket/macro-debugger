@@ -251,6 +251,11 @@
 
   (PrimModule
    #:args (e1 e2 rs)
+   [(?ExpandModule)
+    ($1 e2 e2 rs)])
+
+  (ExpandModule
+   #:args (e1 e2 rs)
    [(prim-module ! ?PrepareEnv rename-one ?EnsureModuleBegin next ?EE rename-one)
     (match $5
       [(list check1 ?2 tag2 check2 ?3)
@@ -269,6 +274,17 @@
   (AddModuleBegin
    [(! tag ?EE !)
     (list $1 $2 $3 $4)])
+
+  (ModuleBeginK
+   [(! rename-one ?Pass1And2Loop <CheckDefinedByNow> next-group ResolveProvides ! next ExpandPostSubmodules)
+    '___])
+  ;; ExpandPostSubmodulesLoop
+  ;; | .
+  ;; | <begin-for-syntax> Loop <rebuild>
+  ;; | <skip>
+  ;; | <module*> ! ExpandSubmodule
+  ;; | <skip>
+
 
   ;; FIXME: workaround for problem in expander instrumentation:
   ;;   observer not propagated correctly to expand_all_provides
@@ -295,47 +311,64 @@
    [() null])
 
   (ModuleBegin/Phase
-   [(?ModulePass1 next-group ?ModulePass2 next-group ?ModulePass3)
-    (make module-begin/phase $1 $3 $5)])
+   [(?Pass1And2Loop next-group ?ModulePass3)
+    (match $1
+      [(list pass1 pass2)
+       (make module-begin/phase pass1 pass2 $3)])])
+
+  (Pass1And2Loop
+   [(?ModulePass1 next-group ?ModulePass2)
+    (list $1 $3)])
 
   ;; XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
   (ModulePass1  ;; partially-expand-bodys loop
    #:skipped null
    [() null]
-   [(module-lift-end-loop ?ModulePass1)
+   [(module-pass1-end-lifts ?ModulePass1)
     (cons (make mod:lift-end $1) $2)]
-   [(next ?EE module-pass1-case ?ModulePass1 ?ModulePass1/Prim ?ModulePass1)
+   [(next ?EE module-pass1-lifts ?ModulePass1 ?ModulePass1Case ?ModulePass1)
     (match $3
-      [(list* lifted-defns lifted-reqs lifted-mods exp-body)
+      [(list* lifted-defns lifted-reqs lifted-mods)
        (cons (make mod:lift $2 lifted-defns lifted-reqs lifted-mods $4 $5) $6)])])
 
-  (ModulePass1-Part
-   [(?EE rename-one ?ModulePass1/Prim)
-    (make mod:prim $1 $2 ($3 $2))]
-   [(EE rename-one ! splice)
-    (make mod:splice $1 $2 $3 $4)]
-   [(EE rename-list module-lift-loop)
-    (make mod:lift $1 null $2 $3)])
+  ;; (ModulePass1-Part
+  ;;  [(?EE rename-one ?ModulePass1/Prim)
+  ;;   (make mod:prim $1 $2 ($3 $2))]
+  ;;  [(EE rename-one ! splice)
+  ;;   (make mod:splice $1 $2 $3 $4)]
+  ;;  [(EE rename-list module-lift-loop)
+  ;;   (make mod:lift $1 null $2 $3)])
 
-  (ModulePass1/Prim
+  (ModulePass1Case
+   [(enter-module-pass1-case ?ModulePass1CaseBody)
+    ($2 $1)])
+  (ModulePass1CaseBody
    #:args (e1)
-   [(enter-prim prim-define-values ! exit-prim)
-    (make p:define-values $1 $4 null $3 #f)]
-   [(enter-prim prim-define-syntaxes ! ?PrepareEnv
-                phase-up ?EE/LetLifts ?Eval exit-prim)
-    (make p:define-syntaxes $1 $8 null $3 $4 $6 $7)]
-   [(enter-prim prim-begin-for-syntax ! ?PrepareEnv
-                phase-up ?ModuleBegin/Phase ?Eval exit-prim)
-    (make p:begin-for-syntax $1 $7 null $3 $4 $6 $7)]
-   [(enter-prim prim-require ?Eval exit-prim)
-    (make p:require $1 $4 null #f $3)]
-   [(enter-prim prim-submodule ! ?ExpandSubmodules #|one|# exit-prim)
-    (make p:submodule $1 $5 null $3 (car $4))]
-   [(enter-prim prim-submodule* ! exit-prim)
-    (make p:submodule* $1 $4 null $3)]
-   [()
+   [(prim-begin ! splice)
+    (make mod:splice $2 $3)] ;; !!
+   [(prim-begin-for-syntax ! ?PrepareEnv phase-up ?ModuleBegin/Phase ?Eval exit-case)
+    (make p:begin-for-syntax e1 $7 null $2 $3 $5 $6)]
+   [(prim-define-values ! exit-case)
+    (make p:define-values e1 $3 null $2 #f)]
+   [(prim-define-syntaxes ! ?PrepareEnv phase-up ?EE/LetLifts ?Eval exit-case)
+    (make p:define-syntaxes e1 $7 null $2 $3 $5 $6)]
+   [(prim-require ?Eval exit-prim)
+    (make p:require e1 $3 null #f $2)]
+   ;; provide : stop
+   [(prim-submodule ?ExpandSubmodule)
+    $2]
+   ;; module* : stop
+   [(prim-declare !)
+    (make p:declare e1 e1 $2 null)]
+   [(prim-stop)
     (make p:stop e1 e1 null #f)])
+
+  (ExpandSubmodule
+   [(! ?ExpandModule)
+    '___])
+  ;;     [(enter-prim prim-submodule ! (? ExpandSubmodules #|one|#) exit-prim)
+  ;;      (make p:submodule $2 $6 null $4 (car $5))])
 
   (ModulePass2
    #:skipped null
