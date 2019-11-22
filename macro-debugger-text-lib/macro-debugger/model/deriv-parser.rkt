@@ -249,13 +249,13 @@
    [(?PrimStratifiedBody) ($1 e1 e2 rs)]
    [(?PrimBeginForSyntax) ($1 e1 e2 rs)])
 
+  ;; ----------------------------------------
+  ;; src/expander/expand/module.rkt
+
   (PrimModule
    #:args (e1 e2 rs)
    [(?ExpandModule)
     ($1 e2 e2 rs)])
-
-  ;; ----------------------------------------
-  ;; src/expander/expand/module.rkt
 
   (ExpandModule
    #:args (e1 e2 rs)
@@ -278,50 +278,65 @@
    [(! tag ?EE !)
     (list $1 $2 $3 $4)])
 
-  (ModuleBeginK
-   [(! rename-one ?Pass1And2Loop <CheckDefinedByNow> next-group ResolveProvides ! next ExpandPostSubmodules)
-    '___])
-  ;; ExpandPostSubmodulesLoop
-  ;; | .
-  ;; | <begin-for-syntax> Loop <rebuild>
-  ;; | <skip>
-  ;; | <module*> ! ExpandSubmodule
-  ;; | <skip>
+  ;; ----
 
-
-  ;; FIXME: workaround for problem in expander instrumentation:
-  ;;   observer not propagated correctly to expand_all_provides
-  ;;   so local actions that should be within prim-provide's EE 
-  ;;   instead appear directly here
   (Prim#%ModuleBegin
    #:args (e1 e2 rs)
-   [(prim-module-begin ! rename-one ?ModuleBegin/Phase ?Eval next ?ExpandSubmodules)
-    (make p:#%module-begin e1 e2 rs $2 $3 $4
-          (for/or ([la (in-list $5)])
-            (and (local-exn? la) (local-exn-exn la)))
-          $7)])
-  #|
-  ;; restore this version when expander fixed
-  (Prim#%ModuleBegin-REAL
-   (#:args e1 e2 rs)
-   [(prim-#%module-begin ! rename-one ?ModuleBegin/Phase ! ?ExpandSubmodules)
-    (make p:#%module-begin e1 e2 rs $2 $3 $4 $5)])
-  |#
-  (ExpandSubmodules
-   #:skipped null
-   [(enter-prim ?PrimModule exit-prim ?ExpandSubmodules)
-    (cons ($2 $1 $3 null) $4)]
-   [() null])
+   [(prim-#%module-begin ! ?ModuleBeginK)
+    ($3 e1 e2 rs $2)])
 
-  (ModuleBegin/Phase
-   [(?Pass1And2Loop next-group ?ModulePass3)
-    (match $1
-      [(list pass1 pass2)
-       (make module-begin/phase pass1 pass2 $3)])])
+  (ModuleBeginK
+   #:args (e1 e2 rs ?1)
+   [([me rename-one] [p12 ?Pass1And2Loop] [?2 !]
+     next-group [p3 ?ModulePass3] [?3 !] next-group [p4 ?ModulePass4])
+    (make p:#%module-begin e1 e2 rs ?1 me (car p12) (cadr p12) ?2 p3 ?3 p4)])
 
   (Pass1And2Loop
+   ;; (list ??? ???)
    [(?ModulePass1 next-group ?ModulePass2)
     (list $1 $3)])
+
+  (ModulePass3 ;; resolve-provides
+   ;; RPs = (Listof (U #f RPs p:provide))
+   #:skipped null
+   [() null]
+   [(next ?ModulePass3) (cons #f $2)]
+   [(?ModulePass3/BFS ?ModulePass3)
+    (cons $1 $2)]
+   [(?ModulePass3/Provide ?ModulePass3)
+    (cons $1 $2)])
+  (ModulePass3/BFS
+   [(enter-begin-for-syntax ?ModulePass3 exit-begin-for-syntax)
+    $2])
+  (ModulePass3/Provide
+   ;; p:provide
+   [([e1 enter-prim] prim-provide [ds ParseAndExpandProvides] [?2 !] [e2 exit-prim])
+    (make p:provide e1 e2 null #f ds ?2)])
+  (ParseAndExpandProvides ;; in src/expander/expand/provide.rkt
+   #:skipped null
+   [() null]
+   [(?EE ?ParseAndExpandProvides) (cons $1 $2)])
+
+  (ModulePass4 ;; expand-post-submodules loop
+   ;; Pass4 = (Listof (U #f Pass4 p:module))
+   #:skipped null
+   [() null]
+   [(next ?ModulePass4)
+    (cons #f $2)]
+   [(?ModulePass4/BFS ?ModulePass4)
+    (cons $1 $2)]
+   [(?ExpandSubmodule ?ModulePass4)
+    (cons $1 $2)])
+  (ModulePass4/BFS
+   [(enter-begin-for-syntax ?ModulePass4 exit-begin-for-syntax)
+    $2])
+
+  (ExpandSubmodule ;; FIXME
+   ;; Deriv
+   [(! ?ExpandModule)
+    '___])
+  ;;     [(enter-prim prim-submodule ! (? ExpandSubmodules #|one|#) exit-prim)
+  ;;      (make p:submodule $2 $6 null $4 (car $5))])
 
   ;; XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
@@ -350,7 +365,7 @@
    #:args (e1)
    [(prim-begin ! splice)
     (make mod:splice $2 $3)] ;; !!
-   [(prim-begin-for-syntax ! ?PrepareEnv phase-up ?ModuleBegin/Phase ?Eval exit-case)
+   [(prim-begin-for-syntax ! ?PrepareEnv phase-up ?Pass1And2Loop ?Eval exit-case)
     (make p:begin-for-syntax e1 $7 null $2 $3 $5 $6)]
    [(prim-define-values ! exit-case)
     (make p:define-values e1 $3 null $2 #f)]
@@ -367,13 +382,7 @@
    [(prim-stop)
     (make p:stop e1 e1 null #f)])
 
-  (ExpandSubmodule
-   [(! ?ExpandModule)
-    '___])
-  ;;     [(enter-prim prim-submodule ! (? ExpandSubmodules #|one|#) exit-prim)
-  ;;      (make p:submodule $2 $6 null $4 (car $5))])
-
-  (ModulePass2
+  (ModulePass2 ;; finish-expanding-body-expressions
    #:skipped null
    [() null]
    [(next ?ModulePass2-Part ?ModulePass2)
@@ -394,22 +403,6 @@
    [(EE Eval module-lift-loop)
     ;; same as above: after expansion, may compile => may eval
     (make mod:lift $1 $2 #f $3)])
-
-  (ModulePass3
-   #:skipped null
-   [() null]
-   [(?ModulePass3-Part ?ModulePass3)
-    (cons $1 $2)])
-
-  (ModulePass3-Part
-   [(enter-prim prim-provide ?ModuleProvide/Inner ! exit-prim)
-    (make p:provide $1 $5 null #f $3 $4)])
-
-  (ModuleProvide/Inner
-   #:skipped null
-   [() null]
-   [(?EE ?ModuleProvide/Inner)
-    (cons $1 $2)])
 
   ;; ----------------------------------------
   ;; src/expander/expand/top.rkt
