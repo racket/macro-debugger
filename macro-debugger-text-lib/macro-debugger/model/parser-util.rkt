@@ -245,7 +245,8 @@
       [[#:nt ! v?] #'[#:const #f v?]]
       [[#:nt !! v?] #'[#:const #f v?]]
       [[#:nt nt:?nt v?] #'[#:nt nt.skip v?]]
-      [[#:nt nt:id v?] e]
+      [[#:nt nt:id v?] (with-syntax ([nt/skip (format-id #'nt "~a/Skipped" #'nt #:source #'nt)])
+                         #'[#:nt nt/skip v?])]
       [[#:t t v? _] #'[#:const #f v?]]
       [[#:const v v?] e]))
 
