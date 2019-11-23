@@ -278,23 +278,94 @@
    [(! tag ?EE !)
     (list $1 $2 $3 $4)])
 
-  ;; ----
+  ;; --------------------
 
   (Prim#%ModuleBegin
    #:args (e1 e2 rs)
-   [(prim-#%module-begin ! ?ModuleBeginK)
+   [(prim-module-begin ! ?ModuleBeginK)
     ($3 e1 e2 rs $2)])
 
   (ModuleBeginK
    #:args (e1 e2 rs ?1)
    [([me rename-one] [p12 ?Pass1And2Loop] [?2 !]
      next-group [p3 ?ModulePass3] [?3 !] next-group [p4 ?ModulePass4])
-    (make p:#%module-begin e1 e2 rs ?1 me (car p12) (cadr p12) ?2 p3 ?3 p4)])
+    (make p:#%module-begin e1 e2 rs ?1 me p12 ?2 p3 ?3 p4)])
 
   (Pass1And2Loop
    ;; (list ??? ???)
    [(?ModulePass1 next-group ?ModulePass2)
     (list $1 $3)])
+
+  (ModulePass1  ;; partially-expand-bodys loop
+   #:skipped null
+   [() null]
+   [(module-end-lifts ?ModulePass1)
+    (cons (make mod:lift-end $1) $2)]
+   [(next ?ModulePass1-Head ?ModulePass1Case ?ModulePass1)
+    (cons (make modp1:prim $2 $3) $4)])
+
+  (ModulePass1-Head
+   [(?EE) $1]
+   [(EE module-pass1-lifts ?ModulePass1)
+    (match $2
+      [(list* lifted-defns lifted-reqs lifted-mods)
+       (make modp1:lift $1 lifted-defns lifted-reqs lifted-mods $3)])])
+
+  (ModulePass1Case
+   [(module-pass1-case ?ModulePass1CaseBody)
+    ($2 $1)])
+
+  (ModulePass1CaseBody
+   #:args (e1)
+   [(prim-begin ! splice)
+    (make modp1:splice $2 $3)] ;; !!
+   [(prim-begin-for-syntax ! ?PrepareEnv phase-up ?Pass1And2Loop ?Eval exit-case)
+    (make p:begin-for-syntax e1 $7 null $2 $3 $5 $6)]
+   [(prim-define-values ! exit-case)
+    (make p:define-values e1 $3 null $2 #f)]
+   [(prim-define-syntaxes ! ?PrepareEnv phase-up ?EE/LetLifts ?Eval exit-case)
+    (make p:define-syntaxes e1 $7 null $2 $3 $5 $6)]
+   [(prim-require ?Eval exit-case)
+    (make p:require e1 $3 null #f $2)]
+   ;; provide : stop
+   [(prim-submodule ?ExpandSubmodule)
+    $2]
+   ;; module* : stop
+   [(prim-declare !)
+    (make p:declare e1 e1 $2 null)]
+   [(prim-stop)
+    (make p:stop e1 e1 null #f)])
+
+  (ModulePass2 ;; finish-expanding-body-expressions
+   #:skipped null
+   [() null]
+   [(module-end-lifts ?ModulePass2)
+    (cons (make mod:lift-end $1) $2)]
+   [(next ?ModulePass2-Part ?ModulePass2)
+    (cons $2 $3)])
+
+  (ModulePass2-Part
+   ;; already handled
+   [()
+    (make modp2:skip)]
+   [(?EE ?Eval)
+    ;; after expansion, may compile => may eval letstx rhss again!
+    ;; need to include those evals too (for errors, etc)
+    ;; FIXME: Is this still true? Is the Eval really needed?
+    (make modp2:cons $1 $2)]
+   [(EE Eval module-pass2-lifts
+        [emods ?ExpandNonModule*Submodules] next-group [edefs ?ModulePass2] next-group)
+    (match $3
+      [(list* lifted-reqs lifted-mods lifted-defns)
+       (make modp2:lift $1 $2 lifted-reqs lifted-mods lifted-defns emods edefs)])])
+
+  (ExpandNonModule*Submodules
+   #:skipped null
+   [() null]
+   [(next ?ExpandNonModule*Submodules)
+    (cons #f $2)]
+   [(next ?ExpandSubmodule ?ExpandNonModule*Submodules)
+    (cons $2 $3)])
 
   (ModulePass3 ;; resolve-provides
    ;; RPs = (Listof (U #f RPs p:provide))
@@ -305,13 +376,16 @@
     (cons $1 $2)]
    [(?ModulePass3/Provide ?ModulePass3)
     (cons $1 $2)])
+
   (ModulePass3/BFS
    [(enter-begin-for-syntax ?ModulePass3 exit-begin-for-syntax)
-    $2])
+    (modp34:bfs $2)])
+
   (ModulePass3/Provide
    ;; p:provide
    [([e1 enter-prim] prim-provide [ds ParseAndExpandProvides] [?2 !] [e2 exit-prim])
     (make p:provide e1 e2 null #f ds ?2)])
+
   (ParseAndExpandProvides ;; in src/expander/expand/provide.rkt
    #:skipped null
    [() null]
@@ -327,82 +401,20 @@
     (cons $1 $2)]
    [(?ExpandSubmodule ?ModulePass4)
     (cons $1 $2)])
+
   (ModulePass4/BFS
    [(enter-begin-for-syntax ?ModulePass4 exit-begin-for-syntax)
     $2])
 
-  (ExpandSubmodule ;; FIXME
+  (ExpandSubmodule
    ;; Deriv
-   [(! ?ExpandModule)
-    '___])
-  ;;     [(enter-prim prim-submodule ! (? ExpandSubmodules #|one|#) exit-prim)
-  ;;      (make p:submodule $2 $6 null $4 (car $5))])
+   [(enter-prim prim-submodule [?1 !] [e1 enter-prim] [m ?ExpandModule] [e2 exit-prim] [ev ?Eval])
+    (let ([mod (m e1 e2 null)])
+      (p:submodule $1 (and mod (wderiv-e2 mod)) null ?1 mod ev))]
+   [(enter-prim prim-submodule* [?1 !] [e1 enter-prim] [m ?ExpandModule] [e2 exit-prim] [ev ?Eval])
+    (let ([mod (m e1 e2 null)])
+      (p:submodule* $1 (and mod (wderiv-e2 mod)) null ?1 mod ev))]) ;; FIXME: same
 
-  ;; XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-
-  (ModulePass1  ;; partially-expand-bodys loop
-   #:skipped null
-   [() null]
-   [(module-pass1-end-lifts ?ModulePass1)
-    (cons (make mod:lift-end $1) $2)]
-   [(next ?EE module-pass1-lifts ?ModulePass1 ?ModulePass1Case ?ModulePass1)
-    (match $3
-      [(list* lifted-defns lifted-reqs lifted-mods)
-       (cons (make mod:lift $2 lifted-defns lifted-reqs lifted-mods $4 $5) $6)])])
-
-  ;; (ModulePass1-Part
-  ;;  [(?EE rename-one ?ModulePass1/Prim)
-  ;;   (make mod:prim $1 $2 ($3 $2))]
-  ;;  [(EE rename-one ! splice)
-  ;;   (make mod:splice $1 $2 $3 $4)]
-  ;;  [(EE rename-list module-lift-loop)
-  ;;   (make mod:lift $1 null $2 $3)])
-
-  (ModulePass1Case
-   [(enter-module-pass1-case ?ModulePass1CaseBody)
-    ($2 $1)])
-  (ModulePass1CaseBody
-   #:args (e1)
-   [(prim-begin ! splice)
-    (make mod:splice $2 $3)] ;; !!
-   [(prim-begin-for-syntax ! ?PrepareEnv phase-up ?Pass1And2Loop ?Eval exit-case)
-    (make p:begin-for-syntax e1 $7 null $2 $3 $5 $6)]
-   [(prim-define-values ! exit-case)
-    (make p:define-values e1 $3 null $2 #f)]
-   [(prim-define-syntaxes ! ?PrepareEnv phase-up ?EE/LetLifts ?Eval exit-case)
-    (make p:define-syntaxes e1 $7 null $2 $3 $5 $6)]
-   [(prim-require ?Eval exit-prim)
-    (make p:require e1 $3 null #f $2)]
-   ;; provide : stop
-   [(prim-submodule ?ExpandSubmodule)
-    $2]
-   ;; module* : stop
-   [(prim-declare !)
-    (make p:declare e1 e1 $2 null)]
-   [(prim-stop)
-    (make p:stop e1 e1 null #f)])
-
-  (ModulePass2 ;; finish-expanding-body-expressions
-   #:skipped null
-   [() null]
-   [(next ?ModulePass2-Part ?ModulePass2)
-    (cons $2 $3)]
-   [(module-lift-end-loop ?ModulePass2)
-    (cons (make mod:lift-end $1) $2)])
-
-  (ModulePass2-Part
-   ;; not normal; already handled
-   [()
-    (make mod:skip)]
-   ;; normal: expand completely
-   [(?EE ?Eval)
-    ;; after expansion, may compile => may eval letstx rhss again!
-    ;; need to include those evals too (for errors, etc)
-    (make mod:cons $1 $2)]
-   ;; catch lifts
-   [(EE Eval module-lift-loop)
-    ;; same as above: after expansion, may compile => may eval
-    (make mod:lift $1 $2 #f $3)])
 
   ;; ----------------------------------------
   ;; src/expander/expand/top.rkt

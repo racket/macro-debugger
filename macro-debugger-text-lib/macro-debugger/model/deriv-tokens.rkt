@@ -23,6 +23,8 @@
    IMPOSSIBLE           ; useful for error-handling clauses that have no NoError counterpart
    top-non-begin        ; .
    prepare-env          ; .
+   enter-begin-for-syntax
+   exit-begin-for-syntax
    )
 
   #:tokens
@@ -56,6 +58,12 @@
    lift-require         ; (cons syntax (cons syntax syntax))
    lift-provide         ; syntax
    rename-transformer   ; Syntax
+
+   module-end-lifts     ; Syntaxes
+   module-pass1-lifts   ; (list* Syntaxes Syntaxes Syntaxes) -- (list* defs reqs mods)
+   module-pass1-case    ; Syntax
+   exit-case            ; Stx
+   module-pass2-lifts   ; (list* Syntaxes Syntaxes Syntaxes) -- (list* reqs mods defs)
 
    enter-local          ; syntax
    local-pre            ; syntax
@@ -118,6 +126,7 @@
    prim-begin-for-syntax
    prim-submodule
    prim-submodule*
+   prim-declare
    ))
 
 ;; ** Events to tokens

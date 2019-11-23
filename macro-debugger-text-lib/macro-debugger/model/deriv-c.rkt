@@ -57,7 +57,7 @@
 ;;   (make-p:#%module-begin <Base> Stx ModuleBegin/Phase ?exn)
 (define-struct (p:module prule) (prep rename check1 ?2 tag2 check2 ?3 body shift)
   #:transparent)
-(define-struct (p:#%module-begin prule) (me body ?2 subs) #:transparent)
+(define-struct (p:#%module-begin prule) (me pass12 ?2 pass3 ?3 pass4) #:transparent)
 
 ;;   (make-p:define-syntaxes <Base> (listof LocalAction) DerivLL (listof LocalAction))
 ;;   (make-p:define-values <Base> Deriv)
@@ -102,8 +102,8 @@
 ;;   (make-p:require <Base> (listof LocalAction))
 (define-struct (p:require prule) (locals) #:transparent)
 
-(define-struct (p:submodule prule) (exp) #:transparent)
-(define-struct (p:submodule* prule) () #:transparent)
+(define-struct (p:submodule prule) (exp locals) #:transparent)
+(define-struct (p:submodule* prule) (exp locals) #:transparent)
 
 ;;   (make-p:#%stratified-body <Base> BDeriv)
 (define-struct (p:#%stratified-body prule) (bderiv) #:transparent)
@@ -129,6 +129,9 @@
 (define-struct (p:quote p::STOP) () #:transparent)
 (define-struct (p:quote-syntax p::STOP) () #:transparent)
 (define-struct (p:#%variable-reference p::STOP) () #:transparent)
+
+;;   (p:declare <Base>)
+(struct p:declare prule () #:transparent)
 
 ;; A LDeriv is
 ;;   (make-lderiv <Node(Stxs)> ?exn (list-of Deriv))
@@ -177,28 +180,44 @@
 ;; A ModPass3 is (list-of p:provide)
 
 ;; A ModRule1 is one of 
-;;   (make-mod:prim Deriv Stx ModPrim)
-;;   (make-mod:splice Deriv Stx ?exn Stxs)
-;;   (make-mod:lift Deriv ?Stxs Stxs)
+;;   (make-mod:prim ModPass1Head ModPass1Prim)
 ;;   (make-mod:lift-end Stxs)
-;; A ModRule2 is one of
-;;   (make-mod:skip)
-;;   (make-mod:cons Deriv)
-;;   (make-mod:lift Deriv Stxs)
-(define-struct modrule () #:transparent)
-(define-struct (mod:prim modrule) (head rename prim) #:transparent)
-(define-struct (mod:splice modrule) (head rename ?1 tail) #:transparent)
-(define-struct (mod:lift modrule) (head locals renames tail) #:transparent)
-(define-struct (mod:lift-end modrule) (tail) #:transparent)
-(define-struct (mod:cons modrule) (head locals) #:transparent)
-(define-struct (mod:skip modrule) () #:transparent)
+;; A ModPass1Head is one of
+;; - Deriv
+;; - (modp1:lift Deriv Syntaxes Syntaxes Syntaxes ModPass1)
+;; A ModPass1Prim is one of
+;; - (modp1:splice ?Exn Syntaxes)
+;; - p:begin-for-syntax, p:define-values, p:define-syntaxes, p:require
+;; - p:submodule, p:declare
+;; - p:stop
+(struct mod:lift-end (ends) #:transparent)
+(struct modp1:prim (head prim) #:transparent)
+(struct modp1:lift (head lifted-defs lifted-reqs lifted-mods mods) #:transparent)
+(struct modp1:splice (?1 tail) #:transparent)
 
-;; A ModPrim is either #f or one of the following PRule variants:
-;;  - p:define-values
-;;  - p:define-syntaxes
-;;  - p:begin-for-syntax
-;;  - p:require
-;;  - p:provide
+;; A ModRule2 is one of
+;; - (mod:lift-end Stxs)
+;; - (modp2:skip)
+;; - (modp2:cons Deriv LocalActions)
+;; - (modp2:lift Deriv LocalActions Syntaxes Syntaxes Syntaxes ModP2Submods ModPass2)
+(struct modp2:skip () #:transparent)
+(struct modp2:cons (deriv locals) #:transparent)
+(struct modp2:lift (deriv locals lifted-reqs lifted-mods lifted-defs mods defs) #:transparent)
+
+;; A ModP2Submod is one of
+;; - #f
+;; - p:submodule
+
+;; A ModRule3 is one of
+;; - #f
+;; - (modp34:bfs (Listof ModRule3))
+;; - p:provide
+(struct modp34:bfs (subs) #:transparent)
+
+;; A ModRule4 is one of
+;; - #f
+;; - (modp34:bfs (Listof ModRule4))
+;; - p:submodule*
 
 
 ;; ECTE represents expand/compile-time-evals
