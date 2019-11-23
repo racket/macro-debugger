@@ -287,7 +287,7 @@
 
   (ModuleBeginK
    #:args (e1 e2 rs ?1)
-   [([me rename-one] [p12 ?Pass1And2Loop] [?2 !]
+   [([me rename-one] [p12 ?Pass1And2Loop] next-group [?2 !]
      next-group [p3 ?ModulePass3] [?3 !] next-group [p4 ?ModulePass4])
     (make p:#%module-begin e1 e2 rs ?1 me p12 ?2 p3 ?3 p4)])
 
@@ -319,8 +319,9 @@
    #:args (e1)
    [(prim-begin ! splice)
     (make modp1:splice $2 $3)] ;; !!
-   [(prim-begin-for-syntax ! ?PrepareEnv phase-up ?Pass1And2Loop ?Eval exit-case)
-    (make p:begin-for-syntax e1 $7 null $2 $3 $5 $6)]
+   [(prim-begin-for-syntax [?1 !] [prep ?PrepareEnv] phase-up [p12 ?Pass1And2Loop]
+                           next-group [ev ?Eval] [e2 exit-case])
+    (make p:begin-for-syntax e1 e2 null ?1 prep p12 ev)]
    [(prim-define-values ! exit-case)
     (make p:define-values e1 $3 null $2 #f)]
    [(prim-define-syntaxes ! ?PrepareEnv phase-up ?EE/LetLifts ?Eval exit-case)
@@ -645,7 +646,7 @@
   (parser #:start Expansion
           #:end EOF
           #:src-pos
-          ;; #:debug "/tmp/DEBUG-PARSER.txt"
+          #:debug "/tmp/DEBUG-PARSER.txt"
           #:error deriv-error))
 
 ;; ----------------------------------------
