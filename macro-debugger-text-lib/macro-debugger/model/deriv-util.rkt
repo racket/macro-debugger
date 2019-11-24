@@ -5,8 +5,6 @@
 
 (provide make
 
-         Wrap
-         
          ok-node?
          interrupted-node?
 
@@ -18,14 +16,6 @@
          wbderiv-es2
 
          wderivlist-es2)
-
-;; Wrap matcher
-;; Matches unwrapped, interrupted wrapped, or error wrapped
-(define-match-expander Wrap
-  (lambda (stx)
-    (syntax-case stx ()
-      [(Wrap S (var ...))
-       (syntax/loc stx (struct S (var ...)))])))
 
 ;; ----
 
