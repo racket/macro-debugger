@@ -21,14 +21,22 @@
 (struct deriv node () #:transparent)
 (struct base deriv (resolves ?1) #:transparent)
 
-;; A LiftDeriv is (lift-deriv Stx Stx Deriv Stxs Deriv)
+;; A TopDeriv is one of
+;; - (ecte Stx Stx LocalActions Deriv DerivInECTE LocalActions)
+;;   represents expand/compile-time-evals, also main expand per-top-level loop
+;; - (lift-deriv Stx Stx Deriv Stxs TopDeriv)
+;; - Deriv
+;; where DerivInECTE = TopDeriv | p:begin or p:begin-for-syntax containing TopDerivs
+(struct ecte deriv (locals first second locals2) #:transparent)
 (struct lift-deriv deriv (first lift-stx second) #:transparent)
-
-;; A TagRule is (tagrule Stx Stx Stx Deriv)
-(struct tagrule deriv (tagged-stx next) #:transparent)
 
 ;; A DerivLL is one of Deriv | (lift/let-deriv Stx Stx Deriv Stx DerivLL)
 (struct lift/let-deriv deriv (first lift-stx second) #:transparent)
+
+;; A Deriv is one of MRule | PrimDeriv | TagRule
+
+;; A TagRule is (tagrule Stx Stx Stx Deriv)
+(struct tagrule deriv (tagged-stx next) #:transparent)
 
 
 ;; ============================================================
@@ -248,7 +256,3 @@
 
 ;; A BeginForSyntaxLifts is (make-bfs:lift LDeriv Stxs)
 (struct bfs:lift (lderiv lifts) #:transparent)
-
-;; An ECTE is (ecte Stx Stx LocalActions Deriv Deriv LocalActions)
-;; represents expand/compile-time-evals
-(struct ecte deriv (locals first second locals2) #:transparent)
