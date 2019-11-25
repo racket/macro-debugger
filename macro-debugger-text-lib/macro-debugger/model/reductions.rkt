@@ -1,6 +1,7 @@
 #lang racket/base
 (require (for-syntax racket/base)
          racket/match
+         racket/list
          racket/format
          syntax/stx
          "../util/eomap.rkt"
@@ -99,14 +100,17 @@
         [Expr ?body body]
         [#:pattern ?form]
         [#:rename ?form shift])]
-    [(p:#%module-begin e1 e2 rs ?1 me body ?2 subs)
+    [(p:#%module-begin e1 e2 rs ?1 me pass12 ?2 pass3 ?3 pass4)
      (R [! ?1]
         [#:pattern ?form]
         [#:rename ?form me]
         [#:pattern (?module-begin . ?forms)]
-        [ModuleBegin/Phase ?forms body]
+        ;; FIXME: #:pass1 / #:pass2 ?
+        [ModPass1And2 ?forms pass12]
         [! ?2]
-        [Submodules ?forms subs])]
+        [ModulePass3 ?forms pass3]
+        [! ?3]
+        [ModulePass4 ?forms pass4])]
     [(p:define-syntaxes e1 e2 rs ?1 prep rhs locals)
      (R [! ?1]
         [#:pattern ?form]
@@ -246,12 +250,16 @@
         [#:pattern ?form]
         [#:walk e2 'macro])]
 
-    [(p:submodule* e1 e2 rs ?1)
-     (R [! ?1])]
-    [(p:submodule e1 e2 rs ?1 exp)
+    [(p:submodule* e1 e2 rs ?1 exp locals)
      (R [! ?1]
         [#:pattern ?form]
-        [Expr ?form exp])]
+        [Expr ?form exp]
+        [LocalActions ?form locals])]
+    [(p:submodule e1 e2 rs ?1 exp locals)
+     (R [! ?1]
+        [#:pattern ?form]
+        [Expr ?form exp]
+        [LocalActions ?form locals])]
 
     [(p:stop e1 e2 rs ?1)
      (R [! ?1])]
@@ -277,8 +285,8 @@
         [PrepareEnv ?form prep]
         [#:pattern (?bfs . ?forms)]
         [#:parameterize ((phase (add1 (phase))))
-          [#:if (module-begin/phase? body)
-                [[ModuleBegin/Phase ?forms body]]
+          [#:if (mod:pass-1-and-2? body)
+                [[ModPass1And2 ?forms body]]
                 [[BeginForSyntax ?forms body]]]]
         [LocalActions ?forms locals])]
 
@@ -375,8 +383,7 @@
   (R [#:parameterize ((phase (add1 (phase))))
      => (Expr* d)]))
 
-;; case-lambda-clauses-reductions : 
-;;   (list-of (W (list ?exn rename (W BDeriv)))) stxs -> RST
+;; CaseLambdaClauses : (Listof CaseLambdaClause) -> RST
 (define (CaseLambdaClauses clauses)
   (match/count clauses
     ['()
@@ -410,10 +417,10 @@
 
 (define (LocalAction local)
   (match/count local
-    [(struct local-exn (exn))
+    [(local-exn exn)
      (R [! exn])]
 
-    [(struct local-expansion (e1 e2 for-stx? me1 inner #f me2 opaque))
+    [(local-expansion e1 e2 for-stx? me1 inner #f me2 opaque)
      (R [#:parameterize ((phase (if for-stx? (add1 (phase)) (phase))))
          [#:set-syntax e1]
          [#:pattern ?form]
@@ -423,7 +430,7 @@
          [#:do (when opaque
                  (hash-set! opaque-table (syntax-e opaque) e2))]])]
 
-    [(struct local-expansion (e1 e2 for-stx? me1 inner lifted me2 opaque))
+    [(local-expansion e1 e2 for-stx? me1 inner lifted me2 opaque)
      (R [#:let avail
                (if for-stx?
                    lifted
@@ -452,7 +459,7 @@
          [#:do (when opaque
                  (hash-set! opaque-table (syntax-e opaque) e2))]])]
 
-    [(struct local-lift (expr ids))
+    [(local-lift expr ids)
      ;; FIXME: add action
      (R [#:do (take-lift!)]
         [#:binders ids]
@@ -466,23 +473,23 @@
                            "Identifiers:"
                            (datum->syntax #f ids))))])]
 
-    [(struct local-lift-end (decl))
+    [(local-lift-end decl)
      ;; (walk/mono decl 'module-lift)
      (R)]
-    [(struct local-lift-require (req expr mexpr))
+    [(local-lift-require req expr mexpr)
      ;; lift require
      (R [#:set-syntax expr]
         [#:pattern ?form]
         [#:rename/mark ?form expr mexpr])]
-    [(struct local-lift-provide (prov))
+    [(local-lift-provide prov)
      ;; lift provide
      (R)]
-    [(struct local-bind (names ?1 renames bindrhs))
+    [(local-bind names ?1 renames bindrhs)
      [R [! ?1]
         ;; FIXME: use renames
         [#:binders names]
         [#:when bindrhs => (BindSyntaxes bindrhs)]]]
-    [(struct track-origin (before after))
+    [(track-origin before after)
      (R)
      #|
      ;; Do nothing for now... need to account for marks also.
@@ -490,15 +497,15 @@
         [#:pattern ?form]
         [#:rename ?form after 'track-origin]]
      |#]
-    [(struct local-value (name ?1 resolves bound? binding))
+    [(local-value name ?1 resolves bound? binding)
      [R [! ?1]
         ;; FIXME: notify if binding != current (identifier-binding name)???
         ;; [#:learn (list name)]
         ;; Add remark step?
         ]]
-    [(struct local-remark (contents))
+    [(local-remark contents)
      (R [#:reductions (list (walk/talk 'remark contents))])]
-    [(struct local-mess (events))
+    [(local-mess events)
      ;; FIXME: While it is not generally possible to parse tokens as one or more
      ;; interrupted derivations (possibly interleaved with successful derivs),
      ;; it should be possible to recover *some* information and display it.
@@ -663,20 +670,163 @@
           [#:set-syntax (append stxs old-forms)]
           [BeginForSyntax ?forms rest]])]))
 
-(define (ModuleBegin/Phase body)
-  (match/count body
-    [(module-begin/phase pass1 pass2 pass3)
+(define (ModPass1And2 pass12)
+  (match/count pass12
+    [(mod:pass-1-and-2 pass1 pass2)
      (R [#:pass1]
         [#:pattern ?forms]
-        [ModulePass ?forms pass1]
+        [ModulePass1 ?forms pass1]
         [#:pass2]
-        [#:do (DEBUG (printf "** module begin pass 2\n"))]
-        [ModulePass ?forms pass2]
-        ;; ignore pass3 for now: only provides
-        [#:new-local-context
-         [#:pattern ?form]
-         [LocalActions ?form (map expr->local-action (or pass3 null))]])]))
+        [ModulePass2 ?forms pass2])]))
 
+;; Synthetic fine-grained pass1 steps
+(struct modp1*:head (head) #:transparent)
+(struct modp1*:case (prim) #:transparent)
+(struct modp1*:lift (lifted-defs lifted-reqs lifted-mods) #:transparent)
+
+;; ModulePass1 : (Listof ModRule1) -> RST
+(define (ModulePass1 mbrules)
+  (match/count mbrules
+    ['()
+     (R)]
+    [(cons (mod:lift-end stxs) rest)
+     (R [#:pattern ?forms]
+        [#:when (pair? stxs)
+                [#:left-foot null]
+                [#:set-syntax (append stxs (stx->list #'?forms))]
+                [#:step 'splice-module-lifts stxs]]
+        [ModulePass1 ?forms rest])]
+    ;; A modp1:prim node isn't ideally matched to the structure of steps that
+    ;; must be generated (for splicing, lifting, etc). So translate it just in
+    ;; time to a list of fine-grained steps.
+    [(cons (modp1:prim head prim) rest)
+     (let ([mbrules*
+            (match head
+              [(modp1:lift head* lifted-defs lifted-reqs lifted-mods mods)
+               `(,(modp1*:head head*)
+                 ,(modp1*:lift lifted-defs lifted-reqs lifted-mods)
+                 ,@(make-list (+ (length lifted-defs) (length lifted-reqs)) #f)
+                 ,@mods
+                 ,(modp1*:case prim)
+                 ,@rest)]
+              [(? deriv? head*)
+               (list* (modp1*:head head*) (modp1*:case prim) rest)])])
+       (R [#:pattern ?forms]
+          [ModulePass1 ?forms mbrules*]))]
+
+    ;; Synthetic fine-grained pseudo-derivs
+    [(cons (modp1*:head head) rest)
+     (R [#:pattern (?firstP . ?rest)]
+        ;; FIXME: #:pass1 / #:pass2 ???
+        [Expr ?firstP head]
+        [#:pattern ?forms]
+        [ModulePass1 ?forms rest])]
+    [(cons (modp1*:case (modp1:splice ?1 tail)) rest)
+     (R [#:pattern ?forms]
+        [#:let begin-form (stx-car #'?forms)]
+        [#:let rest-forms (stx-cdr #'?forms)]
+        [#:left-foot (list begin-form)]
+        [#:set-syntax tail]
+        [#:step 'splice-module (stx->list (stx-cdr begin-form))]
+        [ModulePass1 ?forms rest])]
+    [(cons (modp1*:case (? prule? prim)) rest)
+     (R [#:pattern (?firstP . ?rest)]
+        [Expr ?firstP prim]
+        [ModulePass1 ?rest rest])]
+    [(cons (modp1*:lift lifted-defs lifted-reqs lifted-mods) rest)
+     (R [#:pattern ?forms]
+        ;; FIXME: get visible-lifts ??
+        [#:left-foot null]
+        [#:set-syntax (append lifted-defs lifted-reqs lifted-mods (stx->list #'?forms))]
+        [#:step 'splice-lifts (append lifted-defs lifted-reqs lifted-mods)]
+        [ModulePass1 ?forms rest])]
+    [(cons #f rest)
+     (R [#:pattern (?first . ?rest)]
+        [ModulePass1 ?rest rest])]))
+
+;; ModulePass2 : (Listof ModRule2) -> RST
+(define (ModulePass2 mbrules)
+  (match/count mbrules
+    ['()
+     (R)]
+    [(cons (mod:lift-end stxs) rest)
+     (R [#:pattern ?forms]
+        [#:when (pair? stxs)
+                [#:left-foot null]
+                [#:set-syntax (append stxs (stx->list #'?forms))]
+                [#:step 'splice-module-lifts stxs]]
+        [ModulePass2 ?forms rest])]
+    [(cons (modp2:skip) rest)
+     (R [#:pattern (?first . ?rest)]
+        [ModulePass2 ?rest rest])]
+    [(cons (modp2:cons deriv locals) rest)
+     (R [#:pattern (?first . ?rest)]
+        [Expr ?first deriv]
+        [LocalActions ?first locals]
+        [ModulePass2 ?rest rest])]
+    [(cons (modp2:lift deriv locals lifted-reqs lifted-mods lifted-defs mods defs) rest)
+     (let ([mbrules*
+            `(,@(make-list (length lifted-reqs) (modp2:skip))
+              ,@mods
+              ,@defs
+              ,(modp2:skip)
+              ,@rest)])
+       (R [#:pattern (?first . ?rest)]
+          [#:pass1]
+          [Expr ?first deriv]
+          [LocalActions ?first locals]
+          [#:pass2]
+          [#:pattern ?forms]
+          [#:left-foot null]
+          [#:set-syntax (append lifted-reqs lifted-mods lifted-defs (stx->list #'?forms))]
+          [#:step 'splice-module-lifts (append lifted-reqs lifted-mods lifted-defs)]
+          [ModulePass2 ?forms mbrules*]))]))
+
+(define (ModulePass3 pass3)
+  ;; FIXME: pass3 currently nearly ignored
+  #|
+  (R [#:new-local-context
+      [#:pattern ?form]
+      [LocalActions ?form (map expr->local-action (or pass3 null))]])
+  |#
+  (match/count pass3
+    ['()
+     (R)]
+    [(cons #f rest)
+     (R [#:pattern (?first . ?rest)]
+        [ModulePass3 ?rest rest])]
+    [(cons (modp34:bfs subs) rest)
+     (R [#:pattern ((?bfs . ?subs) . ?rest)]
+        [ModulePass3 ?subs subs]
+        [ModulePass3 ?rest rest])]
+    [(cons (? p:provide? deriv) rest)
+     (R [#:pattern (?first . ?rest)]
+        [Expr ?first deriv]
+        [ModulePass3 ?rest rest])]))
+
+(define (ModulePass4 pass4)
+  ;; FIXME: pass4 currently nearly ignored
+  #|
+  (R [#:new-local-context
+      [#:pattern ?form]
+      [LocalActions ?form (map expr->local-action (or pass3 null))]])
+  |#
+  (match/count pass4
+    ['()
+     (R)]
+    [(cons #f rest)
+     (R [#:pattern (?first . ?rest)]
+        [ModulePass4 ?rest rest])]
+    [(cons (modp34:bfs subs) rest)
+     (R [#:pattern ((?bfs . ?subs) . ?rest)]
+        [ModulePass4 ?subs subs]
+        [ModulePass4 ?rest rest])]
+    [(cons (? p:submodule*? deriv) rest)
+     (R [#:pattern (?first . ?rest)]
+        [Expr ?first deriv]
+        [ModulePass4 ?rest rest])]))
+
+#;
 ;; ModulePass : (list-of MBRule) -> RST
 (define (ModulePass mbrules)
   (match/count mbrules
@@ -750,6 +900,8 @@
 
 ;; Lifts
 
+(define (take-lift!) (void))
+#|
 (define (take-lift!)
   (define avail (available-lift-stxs))
   (cond [(list? avail)
@@ -779,6 +931,7 @@
                             (visible-lift-stxs)))))]
            [_
             (lift-error 'local-lift "out of lifts (let)!")])]))
+|#
 
 (define (reform-begin-lifts orig-lifted lifts body)
   (define begin-kw (stx-car orig-lifted))

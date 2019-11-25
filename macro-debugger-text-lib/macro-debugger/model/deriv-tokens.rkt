@@ -176,6 +176,12 @@
    'tag/context             token-tag/context
    'rename-transformer      token-rename-transformer
 
+   'module-end-lifts        token-module-end-lifts
+   'module-pass1-lifts      token-module-pass1-lifts
+   'module-pass1-case       token-module-pass1-case
+   'module-pass2-lifts      token-module-pass2-lifts
+   'exit-case               token-exit-case
+
    'prim-stop               #t
    'prim-module             #t
    'prim-module-begin       #t
@@ -240,7 +246,9 @@
 (define (tokenize key val pos)
   (cond [(hash-ref token-mapping key #f)
          => (lambda (make-token)
-              (if (procedure? make-token)
-                  (make-position-token (make-token val) pos pos)
-                  (make-position-token key pos pos)))]
+              (cond [(and (procedure? make-token)
+                          (procedure-arity-includes? make-token 1))
+                     (make-position-token (make-token val) pos pos)]
+                    [val (error 'tokenize "unexpected payload (key = ~s): ~e" key val)]
+                    [else (make-position-token key pos pos)]))]
         [else (error 'tokenize "bad signal: ~s" key)]))

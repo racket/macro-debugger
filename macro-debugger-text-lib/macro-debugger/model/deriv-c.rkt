@@ -84,7 +84,7 @@
 ;; - (p:module <Base> PrepareEnv Stx Deriv ?Exn Stx Deriv ?Exn Deriv Stx)
 (struct p:module prule (prep rename check1 ?2 tag2 check2 ?3 body shift) #:transparent)
 
-;; - (p:#%module-begin <Base> Stx ModPass1/2 ?Exn ModPass3 ?Exn ModPass4)
+;; - (p:#%module-begin <Base> Stx ModPass1And2 ?Exn ModPass3 ?Exn ModPass4)
 (struct p:#%module-begin prule (me pass12 ?2 pass3 ?3 pass4) #:transparent)
 
 ;; - (p:define-syntaxes <Base> LocalActions DerivLL LocalActions)
@@ -145,7 +145,7 @@
 (struct p:#%stratified-body prule (bderiv) #:transparent)
 
 ;; - (p:begin-for-syntax <Base> LocalActions BFSBody)
-;;   where BFSBody = ModuleBegin/Phase | (list BeginForSyntaxLifts ... LDeriv)
+;;   where BFSBody = ModPass1And2 | (list BeginForSyntaxLifts ... LDeriv)
 (struct p:begin-for-syntax prule (prep body locals) #:transparent)
 
 ;; - (p:stop <Base>)
@@ -199,23 +199,27 @@
 ;; Modules
 
 ;; A ModuleBegin/Phase is (module-begin/phase ModulePass1 ModulePass2 ModulePass3)
-(struct module-begin/phase (pass1 pass2 pass3) #:transparent)
+;;X (struct module-begin/phase (pass1 pass2 pass3) #:transparent)
+;; FIXME
 
-;; A ModPass1 is (list-of ModRule1)
-;; A ModPass2 is (list-of ModRule2)
-;; A ModPass3 is (list-of p:provide)
+;; A ModPass1And2 is (mod:pass-1-and-2 ModPass1 ModPass2)
+(struct mod:pass-1-and-2 (pass1 pass2) #:transparent)
+
+;; A ModPass1 is (Listof ModRule1)
+;; A ModPass2 is (Listof ModRule2)
+;; A ModPass3 is (Listof ModRule3)
+;; A ModPass4 is (Listof ModRule4)
 
 ;; A ModRule1 is one of 
-;;   (make-mod:prim ModPass1Head ModPass1Prim)
-;;   (make-mod:lift-end Stxs)
+;; - (make-mod:lift-end Stxs)
+;; - (make-modp1:prim ModPass1Head ModPass1Prim)
 ;; A ModPass1Head is one of
 ;; - Deriv
 ;; - (modp1:lift Deriv Syntaxes Syntaxes Syntaxes ModPass1)
 ;; A ModPass1Prim is one of
 ;; - (modp1:splice ?Exn Syntaxes)
-;; - p:begin-for-syntax, p:define-values, p:define-syntaxes, p:require
-;; - p:submodule, p:declare
-;; - p:stop
+;; - (p:begin-for-syntax Stxs Stxs Ids ?Exn LocalActions ModPass1And2 LocalActions)
+;; - p:define-values, p:define-syntaxes, p:require, p:submodule, p:declare, p:stop
 (struct mod:lift-end (ends) #:transparent)
 (struct modp1:prim (head prim) #:transparent)
 (struct modp1:lift (head lifted-defs lifted-reqs lifted-mods mods) #:transparent)

@@ -292,9 +292,9 @@
     (make p:#%module-begin e1 e2 rs ?1 me p12 ?2 p3 ?3 p4)])
 
   (Pass1And2Loop
-   ;; (list ??? ???)
+   ;; ModPass1And2
    [(?ModulePass1 next-group ?ModulePass2)
-    (list $1 $3)])
+    (mod:pass-1-and-2 $1 $3)])
 
   (ModulePass1  ;; partially-expand-bodys loop
    #:skipped null
@@ -405,7 +405,7 @@
 
   (ModulePass4/BFS
    [(enter-begin-for-syntax ?ModulePass4 exit-begin-for-syntax)
-    $2])
+    (modp34:bfs $2)])
 
   (ExpandSubmodule
    ;; Deriv
@@ -414,7 +414,7 @@
       (p:submodule $1 (and mod (wderiv-e2 mod)) null ?1 mod ev))]
    [(enter-prim prim-submodule* [?1 !] [e1 enter-prim] [m ?ExpandModule] [e2 exit-prim] [ev ?Eval])
     (let ([mod (m e1 e2 null)])
-      (p:submodule* $1 (and mod (wderiv-e2 mod)) null ?1 mod ev))]) ;; FIXME: same
+      (p:submodule* $1 (and mod (wderiv-e2 mod)) null ?1 mod ev))])
 
 
   ;; ----------------------------------------
@@ -436,6 +436,7 @@
    [(prim-begin-for-syntax ! ?PrepareEnv ?BeginForSyntax* ?Eval)
     (make p:begin-for-syntax e1 e2 rs $2 $3 $4 $5)])
   (BeginForSyntax*
+   #:skipped null
    [(?EL)
     (list $1)]
    [(EL module-lift-loop ?BeginForSyntax*)
