@@ -335,44 +335,19 @@
 
     [(lift-deriv e1 e2 first lifted-stx second)
      (R [#:pattern ?form]
-        ;; lifted-stx has form (begin lift-n ... lift-1 orig-expr)
-        [#:let avail (cdr (reverse (stx->list (stx-cdr lifted-stx))))]
-        [#:parameterize ((available-lift-stxs avail)
-                         (visible-lift-stxs null))
-          [#:pass1]
-          [Expr ?form first]
-          [#:do (when (pair? (available-lift-stxs))
-                  (lift-error 'lift-deriv "available lifts left over"))]
-          [#:with-visible-form
-           ;; If no lifts visible, then don't show begin-wrapping
-           [#:when (pair? (visible-lift-stxs))
-                   [#:walk (reform-begin-lifts lifted-stx
-                                               (visible-lift-stxs)
-                                               #'?form)
-                           'capture-lifts]]]
-          [#:pass2]
-          [#:set-syntax lifted-stx]
-          [Expr ?form second]])]
+        [#:pass1]
+        [Expr ?form first]
+        [#:pass2]
+        [#:walk lifted-stx 'capture-lifts]
+        [Expr ?form second])]
 
     [(lift/let-deriv e1 e2 first lifted-stx second)
      (R [#:pattern ?form]
-        ;; lifted-stx has form
-        ;; (let-values ((last-v last-lifted))
-        ;;   ...
-        ;;     (let-values ((first-v first-lifted)) orig-expr))
-        [#:let avail lifted-stx]
-        [#:parameterize ((available-lift-stxs avail)
-                         (visible-lift-stxs null))
-          [#:pass1]
-          [Expr ?form first]
-          [#:let visible-lifts (visible-lift-stxs)]
-          [#:with-visible-form
-           [#:left-foot]
-           [#:set-syntax (reform-let-lifts lifted-stx visible-lifts #'?form)]
-           [#:step 'capture-lifts]]
-          [#:pass2]
-          [#:set-syntax lifted-stx]
-          [Expr ?form second]])]
+        [#:pass1]
+        [Expr ?form first]
+        [#:pass2]
+        [#:walk lifted-stx 'capture-lifts]
+        [Expr ?form second])]
 
     ;; Skipped
     [#f
@@ -783,12 +758,6 @@
           [ModulePass2 ?forms mbrules*]))]))
 
 (define (ModulePass3 pass3)
-  ;; FIXME: pass3 currently nearly ignored
-  #|
-  (R [#:new-local-context
-      [#:pattern ?form]
-      [LocalActions ?form (map expr->local-action (or pass3 null))]])
-  |#
   (match/count pass3
     ['()
      (R)]
@@ -805,12 +774,6 @@
         [ModulePass3 ?rest rest])]))
 
 (define (ModulePass4 pass4)
-  ;; FIXME: pass4 currently nearly ignored
-  #|
-  (R [#:new-local-context
-      [#:pattern ?form]
-      [LocalActions ?form (map expr->local-action (or pass3 null))]])
-  |#
   (match/count pass4
     ['()
      (R)]
@@ -826,112 +789,9 @@
         [Expr ?first deriv]
         [ModulePass4 ?rest rest])]))
 
-#;
-;; ModulePass : (list-of MBRule) -> RST
-(define (ModulePass mbrules)
-  (match/count mbrules
-    ['()
-     (R)]
-    [(cons (mod:prim head rename prim) rest)
-     (R [#:pattern (?firstP . ?rest)]
-        [Expr ?firstP head]
-        [#:do (DEBUG (printf "** after head\n"))]
-        [#:rename ?firstP rename]
-        [#:do (DEBUG (printf "** after rename\n"))]
-        [#:when prim
-                [Expr ?firstP prim]]
-        [#:do (DEBUG (printf "** after prim\n"))]
-        [ModulePass ?rest rest])]
-    [(cons (mod:splice head rename ?1 tail) rest)
-     (R [#:pattern (?firstB . ?rest)]
-        [#:pass1]
-        [Expr ?firstB head]
-        [#:pass2]
-        [#:rename ?firstB rename]
-        [! ?1]
-        [#:let begin-form #'?firstB]
-        [#:let rest-forms #'?rest]
-        [#:left-foot (list #'?firstB)]
-        [#:pattern ?forms]
-        [#:set-syntax (append (stx->list (stx-cdr begin-form)) rest-forms)]
-        [#:step 'splice-module (stx->list (stx-cdr begin-form))]
-        [#:rename ?forms tail]
-        [ModulePass ?forms rest])]
-    [(cons (mod:lift head locals renames stxs) rest)
-     (R [#:pattern (?firstL . ?rest)]
-        ;; renames has form (head-e2 . ?rest)
-        ;; stxs has form (lifted ...),
-        ;;   specifically (last-lifted ... first-lifted)
-        [#:parameterize ((available-lift-stxs (reverse stxs))
-                         (visible-lift-stxs null))
-          [#:pass1]
-          [Expr ?firstL head]
-          [LocalActions ?firstL locals]
-          [#:do (when (pair? (available-lift-stxs))
-                  (lift-error 'mod:lift "available lifts left over"))]
-          [#:let visible-lifts (visible-lift-stxs)]
-          [#:pattern ?forms]
-          [#:pass2]
-          [#:when renames
-                  [#:rename ?forms renames]]
-          [#:let old-forms #'?forms]
-          [#:left-foot null]
-          [#:set-syntax (append visible-lifts old-forms)]
-          [#:step 'splice-lifts visible-lifts]
-          [#:set-syntax (append stxs old-forms)]
-          [ModulePass ?forms rest]])]
-    [(cons (mod:lift-end stxs) rest)
-     ;; In pass2, stxs contains a mixture of terms and kind-tagged terms (pairs)
-     (let ([stxs (map (lambda (e) (if (pair? e) (car e) e)) stxs)])
-       (R [#:pattern ?forms]
-          [#:when (pair? stxs)
-                  [#:left-foot null]
-                  [#:set-syntax (append stxs #'?forms)]
-                  [#:step 'splice-module-lifts stxs]]
-          [ModulePass ?forms rest]))]
-    [(cons (mod:skip ) rest)
-     (R [#:pattern (?firstS . ?rest)]
-        [ModulePass ?rest rest])]
-    [(cons (mod:cons head locals) rest)
-     (R [#:pattern (?firstC . ?rest)]
-        [Expr ?firstC head]
-        [LocalActions ?firstC locals]
-        [ModulePass ?rest rest])]))
-
 ;; Lifts
 
 (define (take-lift!) (void))
-#|
-(define (take-lift!)
-  (define avail (available-lift-stxs))
-  (cond [(list? avail)
-         #|
-         ;; This check is wrong! (and thus disabled)
-         ;; If a syntax error occurs between the time a lift is "thrown"
-         ;; and when it is "caught", no lifts will be available to take.
-         ;; But that's not a bug, so don't complain.
-         (unless (pair? avail)
-           (lift-error 'local-lift "out of lifts (begin)!"))
-         |#
-         (when (pair? avail)
-           (let ([lift-stx (car avail)])
-             (available-lift-stxs (cdr avail))
-             (when (visibility)
-               (visible-lift-stxs
-                (cons lift-stx (visible-lift-stxs))))))]
-        [else
-         (syntax-case avail ()
-           [(?let-values ?lift ?rest)
-            (eq? (syntax-e #'?let-values) 'let-values)
-            (begin (available-lift-stxs #'?rest)
-                   (when (visibility)
-                     (visible-lift-stxs
-                      (cons (datum->syntax avail (list #'?let-values #'?lift)
-                                           avail avail)
-                            (visible-lift-stxs)))))]
-           [_
-            (lift-error 'local-lift "out of lifts (let)!")])]))
-|#
 
 (define (reform-begin-lifts orig-lifted lifts body)
   (define begin-kw (stx-car orig-lifted))
