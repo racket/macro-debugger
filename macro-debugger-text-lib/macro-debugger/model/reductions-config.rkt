@@ -12,7 +12,7 @@
   (when #f
     form ... (void)))
 
-(define state/c (or/c state? false/c))
+(define state/c (or/c state? #f))
 (define context/c any/c)
 (define big-context/c any/c)
 
@@ -390,38 +390,6 @@
           ((listof protostep?) any/c any/c state/c . -> . any)
           ((listof protostep?) exn? . -> . any)
           . -> . any)])
-
-#|
-;; Alternate RS = (values ?exn steps ?stx ?stx state)
-;; Avoids allocation
-;; Doesn't seem to actually matter
-
-(define (RSunit ws x y s)
-  (values #f ws x y s))
-
-(define (RSfail ws e)
-  (values e ws #f #f #f))
-
-(define-syntax-rule (RSbind a f)
-  (let-values ([(e ws x y s) a])
-    (if (not e)
-        (f x y s ws)
-        (values e ws x y s))))
-
-(define-syntax-rule (RScase a k f)
-  (let-values ([(e ws x y s) a])
-    (if (not e)
-        (k ws x y s)
-        (f ws e))))
-
-(define-syntax RS/c (make-rename-transformer #'any/c))
-
-(provide RS/c
-         RSunit
-         RSfail
-         RSbind
-         RScase)
-|#
 
 
 ;; Table
