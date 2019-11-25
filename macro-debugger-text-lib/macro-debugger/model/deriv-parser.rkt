@@ -62,16 +62,11 @@
       (make ecte $1 e2 null $2 $3 null))]
    [(visit ECL lift-loop ?PTLL)
     (make lift-deriv $1 (wderiv-e2 $4) $2 $3 $4)]
-   [(visit ECL prim-begin ! ?NextPTLLs return)
-    (make ecte $1 $6 null $2
-          (let* ([b-e1 (and $2 (node-z2 $2))])
-            (make p:begin b-e1 $6 (list (stx-car b-e1)) $4 $5))
-          null)]
-   [(visit ECL prim-begin-for-syntax ! ?PrepareEnv ?NextPTLLs return)
-    (make ecte $1 $7 null $2
-          (let* ([b-e1 (and $2 (node-z2 $2))]
-                 [ld (and b-e1 (derivs->lderiv (stx-cdr b-e1) $6))])
-            (make p:begin-for-syntax b-e1 $7 (list (stx-car b-e1)) $4 $5 ld null))
+   [([e1 visit] ECL prim-begin [?1 !] [body ?NextPTLLs] [e2 return])
+    (make ecte e1 e2 null $2 (make p:begin (wderiv-e2 $2) e2 null ?1 body) null)]
+   [([e1 visit] ECL prim-begin-for-syntax [?1 !] [prep ?PrepareEnv] [body ?NextPTLLs] [e2 return])
+    (make ecte e1 e2 null $2
+          (make p:begin-for-syntax (wderiv-e2 $2) e2 null ?1  prep body null)
           null)])
 
   (NextPTLLs
