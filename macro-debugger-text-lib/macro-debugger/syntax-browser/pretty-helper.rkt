@@ -204,4 +204,4 @@
       #f))
 
 (define (syntax-e* stx)
-  (syntax-e (syntax-disarm stx)))
+  (syntax-e (syntax-disarm stx #f)))
