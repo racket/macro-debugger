@@ -124,8 +124,8 @@
        (void)]
       [(p:module z1 z2 rs ?1 prep rename check1 ?2 tag2 check2 ?3 body shift)
        (recur prep check1 check2 body)]
-      [(p:#%module-begin z1 z2 rs ?1 me body ?2 subs)
-       (recur body subs)]
+      [(p:#%module-begin z1 z2 rs ?1 me pass12 ?2 pass3 ?3 pass4)
+       (recur pass12 pass3 pass4)]
       [(p:define-syntaxes z1 z2 rs ?1 prep rhs locals)
        (recur prep locals)
        (recur/phase-up rhs)]
@@ -165,10 +165,10 @@
        (recur inners)]
       [(p:require _ _ _ _ locals)
        (recur locals)]
-      [(p:submodule _ _ _ _ exp)
+      [(p:submodule _ _ _ _ exp locals)
        (recur exp)]
-      [(p:submodule* _ _ _ _)
-       (void)]
+      [(p:submodule* _ _ _ _ exp locals)
+       (recur exp locals)]
       [(p:#%stratified-body _ _ _ _ bderiv)
        (recur bderiv)]
       [(p:stop _ _ _ _) (void)]
@@ -202,20 +202,24 @@
        (recur locals)]
       [(clc ?1 renames body)
        (recur body)]
-      [(module-begin/phase pass1 pass2 pass3)
-       (recur pass1 pass2 pass3)]
-      [(mod:prim head rename prim)
+      [(mod:pass-1-and-2 pass1 pass2)
+       (recur pass1 pass2)]
+      [(modp1:prim head prim)
        (recur head prim)]
-      [(mod:splice head rename ?1 tail)
-       (recur head)]
-      [(mod:lift head locals renames tail)
-       (recur head locals)]
+      [(modp1:lift head _ _ _ mods)
+       (recur head mods)]
+      [(modp1:splice _ _)
+       (void)]
+      [(modp2:skip)
+       (void)]
+      [(modp2:cons deriv locals)
+       (recur deriv locals)]
+      [(modp2:lift deriv locals _ _ _ mods defs)
+       (recur deriv locals mods defs)]
       [(mod:lift-end tail)
        (void)]
-      [(mod:cons head locals)
-       (recur head locals)]
-      [(mod:skip)
-       (void)]
+      [(modp34:bfs derivs)
+       (recur derivs)]
       ;; Shouldn't occur in module expansion.
       ;; (Unless code calls 'expand' at compile-time; weird, but possible.)
       [(ecte _ _ locals first second locals2)
