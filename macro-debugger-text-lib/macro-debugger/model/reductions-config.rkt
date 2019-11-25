@@ -450,15 +450,15 @@
           (loop-cons p rpath 0))))
     ;; loop-cons : (cons Syntax ?) Path number -> void
     (define (loop-cons p rpath pos)
-      (loop (car p) (cons (make ref pos) rpath))
+      (loop (car p) (path-add-ref pos rpath))
       (let ([t (cdr p)])
         (cond [(syntax? t)
                (let ([te (syntax-e t)])
                  (if (pair? te)
                      (begin
-                       (table-add! table t (reverse (cons (make tail pos) rpath)))
+                       (table-add! table t (reverse (path-add-tail pos rpath)))
                        (loop-cons te rpath (add1 pos)))
-                     (loop t (cons (make tail pos) rpath))))]
+                     (loop t (path-add-tail pos rpath))))]
               [(pair? t)
                (loop-cons t rpath (add1 pos))]
               [(null? t)

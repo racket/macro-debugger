@@ -1,7 +1,7 @@
 #lang racket/base
 (require rackunit)
 (require macro-debugger/model/debug
-         macro-debugger/model/stx-util
+         (only-in macro-debugger/model/stx-util stx->datum)
          "gentest-framework.rkt"
          "test-setup.rkt")
 (provide mk-deriv-test

@@ -1,8 +1,8 @@
 #lang racket/base
 (require syntax/stx
          "stx-util.rkt")
-(provide (struct-out ref)
-         (struct-out tail)
+(provide path-add-ref
+         path-add-tail
          path-get
          pathseg-get
          path-replace
@@ -10,11 +10,14 @@
 
 ;; A Path is a (list-of PathSeg)
 ;; where the PathSegs are listed outermost to innermost
-;; for example: (path-get #'((a b) (c d)) (list (make-ref 0) (make-ref 1))) = #'b, not #'c
+;; for example: (path-get #'((a b) (c d)) (list (ref 0) (ref 1))) = #'b, not #'c
+
+(define (path-add-ref n p) (cons (ref n) p))
+(define (path-add-tail n p) (cons (tail n) p))
 
 ;; A PathSeg is one of:
-;;   - (make-ref number)
-;;   - (make-tail number)
+;; - (ref Nat)
+;; - (tail Nat)
 
 (define-struct pathseg () #:transparent)
 (define-struct (ref pathseg) (n) #:transparent)
