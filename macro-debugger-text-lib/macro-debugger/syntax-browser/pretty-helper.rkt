@@ -2,8 +2,8 @@
 (require racket/pretty
          racket/class/iop
          racket/struct
-         "interfaces.rkt"
-         "../model/stx-util.rkt")
+         syntax/stx
+         "interfaces.rkt")
 (provide (all-defined-out))
 
 ;; Problem: If stx1 and stx2 are two distinguishable syntax objects, it
@@ -192,3 +192,16 @@
 
 (define (suffix sym n)
   (string->symbol (format "~a:~a" sym n)))
+
+(define (stx->list* stx)
+  (if (stx-list? stx)
+      (let loop ([stx stx])
+        (cond [(syntax? stx)
+               (loop (syntax-e (syntax-disarm stx #f)))]
+              [(pair? stx)
+               (cons (car stx) (loop (cdr stx)))]
+              [else stx]))
+      #f))
+
+(define (syntax-e* stx)
+  (syntax-e (syntax-disarm stx)))
