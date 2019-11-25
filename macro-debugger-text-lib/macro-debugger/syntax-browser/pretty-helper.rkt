@@ -23,6 +23,16 @@
 ;; UPDATE: In fact, want to treat all atomic values as confusable. The recent
 ;; reader change (interning strings, etc) highlights the issue.
 
+(define PRINT-PROTECTION? #t)
+(struct armed-stx (contents)
+  #:property prop:custom-write
+  (lambda (self out mode) (fprintf out "🔑~s" (armed-stx-contents self))))
+(struct tainted-stx (contents)
+  #:property prop:custom-write
+  (lambda (self out mode) (fprintf out "💥~s" (tainted-stx-contents self))))
+(define (syntax-armed? stx)
+  (and (syntax? stx) (not (syntax-tainted? stx)) (syntax-tainted? (datum->syntax stx #f))))
+
 (define (pretty-print/defaults datum [port (current-output-port)])
   (parameterize
     (;; Printing parameters (defaults from MzScheme and DrScheme 4.2.2.2)
@@ -78,7 +88,13 @@
     (let ([flat=>stx (make-hasheq)]
           [stx=>flat (make-hasheq)])
       (define (loop obj)
-        (cond [(hash-ref stx=>flat obj (lambda _ #f))
+        (cond [(and (syntax? obj) (syntax-tainted? obj))
+               (tainted-stx (loop* obj))]
+              [(and (syntax? obj) (syntax-armed? obj))
+               (armed-stx (loop* obj))]
+              [else (loop* obj)]))
+      (define (loop* obj)
+        (cond [(hash-ref stx=>flat obj #f)
                => (lambda (datum) datum)]
               [(and partition (identifier? obj))
                (when (and (eq? suffixopt 'all-if-over-limit)
