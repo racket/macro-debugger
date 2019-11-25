@@ -145,6 +145,8 @@
    'local-artificial-step   token-local-artificial-step
    'local-value-binding     token-local-value-binding
    'local-mess              token-local-mess
+   'enter-begin-for-syntax  token-enter-begin-for-syntax
+   'exit-begin-for-syntax   token-exit-begin-for-syntax
 
    'visit                   token-visit
    'resolve                 token-resolve
