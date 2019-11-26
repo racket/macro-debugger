@@ -21,8 +21,10 @@
   (syntax-case rhs ()
     [pattern (let () . body)]
     [x (raise-syntax-error 'with-syntax1
-                           (format "failed pattern match against ~s"
-                                   'pattern)
+                           (format "failed pattern match against ~s (~s:~s)"
+                                   'pattern
+                                   (syntax-line (quote-syntax pattern))
+                                   (syntax-column (quote-syntax pattern)))
                            #'x)]))
 
 (define-syntax-rule (DEBUG form ...)
