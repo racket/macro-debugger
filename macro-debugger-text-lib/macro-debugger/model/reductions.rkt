@@ -453,12 +453,25 @@
      (R)]
     [(local-lift-require req expr mexpr)
      ;; lift require
-     (R [#:set-syntax expr]
+     (R [#:reductions
+         (list
+          (walk/talk 'local-lift
+                     (list "The macro lifted a require"
+                           ""
+                           "Require:"
+                           req)))]
+        [#:set-syntax expr]
         [#:pattern ?form]
         [#:rename/mark ?form expr mexpr])]
     [(local-lift-provide prov)
      ;; lift provide
-     (R)]
+     (R [#:reductions
+         (list
+          (walk/talk 'local-lift
+                     (list "The macro lifted a provide"
+                           ""
+                           "Provide:"
+                           prov)))])]
     [(local-bind names ?1 renames bindrhs)
      [R [! ?1]
         ;; FIXME: use renames
@@ -669,7 +682,7 @@
         [#:when (pair? stxs)
                 [#:left-foot null]
                 [#:set-syntax (append stxs (stx->list #'?forms))]
-                [#:step 'splice-module-lifts stxs]]
+                [#:step 'splice-end-lifts stxs]]
         [ModulePass1 ?forms rest])]
     ;; A modp1:prim node isn't ideally matched to the structure of steps that
     ;; must be generated (for splicing, lifting, etc). So translate it just in
@@ -729,7 +742,7 @@
         [#:when (pair? stxs)
                 [#:left-foot null]
                 [#:set-syntax (append stxs (stx->list #'?forms))]
-                [#:step 'splice-module-lifts stxs]]
+                [#:step 'splice-end-lifts stxs]]
         [ModulePass2 ?forms rest])]
     [(cons (modp2:skip) rest)
      (R [#:pattern (?first . ?rest)]
@@ -742,7 +755,7 @@
     [(cons (modp2:lift deriv locals lifted-reqs lifted-mods lifted-defs mods defs) rest)
      (let ([mbrules*
             `(,@(make-list (length lifted-reqs) (modp2:skip))
-              ,@mods
+              ,@(map (lambda (d) (if d (modp2:cons d null) (modp2:skip))) mods)
               ,@defs
               ,(modp2:skip)
               ,@rest)])
@@ -754,7 +767,7 @@
           [#:pattern ?forms]
           [#:left-foot null]
           [#:set-syntax (append lifted-reqs lifted-mods lifted-defs (stx->list #'?forms))]
-          [#:step 'splice-module-lifts (append lifted-reqs lifted-mods lifted-defs)]
+          [#:step 'splice-lifts (append lifted-reqs lifted-mods lifted-defs)]
           [ModulePass2 ?forms mbrules*]))]))
 
 (define (ModulePass3 pass3)

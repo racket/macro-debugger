@@ -89,7 +89,7 @@
     (splice-block     . "Splice block-level begin")
     (splice-module    . "Splice module-level begin")
     (splice-lifts     . "Splice definitions from lifted expressions")
-    (splice-module-lifts . "Splice lifted module declarations")
+    (splice-end-lifts . "Splice lifted module declarations")
 
     (remark           . "Macro made a remark")
     (track-origin     . "Macro called syntax-track-origin")
