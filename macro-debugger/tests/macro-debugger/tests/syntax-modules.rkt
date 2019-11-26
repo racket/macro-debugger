@@ -300,6 +300,7 @@
            (#%require 'helper)
            (liftend (define-values (y) x) (define-values (x) 'a))))
         [#:steps
+         (remark local-lift _)
          (macro
           (module m '#%kernel
             (#%module-begin
@@ -318,6 +319,7 @@
            (#%require 'helper)
            (define-values (x) (liftend x 'a))))
         [#:steps
+         (remark local-lift _)
          (macro
           (module m '#%kernel
             (#%module-begin
@@ -345,6 +347,7 @@
                        (define-values (x) 'a)))
                     'b)))
         [#:steps
+         (remark local-lift _)
          (macro
           (module m '#%kernel
             (#%module-begin
@@ -369,6 +372,7 @@
                          (define-values (x) 'a)))
                       'b))))
         [#:steps
+         (remark local-lift _)
          (macro
           (module m '#%kernel
             (#%module-begin
