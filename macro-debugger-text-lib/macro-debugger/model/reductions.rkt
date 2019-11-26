@@ -55,9 +55,6 @@
   (match/count d
     [(deriv e1 e2)
      (R [#:pattern ?form]
-        [#:let transparent-stx (hash-ref opaque-table (syntax-e #'?form) #f)]
-        [#:when transparent-stx
-                [#:set-syntax transparent-stx]]
         [#:expect-syntax e1 (list d)]
         [#:when (base? d)
          [#:learn (or (base-resolves d) null)]
@@ -269,6 +266,11 @@
 
     [(p:stop e1 e2 rs de1 ?1)
      (R [! ?1])]
+    [(p:opaque e1 e2 rs #f #f)
+     (define transparent-stx (hash-ref opaque-table (syntax-e e1) #f))
+     (R [#:pattern ?form]
+        [#:when transparent-stx
+         [#:set-syntax transparent-stx]])]
 
     ;; The rest of the automatic primitives
     [(p::STOP e1 e2 rs de1 ?1)

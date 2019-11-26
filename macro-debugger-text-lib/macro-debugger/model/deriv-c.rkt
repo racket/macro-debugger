@@ -33,9 +33,10 @@
 ;; A DerivLL is one of Deriv | (lift/let-deriv Stx Stx Deriv Stx DerivLL)
 (struct lift/let-deriv deriv (first lift-stx second) #:transparent)
 
-;; A Deriv is one of MRule | PrimDeriv | TagRule
-
-;; A TagRule is (tagrule Stx Stx Stx Deriv)
+;; A Deriv is one of
+;; - MRule
+;; - PrimDeriv
+;; - (tagrule Stx Stx Stx Deriv)
 (struct tagrule deriv (tagged-stx next) #:transparent)
 
 
@@ -155,6 +156,7 @@
 ;; - (p:quote <Base>)
 ;; - (p:quote-syntax <Base>)
 ;; - (p:#%variable-reference <Base>)
+;; - (p:opaque <Base>)
 (struct p::STOP prule () #:transparent)
 (struct p:stop p::STOP () #:transparent)
 (struct p:unknown p::STOP () #:transparent)
@@ -163,6 +165,7 @@
 (struct p:quote p::STOP () #:transparent)
 (struct p:quote-syntax p::STOP () #:transparent)
 (struct p:#%variable-reference p::STOP () #:transparent)
+(struct p:opaque p::STOP () #:transparent)
 
 ;; - (p:declare <Base>)
 (struct p:declare prule () #:transparent)

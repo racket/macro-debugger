@@ -131,7 +131,7 @@
    [(tag/context ?EE)
     (make tagrule e1 (wderiv-e2 $2) $1 $2)]
    [(opaque-expr)
-    (make p:stop e1 $1 rs #f #f)]
+    (make p:opaque e1 $1 rs #f #f)]
    [(enter-prim ?Prim exit-prim/return)
     ($2 $1 $3 rs)]
    [(rename-transformer visit Resolves ?EE/k)
