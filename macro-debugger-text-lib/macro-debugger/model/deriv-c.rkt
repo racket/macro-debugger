@@ -17,9 +17,9 @@
 (struct node (z1 z2) #:transparent)
 
 ;; type Deriv = (deriv Stx Stx) <: Node(Stx)
-;; type Base = (base Stx Stx Ids ?Exn) <: Deriv
+;; type Base = (base Stx Stx Ids Stx/#f ?Exn) <: Deriv
 (struct deriv node () #:transparent)
-(struct base deriv (resolves ?1) #:transparent)
+(struct base deriv (resolves de1 ?1) #:transparent)
 
 ;; A TopDeriv is one of
 ;; - (ecte Stx Stx LocalActions Deriv DerivInECTE LocalActions)
@@ -184,15 +184,15 @@
 ;; A BRule is one of
 ;; - (b:error exn)
 ;; - (b:expr Deriv)
-;; - (b:splice Deriv ?Exn Stxs ?Exn)
-;; - (b:defvals Deriv ?Exn Stx ?Exn)
-;; - (b:defstx Deriv ?Exn Stx ?Exn PrepareExpEnv BindSyntaxes)
+;; - (b:splice Deriv Stx/#f ?Exn Stxs ?Exn)
+;; - (b:defvals Deriv Stx/#f ?Exn Stx ?Exn)
+;; - (b:defstx Deriv Stx/#f ?Exn Stx ?Exn PrepareExpEnv BindSyntaxes)
 (struct brule () #:transparent)
 (struct b:error brule (?1) #:transparent)
 (struct b:expr brule (head) #:transparent)
-(struct b:splice brule (head ?1 tail ?2) #:transparent)
-(struct b:defvals brule (head ?1 rename ?2) #:transparent)
-(struct b:defstx brule (head ?1 rename ?2 prep bindrhs) #:transparent)
+(struct b:splice brule (head da ?1 tail ?2) #:transparent)
+(struct b:defvals brule (head da ?1 rename ?2) #:transparent)
+(struct b:defstx brule (head da ?1 rename ?2 prep bindrhs) #:transparent)
 
 
 ;; ============================================================
@@ -217,13 +217,13 @@
 ;; - Deriv
 ;; - (modp1:lift Deriv Syntaxes Syntaxes Syntaxes ModPass1)
 ;; A ModPass1Prim is one of
-;; - (modp1:splice ?Exn Syntaxes)
+;; - (modp1:splice Stx/#f ?Exn Syntaxes)
 ;; - (p:begin-for-syntax Stxs Stxs Ids ?Exn LocalActions ModPass1And2 LocalActions)
 ;; - p:define-values, p:define-syntaxes, p:require, p:submodule, p:declare, p:stop
 (struct mod:lift-end (ends) #:transparent)
 (struct modp1:prim (head prim) #:transparent)
 (struct modp1:lift (head lifted-defs lifted-reqs lifted-mods mods) #:transparent)
-(struct modp1:splice (?1 tail) #:transparent)
+(struct modp1:splice (de1 ?1 tail) #:transparent)
 
 ;; A ModRule2 is one of
 ;; - (mod:lift-end Stxs)

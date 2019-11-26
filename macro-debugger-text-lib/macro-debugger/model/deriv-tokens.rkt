@@ -95,7 +95,10 @@
    local-mess           ; (listof event)
    )
 
-  #:empty-tokens
+  #:tokens
+  ;; each prim-X token carries Syntax/#f
+  ;; - Syntax -- disarmed term (specifically, the disarmed term used for matching, rec expansion)
+  ;; - #f     -- doesn't disarm, or disarmed not used for expansion (eg, stop)
   (prim-module
    prim-module-begin
    prim-define-syntaxes
@@ -184,37 +187,36 @@
    'module-pass2-lifts      token-module-pass2-lifts
    'exit-case               token-exit-case
 
-   'prim-stop               #t
-   'prim-module             #t
-   'prim-module-begin       #t
-   'prim-define-syntaxes    #t
-   'prim-define-values      #t
-   'prim-if                 #t
-   'prim-with-continuation-mark #t
-   'prim-begin              #t
-   'prim-begin0             #t
-   'prim-#%app              #t
-   'prim-lambda             #t
-   'prim-case-lambda        #t
-   'prim-let-values         #t
-   'prim-letrec-values      #t
-   'prim-letrec-syntaxes+values #t
-   'prim-#%datum            #t
-   'prim-#%top              #t
-   'prim-quote              #t
-   'prim-quote-syntax       #t
-   'prim-require            #t
-   'prim-require-for-syntax #t
-   'prim-require-for-template #t
-   'prim-provide            #t
-   'prim-set!               #t
-   'prim-let*-values        #t
-   'prim-#%variable-reference #t
-   'prim-#%expression       #t
-   'prim-#%stratified       #t
-   'prim-begin-for-syntax   #t
-   'prim-submodule          #t
-   'prim-submodule*         #t
+   'prim-stop               token-prim-stop
+   'prim-module             token-prim-module
+   'prim-module-begin       token-prim-module-begin
+   'prim-define-syntaxes    token-prim-define-syntaxes
+   'prim-define-values      token-prim-define-values
+   'prim-if                 token-prim-if
+   'prim-with-continuation-mark token-prim-with-continuation-mark
+   'prim-begin              token-prim-begin
+   'prim-begin0             token-prim-begin0
+   'prim-#%app              token-prim-#%app
+   'prim-lambda             token-prim-lambda
+   'prim-case-lambda        token-prim-case-lambda
+   'prim-let-values         token-prim-let-values
+   'prim-letrec-values      token-prim-letrec-values
+   'prim-letrec-syntaxes+values token-prim-letrec-syntaxes+values
+   'prim-#%datum            token-prim-#%datum
+   'prim-#%top              token-prim-#%top
+   'prim-quote              token-prim-quote
+   'prim-quote-syntax       token-prim-quote-syntax
+   'prim-require            token-prim-require
+   'prim-require-for-syntax token-prim-require-for-syntax
+   'prim-require-for-template token-prim-require-for-template
+   'prim-provide            token-prim-provide
+   'prim-set!               token-prim-set!
+   'prim-#%variable-reference token-prim-#%variable-reference
+   'prim-#%expression       token-prim-#%expression
+   'prim-#%stratified       token-prim-#%stratified
+   'prim-begin-for-syntax   token-prim-begin-for-syntax
+   'prim-submodule          token-prim-submodule
+   'prim-submodule*         token-prim-submodule*
 
    'variable                token-variable
    'enter-check             token-enter-check

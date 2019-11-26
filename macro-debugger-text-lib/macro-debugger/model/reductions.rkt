@@ -60,7 +60,10 @@
                 [#:set-syntax transparent-stx]]
         [#:expect-syntax e1 (list d)]
         [#:when (base? d)
-                [#:learn (or (base-resolves d) null)]]
+         [#:learn (or (base-resolves d) null)]
+         [#:when (and (not (current-pass-hides?)) (base-de1 d))
+          ;; FIXME: treat this like a shallow renaming/adjustment
+          [#:set-syntax (base-de1 d)]]]
         [#:seek-check]
         [Expr* ?form d]
         [#:when (not (current-pass-hides?))
@@ -72,12 +75,12 @@
 (define (Expr* d)
   (match d
     ;; Primitives
-    [(p:variable e1 e2 rs ?1)
+    [(p:variable e1 e2 rs de1 ?1)
      (R [#:learn (list e2)]
         [#:when (or (not (identifier? e1))
                     (not (bound-identifier=? e1 e2)))
                 [#:walk e2 'resolve-variable]])]
-    [(p:module e1 e2 rs ?1 prep rename check ?2 tag2 check2 ?3 body shift)
+    [(p:module e1 e2 rs de1 ?1 prep rename check ?2 tag2 check2 ?3 body shift)
      (R [#:hide-check rs]
         [! ?1]
         [#:pattern ?form]
@@ -100,7 +103,7 @@
         [Expr ?body body]
         [#:pattern ?form]
         [#:rename ?form shift])]
-    [(p:#%module-begin e1 e2 rs ?1 me pass12 ?2 pass3 ?3 pass4)
+    [(p:#%module-begin e1 e2 rs de1 ?1 me pass12 ?2 pass3 ?3 pass4)
      (R [! ?1]
         [#:pattern ?form]
         [#:rename ?form me]
@@ -114,7 +117,7 @@
         [! ?3]
         [#:pass2]
         [ModulePass4 ?forms pass4])]
-    [(p:define-syntaxes e1 e2 rs ?1 prep rhs locals)
+    [(p:define-syntaxes e1 e2 rs de1 ?1 prep rhs locals)
      (R [! ?1]
         [#:pattern ?form]
         [PrepareEnv ?form prep]
@@ -122,17 +125,17 @@
         [#:binders #'?vars]
         [Expr/PhaseUp ?rhs rhs]
         [LocalActions ?rhs locals])]
-    [(p:define-values e1 e2 rs ?1 rhs)
+    [(p:define-values e1 e2 rs de1 ?1 rhs)
      (R [! ?1]
         [#:pattern (?define-values ?vars ?rhs)]
         [#:binders #'?vars]
         [#:when rhs
                 [Expr ?rhs rhs]])]
-    [(p:#%expression e1 e2 rs ?1 inner #f)
+    [(p:#%expression e1 e2 rs de1 ?1 inner #f)
      (R [! ?1]
         [#:pattern (?expr-kw ?inner)]
         [Expr ?inner inner])]
-    [(p:#%expression e1 e2 rs ?1 inner untag)
+    [(p:#%expression e1 e2 rs de1 ?1 inner untag)
      (R [! ?1]
         [#:pattern (?expr-kw ?inner)]
         [#:pass1]
@@ -146,57 +149,57 @@
         [#:pass2]
         [#:set-syntax (stx-car (stx-cdr oldform))]
         [#:rename ?form untag])]
-    [(p:if e1 e2 rs ?1 test then else)
+    [(p:if e1 e2 rs de1 ?1 test then else)
      (R [! ?1]
         [#:pattern (?if TEST THEN ELSE)]
         [Expr TEST test]
         [Expr THEN then]
         [Expr ELSE else])]
-    [(p:wcm e1 e2 rs ?1 key mark body)
+    [(p:wcm e1 e2 rs de1 ?1 key mark body)
      (R [! ?1]
         [#:pattern (?wcm KEY MARK BODY)]
         [Expr KEY key]
         [Expr MARK mark]
         [Expr BODY body])]
-    [(p:begin e1 e2 rs ?1 derivs)
+    [(p:begin e1 e2 rs de1 ?1 derivs)
      (R [! ?1]
         [#:pattern (?begin ?form ...)]
         [Expr (?form ...) derivs])]
-    [(p:begin0 e1 e2 rs ?1 derivs)
+    [(p:begin0 e1 e2 rs de1 ?1 derivs)
      (R [! ?1]
         [#:pattern (?begin0 ?form ...)]
         [Expr (?form ...) derivs])]
-    [(p:#%app e1 e2 rs ?1 derivs)
+    [(p:#%app e1 e2 rs de1 ?1 derivs)
      (R [! ?1]
         [#:pattern (?app ?e ...)]
         [#:if (pair? derivs)
               ([Expr (?e ...) derivs])
               ([#:walk e2 'macro])])]
-    [(p:lambda e1 e2 rs ?1 renames body)
+    [(p:lambda e1 e2 rs de1 ?1 renames body)
      (R [! ?1]
         [#:pattern (?lambda ?formals . ?body)]
         [#:rename (?formals . ?body) renames 'rename-lambda]
         [#:binders #'?formals]
         [Block ?body body])]
-    [(p:case-lambda e1 e2 rs ?1 clauses)
+    [(p:case-lambda e1 e2 rs de1 ?1 clauses)
      (R [! ?1]
         [#:pattern (?case-lambda . ?clauses)]
         [CaseLambdaClauses ?clauses clauses])]
-    [(p:let-values e1 e2 rs ?1 renames rhss body)
+    [(p:let-values e1 e2 rs de1 ?1 renames rhss body)
      (R [! ?1]
         [#:pattern (?let-values ([?vars ?rhs] ...) . ?body)]
         [#:rename (((?vars ?rhs) ...) . ?body) renames 'rename-let-values]
         [#:binders #'(?vars ...)]
         [Expr (?rhs ...) rhss]
         [Block ?body body])]
-    [(p:letrec-values e1 e2 rs ?1 renames rhss body)
+    [(p:letrec-values e1 e2 rs de1 ?1 renames rhss body)
      (R [! ?1]
         [#:pattern (?letrec-values ([?vars ?rhs] ...) . ?body)]
         [#:rename (((?vars ?rhs) ...) . ?body) renames 'rename-letrec-values]
         [#:binders #'(?vars ...)]
         [Expr (?rhs ...) rhss]
         [Block ?body body])]
-    [(p:letrec-syntaxes+values e1 e2 rs ?1 srenames prep srhss vrhss body)
+    [(p:letrec-syntaxes+values e1 e2 rs de1 ?1 srenames prep srhss vrhss body)
      (R [! ?1]
         [#:pattern ?form]
         [PrepareEnv ?form prep]
@@ -212,11 +215,11 @@
         [#:pass2]
         [#:pattern ?form]
         [#:walk e2 'lsv-remove-syntax])]
-    [(p:#%datum e1 e2 rs ?1)
+    [(p:#%datum e1 e2 rs de1 ?1)
      (R [! ?1]
         [#:hide-check rs]
         [#:walk e2 'macro])]
-    [(p:#%top e1 e2 rs ?1)
+    [(p:#%top e1 e2 rs de1 ?1)
      (R [! ?1]
         [#:pattern ?form]
         [#:learn
@@ -225,7 +228,7 @@
            [?var (identifier? #'?var) (list #'?var)]
            [_ (error 'macro-debugger "#%top has wrong form: ~s\n" #'?form)])])]
 
-    [(p:provide e1 e2 rs ?1 inners ?2)
+    [(p:provide e1 e2 rs de1 ?1 inners ?2)
      (let ([wrapped-inners (map expr->local-action inners)])
        (R [! ?1]
           [#:pattern ?form]
@@ -238,12 +241,12 @@
           [#:step 'provide]
           [#:set-syntax e2]))]
 
-    [(p:require e1 e2 rs ?1 locals)
+    [(p:require e1 e2 rs de1 ?1 locals)
      (R [! ?1]
         [#:pattern ?form]
         [LocalActions ?form locals])]
 
-    [(p:#%stratified-body e1 e2 rs ?1 bderiv)
+    [(p:#%stratified-body e1 e2 rs de1 ?1 bderiv)
      (R [! ?1]
         [#:pass1]
         [#:pattern (?sb . ?body)]
@@ -253,36 +256,36 @@
         [#:pattern ?form]
         [#:walk e2 'macro])]
 
-    [(p:submodule* e1 e2 rs ?1 exp locals)
+    [(p:submodule* e1 e2 rs de1 ?1 exp locals)
      (R [! ?1]
         [#:pattern ?form]
         [Expr ?form exp]
         [LocalActions ?form locals])]
-    [(p:submodule e1 e2 rs ?1 exp locals)
+    [(p:submodule e1 e2 rs de1 ?1 exp locals)
      (R [! ?1]
         [#:pattern ?form]
         [Expr ?form exp]
         [LocalActions ?form locals])]
 
-    [(p:stop e1 e2 rs ?1)
+    [(p:stop e1 e2 rs de1 ?1)
      (R [! ?1])]
 
     ;; The rest of the automatic primitives
-    [(p::STOP e1 e2 rs ?1)
+    [(p::STOP e1 e2 rs de1 ?1)
      (R [! ?1])]
 
-    [(p:set!-macro e1 e2 rs ?1 deriv)
+    [(p:set!-macro e1 e2 rs de1 ?1 deriv)
      (R [! ?1]
         [#:pattern ?form]
         [Expr ?form deriv])]
-    [(p:set! e1 e2 rs ?1 id-rs ?2 rhs)
+    [(p:set! e1 e2 rs de1 ?1 id-rs ?2 rhs)
      (R [! ?1]
         [#:pattern (?set! ?var ?rhs)]
         [#:learn id-rs]
         [! ?2]
         [Expr ?rhs rhs])]
 
-    [(p:begin-for-syntax e1 e2 rs ?1 prep body locals)
+    [(p:begin-for-syntax e1 e2 rs de1 ?1 prep body locals)
      (R [! ?1]
         [#:pattern ?form]
         [PrepareEnv ?form prep]
@@ -294,7 +297,7 @@
         [LocalActions ?forms locals])]
 
     ;; Macros
-    [(mrule e1 e2 rs ?1 me1 locals me2 ?2 etx next)
+    [(mrule e1 e2 rs de1 ?1 me1 locals me2 ?2 etx next)
      (R [! ?1]
         [#:pattern ?form]
         [#:hide-check rs]
@@ -580,11 +583,14 @@
      (R)]
     [(cons (b:error exn) rest)
      (R [! exn])]
-    [(cons (b:splice head ?1 tail ?2) rest)
+    [(cons (b:splice head da ?1 tail ?2) rest)
      (R [#:pattern ?forms]
         [#:pattern (?first . ?rest)]
         [#:pass1]
         [Expr ?first head]
+        [#:when (and (not (current-pass-hides?)) da)
+         [#:pattern ?forms]
+         [#:set-syntax (cons da (stx-cdr #'?forms))]] ;; FIXME: shallow rename
         [! ?1]
         [#:pass2]
         [#:let begin-form #'?first]
@@ -600,11 +606,14 @@
 
     ;; FIXME: are these pass1/2 necessary?
 
-    [(cons (b:defvals head ?1 rename ?2) rest)
+    [(cons (b:defvals head da ?1 rename ?2) rest)
      (R [#:pattern (?first . ?rest)]
         [#:pass1]
         [Expr ?first head]
         [! ?1]
+        [#:when (and (not (current-pass-hides?)) da)
+         [#:pattern ?forms]
+         [#:set-syntax (cons da (stx-cdr #'?forms))]] ;; FIXME: shallow rename
         [#:pattern ((?define-values ?vars . ?body) . ?rest)]
         [#:rename (?vars . ?body) rename]
         [#:binders #'?vars]
@@ -612,11 +621,14 @@
         [#:pass2]
         [#:pattern (?first . ?rest)]
         [BlockPass ?rest rest])]
-    [(cons (b:defstx head ?1 rename ?2 prep bindrhs) rest)
+    [(cons (b:defstx head da ?1 rename ?2 prep bindrhs) rest)
      (R [#:pattern (?first . ?rest)]
         [#:pass1]
         [Expr ?first head]
         [! ?1]
+        [#:when (and (not (current-pass-hides?)) da)
+         [#:pattern ?forms]
+         [#:set-syntax (cons da (stx-cdr #'?forms))]] ;; FIXME: shallow rename
         [#:pattern ((?define-syntaxes ?vars . ?body) . ?rest)]
         [#:rename (?vars . ?body) rename]
         [#:binders #'?vars]
@@ -718,8 +730,10 @@
         [Expr ?firstP head]
         [#:pattern ?forms]
         [ModulePass1 ?forms rest])]
-    [(cons (modp1*:case (modp1:splice ?1 tail)) rest)
+    [(cons (modp1*:case (modp1:splice da ?1 tail)) rest)
      (R [#:pattern ?forms]
+        [#:when (and (not (current-pass-hides?)) da)
+         [#:set-syntax (cons da (stx-cdr #'?forms))]] ;; FIXME: shallow rename
         [#:let begin-form (stx-car #'?forms)]
         [#:let rest-forms (stx-cdr #'?forms)]
         [#:left-foot (list begin-form)]

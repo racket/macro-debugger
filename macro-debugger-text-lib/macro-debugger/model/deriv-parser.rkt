@@ -37,7 +37,7 @@
    [(visit MainExpandToTop top-begin ?NextExpandCTEs return)
     (make ecte $1 $5 null $2
           (let ([b-e1 $3] [b-e2 $5])
-            (make p:begin b-e1 b-e2 (list (stx-car b-e1)) #f $4))
+            (make p:begin b-e1 b-e2 (list (stx-car b-e1)) #f #f $4))
           null)])
 
   (NextExpandCTEs
@@ -63,10 +63,10 @@
    [(visit ECL lift-loop ?PTLL)
     (make lift-deriv $1 (wderiv-e2 $4) $2 $3 $4)]
    [([e1 visit] ECL prim-begin [?1 !] [body ?NextPTLLs] [e2 return])
-    (make ecte e1 e2 null $2 (make p:begin (wderiv-e2 $2) e2 null ?1 body) null)]
+    (make ecte e1 e2 null $2 (make p:begin (wderiv-e2 $2) e2 null $3 ?1 body) null)]
    [([e1 visit] ECL prim-begin-for-syntax [?1 !] [prep ?PrepareEnv] [body ?NextPTLLs] [e2 return])
     (make ecte e1 e2 null $2
-          (make p:begin-for-syntax (wderiv-e2 $2) e2 null ?1  prep body null)
+          (make p:begin-for-syntax (wderiv-e2 $2) e2 null $3 ?1  prep body null)
           null)])
 
   (NextPTLLs
@@ -120,18 +120,18 @@
   (EE/k
    #:args (e1 rs)
    [(!!)
-    (make p:unknown e1 #f rs $1)]
+    (make p:unknown e1 #f rs #f $1)]
    [(stop/return)
-    (make p:stop e1 $1 rs #f)]
+    (make p:stop e1 $1 rs #f #f)]
    [(variable return)
-    (make p:variable e1 $2 rs #f)]
+    (make p:variable e1 $2 rs #f #f)]
    [(tag ?EE/k)
     (let ([next ($2 $1 rs)])
       (make tagrule e1 (wderiv-e2 next) $1 next))]
    [(tag/context ?EE)
     (make tagrule e1 (wderiv-e2 $2) $1 $2)]
    [(opaque-expr)
-    (make p:stop e1 $1 rs #f)]
+    (make p:stop e1 $1 rs #f #f)]
    [(enter-prim ?Prim exit-prim/return)
     ($2 $1 $3 rs)]
    [(rename-transformer visit Resolves ?EE/k)
@@ -143,7 +143,7 @@
    #:args (e1 rs next)
    [(enter-macro ! macro-pre-x ?LocalActions macro-post-x ! exit-macro)
     (let ([e2 (and next (wderiv-e2 next))])
-      (make mrule e1 e2 rs $2
+      (make mrule e1 e2 rs #f $2 ;; FIXME: disarmed
             $3 $4 (and $5 (car $5)) $6 $7 next))])
 
   ;; Keyword resolution
@@ -185,17 +185,14 @@
    [(local-remark)
     (make local-remark $1)]
    [(local-artificial-step)
-    (let ([ids (list-ref $1 0)]
-          [before (list-ref $1 1)]
-          [mbefore (list-ref $1 2)]
-          [mafter (list-ref $1 3)]
-          [after (list-ref $1 4)])
-      (make local-expansion
-        before after #f mbefore
-        (make mrule mbefore mafter ids #f
-              before null after #f mafter
-              (make p:stop mafter mafter null #f))
-        #f after #f))]
+    (match $1
+      [(list ids before mbefore mafter after)
+       (make local-expansion
+             before after #f mbefore
+             (make mrule mbefore mafter ids #f #f ;; FIXME: disarmed
+                   before null after #f mafter
+                   (make p:stop mafter mafter null #f #f))
+             #f after #f)])]
    [(local-mess)
     ;; Represents subsequence of event stream incoherent due to
     ;; jump (eg, macro catches exn raised from within local-expand).
@@ -257,7 +254,7 @@
    [(prim-module ! ?PrepareEnv rename-one ?EnsureModuleBegin next ?EE rename-one)
     (match $5
       [(list check1 ?2 tag2 check2 ?3)
-       (make p:module e1 e2 rs $2 $3 $4 check1 ?2 tag2 check2 ?3 $7 $8)])])
+       (make p:module e1 e2 rs $1 $2 $3 $4 check1 ?2 tag2 check2 ?3 $7 $8)])])
 
   (EnsureModuleBegin
    #:skipped '(#f #f #f #f #f)
@@ -278,13 +275,13 @@
   (Prim#%ModuleBegin
    #:args (e1 e2 rs)
    [(prim-module-begin ! ?ModuleBeginK)
-    ($3 e1 e2 rs $2)])
+    ($3 e1 e2 rs $1 $2)])
 
   (ModuleBeginK
-   #:args (e1 e2 rs ?1)
+   #:args (e1 e2 rs de1 ?1)
    [([me rename-one] [p12 ?Pass1And2Loop] next-group [?2 !]
      next-group [p3 ?ModulePass3] [?3 !] next-group [p4 ?ModulePass4])
-    (make p:#%module-begin e1 e2 rs ?1 me p12 ?2 p3 ?3 p4)])
+    (make p:#%module-begin e1 e2 rs de1 ?1 me p12 ?2 p3 ?3 p4)])
 
   (Pass1And2Loop
    ;; ModPass1And2
@@ -313,24 +310,24 @@
   (ModulePass1CaseBody
    #:args (e1)
    [(prim-begin ! splice)
-    (make modp1:splice $2 $3)] ;; !!
+    (make modp1:splice $1 $2 $3)] ;; !!
    [(prim-begin-for-syntax [?1 !] [prep ?PrepareEnv] phase-up [p12 ?Pass1And2Loop]
                            next-group [ev ?Eval] [e2 exit-case])
-    (make p:begin-for-syntax e1 e2 null ?1 prep p12 ev)]
+    (make p:begin-for-syntax e1 e2 null $1 ?1 prep p12 ev)]
    [(prim-define-values ! exit-case)
-    (make p:define-values e1 $3 null $2 #f)]
+    (make p:define-values e1 $3 null $1 $2 #f)]
    [(prim-define-syntaxes ! ?PrepareEnv phase-up ?EE/LetLifts ?Eval exit-case)
-    (make p:define-syntaxes e1 $7 null $2 $3 $5 $6)]
+    (make p:define-syntaxes e1 $7 null $1 $2 $3 $5 $6)]
    [(prim-require ?Eval exit-case)
-    (make p:require e1 $3 null #f $2)]
+    (make p:require e1 $3 null $1 #f $2)]
    ;; provide : stop
    [(prim-submodule ?ExpandSubmodule)
     $2]
    ;; module* : stop
    [(prim-declare !)
-    (make p:declare e1 e1 $2 null)]
+    (make p:declare e1 e1 null $1 $2)]
    [(prim-stop)
-    (make p:stop e1 e1 null #f)])
+    (make p:stop e1 e1 null $1 #f)])
 
   (ModulePass2 ;; finish-expanding-body-expressions
    #:skipped null
@@ -379,8 +376,8 @@
 
   (ModulePass3/Provide
    ;; p:provide
-   [([e1 enter-prim] prim-provide [ds ParseAndExpandProvides] [?2 !] [e2 exit-prim])
-    (make p:provide e1 e2 null #f ds ?2)])
+   [([e1 enter-prim] [de1 prim-provide] [ds ParseAndExpandProvides] [?2 !] [e2 exit-prim])
+    (make p:provide e1 e2 null de1 #f ds ?2)])
 
   (ParseAndExpandProvides ;; in src/expander/expand/provide.rkt
    #:skipped null
@@ -406,10 +403,10 @@
    ;; Deriv
    [(enter-prim prim-submodule [?1 !] [e1 enter-prim] [m ?ExpandModule] [e2 exit-prim] [ev ?Eval])
     (let ([mod (m e1 e2 null)])
-      (p:submodule $1 (and mod (wderiv-e2 mod)) null ?1 mod ev))]
+      (p:submodule $1 (and mod (wderiv-e2 mod)) null $2 ?1 mod ev))]
    [(enter-prim prim-submodule* [?1 !] [e1 enter-prim] [m ?ExpandModule] [e2 exit-prim] [ev ?Eval])
     (let ([mod (m e1 e2 null)])
-      (p:submodule* $1 (and mod (wderiv-e2 mod)) null ?1 mod ev))])
+      (p:submodule* $1 (and mod (wderiv-e2 mod)) null $2 ?1 mod ev))])
 
 
   ;; ----------------------------------------
@@ -419,17 +416,17 @@
   (PrimDefineSyntaxes
    #:args (e1 e2 rs)
    [(prim-define-syntaxes ! ?PrepareEnv ?EE/LetLifts ?Eval)
-    (make p:define-syntaxes e1 e2 rs $2 $3 $4 $5)])
+    (make p:define-syntaxes e1 e2 rs $1 $2 $3 $4 $5)])
 
   (PrimDefineValues
    #:args (e1 e2 rs)
    [(prim-define-values ! ?EE)
-    (make p:define-values e1 e2 rs $2 $3)])
+    (make p:define-values e1 e2 rs $1 $2 $3)])
 
   (PrimBeginForSyntax
    #:args (e1 e2 rs)
    [(prim-begin-for-syntax ! ?PrepareEnv ?BeginForSyntax* ?Eval)
-    (make p:begin-for-syntax e1 e2 rs $2 $3 $4 $5)])
+    (make p:begin-for-syntax e1 e2 rs $1 $2 $3 $4 $5)])
   (BeginForSyntax*
    #:skipped null
    [(?EL)
@@ -440,11 +437,11 @@
   (PrimRequire
    #:args (e1 e2 rs)
    [(prim-require ?Eval)
-    (make p:require e1 e2 rs #f $2)])
+    (make p:require e1 e2 rs $1 #f $2)])
 
   (PrimProvide 
    #:args (e1 e2 rs)
-   [(prim-provide !) (make p:provide e1 e2 rs $2 null #f)])
+   [(prim-provide !) (make p:provide e1 e2 rs $1 $2 null #f)])
 
   ;; ----------------------------------------
   ;; src/expander/expand/expr.rkt
@@ -453,46 +450,46 @@
   (PrimExpression
    #:args (e1 e2 rs)
    [(prim-#%expression ! ?EE)
-    (make p:#%expression e1 e2 rs $2 $3 #f)]
+    (make p:#%expression e1 e2 rs $1 $2 $3 #f)]
    [(prim-#%expression EE tag)
-    (make p:#%expression e1 e2 rs #f $2 $3)])
+    (make p:#%expression e1 e2 rs $1 #f $2 $3)])
 
   (PrimIf
    #:args (e1 e2 rs)
    [(prim-if ! ?EE next ?EE next ?EE)
-    (make p:if e1 e2 rs $2 $3 $5 $7)])
+    (make p:if e1 e2 rs $1 $2 $3 $5 $7)])
 
   (PrimWCM 
    #:args (e1 e2 rs)
    [(prim-with-continuation-mark ! ?EE next ?EE next ?EE)
-    (make p:wcm e1 e2 rs $2 $3 $5 $7)])
+    (make p:wcm e1 e2 rs $1 $2 $3 $5 $7)])
 
   ;; Sequence-containing expressions
   (PrimBegin
    #:args (e1 e2 rs)
    [(prim-begin ! ?NextEEs)
-    (make p:begin e1 e2 rs $2 $3)])
+    (make p:begin e1 e2 rs $1 $2 $3)])
 
   (PrimBegin0
    #:args (e1 e2 rs)
    [(prim-begin0 ! ?NextEEs)
-    (make p:begin0 e1 e2 rs $2 $3)])
+    (make p:begin0 e1 e2 rs $1 $2 $3)])
 
   (Prim#%App
    #:args (e1 e2 rs)
    [(prim-#%app ! ?NextEEs)
-    (make p:#%app e1 e2 rs $2 $3)])
+    (make p:#%app e1 e2 rs $1 $2 $3)])
 
   ;; Binding expressions
   (PrimLambda
    #:args (e1 e2 rs)
    [(prim-lambda ! lambda-renames ?EB)
-    (make p:lambda e1 e2 rs $2 $3 $4)])
+    (make p:lambda e1 e2 rs $1 $2 $3 $4)])
 
   (PrimCaseLambda
    #:args (e1 e2 rs)
    [(prim-case-lambda ! ?NextCaseLambdaClauses)
-    (make p:case-lambda e1 e2 rs $2 $3)])
+    (make p:case-lambda e1 e2 rs $1 $2 $3)])
 
   (NextCaseLambdaClauses
    #:skipped null
@@ -510,7 +507,7 @@
     (let ([rename (and $3 (match $3
                             [(list* _ _ val-idss val-rhss bodys)
                              (cons (map list val-idss val-rhss) bodys)]))])
-      (make p:let-values e1 e2 rs $2 rename $4 $5))])
+      (make p:let-values e1 e2 rs $1 $2 rename $4 $5))])
 
   (PrimLetrecValues
    #:args (e1 e2 rs)
@@ -518,7 +515,7 @@
     (let ([rename (and $3 (match $3
                             [(list* _ _ val-idss val-rhss bodys)
                              (cons (map list val-idss val-rhss) bodys)]))])
-      (make p:letrec-values e1 e2 rs $2 rename $4 $5))])
+      (make p:letrec-values e1 e2 rs $1 $2 rename $4 $5))])
 
   (PrimLetrecSyntaxes+Values
    #:args (e1 e2 rs)
@@ -531,45 +528,46 @@
                              (list* (map list stx-idss stx-rhss)
                                     (map list val-idss val-rhss)
                                     bodys)]))])
-      (make p:letrec-syntaxes+values e1 e2 rs $2 rename $4 $5 $7 $8))])
+      (make p:letrec-syntaxes+values e1 e2 rs $1 $2 rename $4 $5 $7 $8))])
 
   ;; Atomic expressions
   (Prim#%Datum
    #:args (e1 e2 rs)
-   [(prim-#%datum !) (make p:#%datum e1 e2 rs $2)])
+   [(prim-#%datum !) (make p:#%datum e1 e2 rs $1 $2)])
 
   (Prim#%Top
    #:args (e1 e2 rs)
-   [(prim-#%top !) (make p:#%top e1 e2 rs $2)])
+   [(prim-#%top !) (make p:#%top e1 e2 rs $1 $2)])
 
   (PrimSTOP
    #:args (e1 e2 rs)
-   [(prim-stop !) (make p:stop e1 e2 rs $2)])
+   [(prim-stop !) (make p:stop e1 e2 rs $1 $2)])
 
   (PrimQuote
    #:args (e1 e2 rs)
-   [(prim-quote !) (make p:quote e1 e2 rs $2)])
+   [(prim-quote !) (make p:quote e1 e2 rs $1 $2)])
 
   (PrimQuoteSyntax
    #:args (e1 e2 rs)
-   [(prim-quote-syntax !) (make p:quote-syntax e1 e2 rs $2)])
+   [(prim-quote-syntax !) (make p:quote-syntax e1 e2 rs $1 $2)])
 
   (PrimVarRef
    #:args (e1 e2 rs)
    [(prim-#%variable-reference !)
-    (make p:#%variable-reference e1 e2 rs $2)])
+    (make p:#%variable-reference e1 e2 rs $1 $2)])
 
   (PrimStratifiedBody
    #:args (e1 e2 rs)
-   [(prim-#%stratified ! ?EB) (make p:#%stratified-body e1 e2 rs $2 $3)])
+   [(prim-#%stratified ! ?EB)
+    (make p:#%stratified-body e1 e2 rs $1 $2 $3)])
 
   (PrimSet
    #:args (e1 e2 rs)
    ;; Unrolled to avoid shift/reduce
    [(prim-set! ! resolve Resolves ! next ?EE)
-    (make p:set! e1 e2 rs $2 (cons $3 $4) $5 $7)]
+    (make p:set! e1 e2 rs $1 $2 (cons $3 $4) $5 $7)]
    [(prim-set! Resolves ?MacroStep ?EE)
-    (make p:set!-macro e1 e2 rs #f ($3 e1 $2 $4))])
+    (make p:set!-macro e1 e2 rs $1 #f ($3 e1 $2 $4))])
 
   ;; ----------------------------------------
   ;; src/expander/expand/body.rkt
@@ -603,11 +601,11 @@
    [(next ?EE)
     (make b:expr $2)]
    [(next EE prim-begin ! splice !)
-    (make b:splice $2 $4 $5 $6)]
+    (make b:splice $2 $3 $4 $5 $6)]
    [(next EE prim-define-values ! rename-one !)
-    (make b:defvals $2 $4 $5 $6)]
+    (make b:defvals $2 $3 $4 $5 $6)]
    [(next EE prim-define-syntaxes ! rename-one ! ?PrepareEnv ?BindSyntaxes)
-    (make b:defstx $2 $4 $5 $6 $7 $8)])
+    (make b:defstx $2 $3 $4 $5 $6 $7 $8)])
 
   ;; ----------------------------------------
 
