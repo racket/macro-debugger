@@ -466,7 +466,7 @@
               (let-values ([(or-part) 'a])
                 (if or-part or-part (or 'b)))
               'c)))
-         (rename-let-values
+         (rename-letX
            (module m mzscheme
              (#%plain-module-begin
               (#%require (for-syntax mzscheme))
@@ -509,7 +509,7 @@
               (#%require (for-syntax mzscheme))
               (let-values ([(or-part) 'a])
                 (if or-part or-part (or 'b))))))
-         (rename-let-values
+         (rename-letX
            (module m mzscheme
              (#%plain-module-begin
               (#%require (for-syntax mzscheme))

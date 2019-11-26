@@ -102,23 +102,23 @@
           #:same-hidden-steps)
    (testK "letrec-values"
           (letrec-values ([(x) 'a]) x)
-          [#:steps (rename-letrec-values (letrec-values ([(x) 'a]) x))]
+          [#:steps (rename-letX (letrec-values ([(x) 'a]) x))]
           #:same-hidden-steps)
    (testK "letrec-values"
           (letrec-values ([(x) 'a] [(y) 'b]) y)
           [#:steps
-           (rename-letrec-values
+           (rename-letX
             (letrec-values ([(x) 'a] [(y) 'b]) y))]
           #:same-hidden-steps)
    (testK "case-lambda"
           (case-lambda [(x) x] [(x y) y])
           [#:steps
-           (rename-case-lambda (case-lambda [(x) x] [(x y) y]))
-           (rename-case-lambda (case-lambda [(x) x] [(x y) y]))]
+           (rename-lambda (case-lambda [(x) x] [(x y) y]))
+           (rename-lambda (case-lambda [(x) x] [(x y) y]))]
           #:same-hidden-steps)
    (testK "let-values"
           (let-values ([(x) 'a]) x)
-          [#:steps (rename-let-values (let-values ([(x) 'a]) x))]
+          [#:steps (rename-letX (let-values ([(x) 'a]) x))]
           #:same-hidden-steps)]
 
   [#:suite
@@ -343,23 +343,23 @@
                    (macro (lambda (x) 'a 'b 'c))])
    (testK "case-lambda"
           (case-lambda [(x) (id x)] [(x y) (id y)])
-          [#:steps (rename-case-lambda (case-lambda [(x) (id x)] [(x y) (id y)]))
+          [#:steps (rename-lambda (case-lambda [(x) (id x)] [(x y) (id y)]))
                    (macro (case-lambda [(x) x] [(x y) (id y)]))
-                   (rename-case-lambda (case-lambda [(x) x] [(x y) (id y)]))
+                   (rename-lambda (case-lambda [(x) x] [(x y) (id y)]))
                    (macro (case-lambda [(x) x] [(x y) y]))]
           [#:hidden-steps
-           (rename-case-lambda (case-lambda [(x) (id x)] [(x y) (id y)]))
-           (rename-case-lambda (case-lambda [(x) (id x)] [(x y) (id y)]))])
+           (rename-lambda (case-lambda [(x) (id x)] [(x y) (id y)]))
+           (rename-lambda (case-lambda [(x) (id x)] [(x y) (id y)]))])
    (testK "let-values"
           (let-values ([(x) (id 'a)]) (id (cons 'b x)))
-          [#:steps (rename-let-values (let-values ([(x) (id 'a)]) (id (cons 'b x))))
+          [#:steps (rename-letX (let-values ([(x) (id 'a)]) (id (cons 'b x))))
                    (macro (let-values ([(x) 'a]) (id (cons 'b x))))
                    (macro (let-values ([(x) 'a]) (cons 'b x)))
                    (tag-app (let-values ([(x) 'a]) (#%app cons 'b x)))])
    (testK "letrec-values"
           (letrec-values ([(x) (id 'a)]) (id (cons 'b x)))
           [#:steps
-           (rename-letrec-values (letrec-values ([(x) (id 'a)]) (id (cons 'b x))))
+           (rename-letX (letrec-values ([(x) (id 'a)]) (id (cons 'b x))))
            (macro (letrec-values ([(x) 'a]) (id (cons 'b x))))
            (macro (letrec-values ([(x) 'a]) (cons 'b x)))
            (tag-app (letrec-values ([(x) 'a]) (#%app cons 'b x)))])])

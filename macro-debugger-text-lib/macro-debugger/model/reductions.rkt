@@ -83,7 +83,7 @@
         [#:pattern ?form]
         [PrepareEnv ?form prep]
         [#:pattern (?module ?name ?language . ?body-parts)]
-        [#:rename ?body-parts rename]
+        [#:rename ?body-parts rename 'rename-module]
         [#:pass1]
         [#:when check
          [#:pattern (?module ?name ?language ?body)]
@@ -99,11 +99,11 @@
         [! ?3]
         [Expr ?body body]
         [#:pattern ?form]
-        [#:rename ?form shift])]
+        [#:rename ?form shift 'rename-mod-shift])]
     [(p:#%module-begin e1 e2 rs de1 ?1 me pass12 ?2 pass3 ?3 pass4)
      (R [! ?1]
         [#:pattern ?form]
-        [#:rename ?form me]
+        [#:rename ?form me 'rename-modbeg]
         [#:pattern (?module-begin . ?forms)]
         [#:pass1]
         [ModPass1And2 ?forms pass12]
@@ -185,14 +185,14 @@
     [(p:let-values e1 e2 rs de1 ?1 renames rhss body)
      (R [! ?1]
         [#:pattern (?let-values ([?vars ?rhs] ...) . ?body)]
-        [#:rename (((?vars ?rhs) ...) . ?body) renames 'rename-let-values]
+        [#:rename (((?vars ?rhs) ...) . ?body) renames 'rename-letX]
         [#:binders #'(?vars ...)]
         [Expr (?rhs ...) rhss]
         [Block ?body body])]
     [(p:letrec-values e1 e2 rs de1 ?1 renames rhss body)
      (R [! ?1]
         [#:pattern (?letrec-values ([?vars ?rhs] ...) . ?body)]
-        [#:rename (((?vars ?rhs) ...) . ?body) renames 'rename-letrec-values]
+        [#:rename (((?vars ?rhs) ...) . ?body) renames 'rename-letX]
         [#:binders #'(?vars ...)]
         [Expr (?rhs ...) rhss]
         [Block ?body body])]
@@ -204,7 +204,7 @@
         [#:pattern (?lsv ([?svars ?srhs] ...) ([?vvars ?vrhs] ...) . ?body)]
         [#:rename (((?svars ?srhs) ...) ((?vvars ?vrhs) ...) . ?body)
                    srenames
-                   'rename-lsv]
+                   'rename-letX]
         [#:binders #'(?svars ... ?vvars ...)]
         [BindSyntaxes (?srhs ...) srhss]
         [Expr (?vrhs ...) vrhss]
@@ -374,7 +374,7 @@
     [(cons (clc ?1 rename body) rest)
      (R [! ?1]
         [#:pattern ((?formals . ?body) . ?rest)]
-        [#:rename (?formals . ?body) rename 'rename-case-lambda]
+        [#:rename (?formals . ?body) rename 'rename-lambda]
         [#:binders #'?formals]
         [Block ?body body]
         [CaseLambdaClauses ?rest rest])]))

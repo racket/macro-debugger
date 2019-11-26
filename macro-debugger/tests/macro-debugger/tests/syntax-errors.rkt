@@ -299,9 +299,9 @@
     (testKE (lambda (x) (begin0 (wrong)))
             [#:rename+error-step rename-lambda])
     (testKE (letrec-values ([(x) (wrong)]) 1)
-            [#:rename+error-step rename-letrec-values])
+            [#:rename+error-step rename-letX])
     (testKE (letrec-values ([(x) 'a]) (begin0 (wrong)))
-            [#:rename+error-step rename-letrec-values])]
+            [#:rename+error-step rename-letX])]
    [#:suite
     "Internal definitions"
     (testKE (lambda () (wrong))

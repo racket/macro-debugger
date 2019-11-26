@@ -124,7 +124,8 @@
                      (map bigframe-term (state-lctx (protostep-s1 thing)))))]))
 
 (define (interesting-step? st)
-  (not (memq (protostep-type st) '(resolve-variable rename-block))))
+  (not (memq (protostep-type st)
+             '(resolve-variable rename-block rename-module rename-modbeg rename-mod-shift))))
 
 (define (reduction-sequence? rs)
   (andmap protostep? rs))

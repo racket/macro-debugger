@@ -66,11 +66,11 @@
   '((macro            . "Macro transformation")
 
     (rename-lambda    . "Rename formal parameters")
-    (rename-case-lambda . "Rename formal parameters")
-    (rename-let-values . "Rename bound variables")
-    (rename-letrec-values . "Rename bound variables")
-    (rename-lsv       . "Rename bound variables")
+    (rename-letX      . "Rename formal parameters")
     (rename-block     . "Introduce scope for internal definition context")
+    (rename-module    . "Introduce scope for module")
+    (rename-mod-shift . "Shift the self module-path-index")
+    (rename-modbeg    . "Introduce scope for module body")
     (lsv-remove-syntax . "Remove syntax bindings")
 
     (resolve-variable . "Resolve variable (remove extra marks)")
@@ -108,10 +108,11 @@
 (define (rename-step? x)
   (memq (protostep-type x) 
         '(rename-lambda
-          rename-case-lambda
-          rename-let-values
-          rename-letrec-values
-          rename-lsv
+          rename-letX
+          rename-block
+          rename-module
+          rename-mod-shift
+          rename-modbeg
           track-origin)))
 
 (define (rewrite-step? x)

@@ -26,7 +26,7 @@
          (myor 'a 'b)
          [#:steps (macro (let ((t 'a)) (if t t (myor 'b))))
                   (macro (let-values (((t) 'a)) (if t t (myor 'b))))
-                  (rename-let-values (let-values (((t) 'a)) (if t t (myor 'b))))
+                  (rename-letX (let-values (((t) 'a)) (if t t (myor 'b))))
                   (macro (let-values (((t) 'a)) (if t t 'b)))]
          #:no-hidden-steps)
 
