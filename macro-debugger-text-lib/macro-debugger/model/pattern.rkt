@@ -12,10 +12,10 @@
 
 ;; A VarList is (Listof Symbol)
 
-;; A Match is (cons VarList MatchEnv)
+;; A Match is (match-result VarList MatchEnv)
 ;; where MatchEnv = (Listof MatchValue)
 ;;       MatchValue = Stx | (Listof MatchValue)
-
+(struct match-result (vars vals) #:prefab)
 
 ;; parse-pattern : Sexpr -> Pattern
 (define (parse-pattern p0)
@@ -58,7 +58,30 @@
                                  (map (lambda (var) null) vars*)
                                  ms)))]
                [else #f])])))
-  (and menv (cons (pattern-vars p0) menv)))
+  (and menv (match-result (pattern-vars p0) menv)))
+
+;; pattern-match-update : Match Match [Nat/#f] -> Match
+;; Updates first result with second. If index is given, then m2's vars
+;; must occur in m1's pattern in ellipsis, and m2's values replace the
+;; index-th elements rather than the whole lists.
+(define (pattern-match-update m1 m2 [index #f])
+  (match-define (match-result vars1 vals1) m1)
+  (match-define (match-result vars2 vals2) m2)
+  (define (m2-var-index v)
+    (for/first ([var (in-list vars2)] [k (in-naturals)] #:when (eq? v var)) k))
+  (define (list-replace xs k y)
+    (cond [(not (pair? xs))
+           (error 'pattern-match-update "index out of range: ~s for ~e" index m1)]
+          [(zero? k) (cons y (cdr xs))]
+          [else (cons (car xs) (list-replace (cdr xs) (sub1 k) y))]))
+  (match-result vars1
+                (for/list ([var (in-list vars1)] [val1 (in-list vals1)])
+                  (cond [(m2-var-index var)
+                         => (lambda (var-index2)
+                              (define val2 (list-ref vals2 var-index))
+                              (cond [index (list-replace val1 index val2)]
+                                    [else val2]))]
+                        [else val1]))))
 
 ;; pattern-template : Pattern Match -> Stx
 (define (pattern-template p0 mv)
@@ -81,6 +104,7 @@
                         (reploop (map cdr m*)))]
                  [else null]))]))))
 
+;; pattern-resyntax : Pattern Stx Stx -> Stx
 (define (pattern-resyntax p0 orig t0)
   (define (resyntax orig t) ;; note: no disarm, rearm
     (datum->syntax (syntax-disarm orig) t orig orig))
