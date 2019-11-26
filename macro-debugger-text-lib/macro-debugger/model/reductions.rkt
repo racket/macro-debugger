@@ -105,11 +105,14 @@
         [#:pattern ?form]
         [#:rename ?form me]
         [#:pattern (?module-begin . ?forms)]
-        ;; FIXME: #:pass1 / #:pass2 ?
+        [#:pass1]
         [ModPass1And2 ?forms pass12]
         [! ?2]
+        [#:pass2]
+        [#:pass1]
         [ModulePass3 ?forms pass3]
         [! ?3]
+        [#:pass2]
         [ModulePass4 ?forms pass4])]
     [(p:define-syntaxes e1 e2 rs ?1 prep rhs locals)
      (R [! ?1]
@@ -450,7 +453,13 @@
 
     [(local-lift-end decl)
      ;; (walk/mono decl 'module-lift)
-     (R)]
+     (R [#:reductions
+         (list
+          (walk/talk 'local-lift
+                     (list "The macro lifted a declaration to the end of the module"
+                           ""
+                           "Declaration:"
+                           decl)))])]
     [(local-lift-require req expr mexpr)
      ;; lift require
      (R [#:reductions
