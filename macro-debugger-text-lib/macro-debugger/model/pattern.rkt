@@ -78,7 +78,7 @@
                 (for/list ([var (in-list vars1)] [val1 (in-list vals1)])
                   (cond [(m2-var-index var)
                          => (lambda (var-index2)
-                              (define val2 (list-ref vals2 var-index))
+                              (define val2 (list-ref vals2 var-index2))
                               (cond [index (list-replace val1 index val2)]
                                     [else val2]))]
                         [else val1]))))
