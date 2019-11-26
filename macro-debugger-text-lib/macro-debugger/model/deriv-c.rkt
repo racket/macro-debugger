@@ -54,7 +54,7 @@
 ;; - (local-lift-provide Stx)
 ;; - (local-bind Ids ?Exn Stx Stx) -- FIXME: renames structure?
 ;; - (local-value Id ?Exn Ids Bool IdentifierBinding)
-;; - (track-origin Stx Stx)
+;; - (track-syntax (U 'track-origin 'arm 'disarm 'rearm) Stx Stx)
 ;; - (local-remark (Listof (U String Syntax)))
 ;; - (local-mess (Listof Event))
 (struct local-exn (exn) #:transparent)
@@ -67,7 +67,7 @@
 (struct local-value (name ?1 resolves bound? binding) #:transparent)
 ;;   binding is saved (identifier-binding name) at time of lookup, since it may change
 ;;   if name is rebound in definition context
-(struct track-origin (before after) #:transparent)
+(struct track-syntax (operation new-stx old-stx) #:transparent)
 (struct local-remark (contents) #:transparent)
 (struct local-mess (events) #:transparent)
 

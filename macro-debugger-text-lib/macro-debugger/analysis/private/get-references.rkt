@@ -116,7 +116,7 @@
        |#
        (when (and bound? (pair? binding))
          (add/binding! name binding 'syntax-local-value))]
-      [(track-origin before after)
+      [(track-syntax op new-stx old-stx)
        (void)]
       [(local-remark contents)
        (void)]

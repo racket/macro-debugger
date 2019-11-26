@@ -489,7 +489,7 @@
         ;; FIXME: use renames
         [#:binders names]
         [#:when bindrhs => (BindSyntaxes bindrhs)]]]
-    [(track-origin before after)
+    [(track-syntax operation new-stx old-stx)
      (R)
      #|
      ;; Do nothing for now... need to account for marks also.

@@ -211,7 +211,7 @@
        (recur bindrhs)]
       [(local-value name ?1 resolves bound? binding)
        (void)]
-      [(track-origin before after)
+      [(track-syntax operation new-stx old-stx)
        (void)]
       [(local-remark contents)
        (void)]

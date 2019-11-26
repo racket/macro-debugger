@@ -88,7 +88,7 @@
    local-remark         ; (listof (U string syntax))
    local-artificial-step ; (list syntax syntax syntax syntax)
 
-   track-origin         ; (cons stx stx)
+   track-syntax         ; (list* (U 'track-origin 'arm 'disarm 'rearm) Syntax Syntax) -- new old
    local-value          ; identifier
    local-value-result   ; boolean
    local-value-binding  ; result of identifier-binding; added by trace.rkt, not expander
@@ -241,7 +241,7 @@
    'rename-one              token-rename-one
    'lift-require            token-lift-require
    'lift-provide            token-lift-provide
-   'track-origin            token-track-origin
+   'track-syntax            token-track-syntax
    'local-value             token-local-value
    'local-value-result      token-local-value-result
    'start-top               token-start-top

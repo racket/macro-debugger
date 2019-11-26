@@ -176,8 +176,10 @@
     (make local-bind $1 $2 $3 #f)]
    [(local-bind rename-list ?BindSyntaxes exit-local-bind)
     (make local-bind $1 #f $2 $3)]
-   [(track-origin)
-    (make track-origin (car $1) (cdr $1))]
+   [(track-syntax)
+    (match $1
+      [(list* operation new-stx old-stx)
+       (make track-syntax operation new-stx old-stx)])]
    [(local-value Resolves ! local-value-result local-value-binding)
     ;; FIXME: (... ! Resolves ! ...) represents possibilities better,
     ;; but that would be ambiguous and require structure change.
