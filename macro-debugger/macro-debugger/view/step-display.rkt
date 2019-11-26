@@ -155,9 +155,9 @@
       (define-values (ctx1z ctx2z common-ctx)
         (common (reverse ctx1) (reverse ctx2) null))
       (define state1z
-        (make-state e1 foci1 ctx1z lctx1 binders1 uses1 frontier1 seq1))
+        (state e1 foci1 ctx1z lctx1 binders1 uses1 frontier1 seq1))
       (define state2z
-        (make-state e2 foci2 ctx2z lctx2 binders2 uses2 frontier2 seq2))
+        (state e2 foci2 ctx2z lctx2 binders2 uses2 frontier2 seq2))
       (values common-ctx state1z state2z))
 
     (define/private (show-common-context ctx state1 shift-table)

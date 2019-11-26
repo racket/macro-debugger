@@ -16,26 +16,25 @@
          rewrite-step?
          rename-step?)
 
-;; A ReductionSequence is (listof Step)
+;; A ReductionSequence is (Listof Step)
 ;; A Step is one of
-;;  - (make-step StepType State State)
-;;  - (make-misstep StepType State exn)
-;;  - (make-remarkstep StepType State (listof (U string syntax 'arrow)))
-(define-struct protostep (type s1) #:transparent)
-(define-struct (step protostep) (s2) #:transparent)
-(define-struct (misstep protostep) (exn) #:transparent)
-(define-struct (remarkstep protostep) (contents) #:transparent)
+;;  - (step StepType State State)
+;;  - (misstep StepType State Exn)
+;;  - (remarkstep StepType State (Listof (U String Syntax 'arrow)))
+(struct protostep (type s1) #:transparent)
+(struct step protostep (s2) #:transparent)
+(struct misstep protostep (exn) #:transparent)
+(struct remarkstep protostep (contents) #:transparent)
 
-;; A State is
-;;  (make-state stx stxs Context BigContext (listof id) (listof id) (listof stx) nat/#f)
-(define-struct state (e foci ctx lctx binders uses frontier seq) #:transparent)
+;; A State is (state Stx Stxs Context BigContext Ids Ids Stxs Nat/#f)
+(struct state (e foci ctx lctx binders uses frontier seq) #:transparent)
 
-;; A Context is a list of Frames
-;; A Frame is (syntax -> syntax)
+;; A Context is (Listof Frame)
+;; A Frame is (Syntax -> Syntax)
 
 ;; A BigContext is (list-of BigFrame)
 ;; A BigFrame is (make-bigframe Context Syntaxes Syntax)
-(define-struct bigframe (ctx foci e))
+(struct bigframe (ctx foci e))
 
 ;; context-fill : Context Syntax -> Syntax
 (define (context-fill ctx stx)
@@ -61,11 +60,11 @@
 (define (bigframe-term bf)
   (context-fill (bigframe-ctx bf) (bigframe-e bf)))
 
-;; A StepType is a simple in the following alist.
+;; A StepType is a Symbol in the following alist.
 
 (define step-type-meanings
   '((macro            . "Macro transformation")
-    
+
     (rename-lambda    . "Rename formal parameters")
     (rename-case-lambda . "Rename formal parameters")
     (rename-let-values . "Rename bound variables")
