@@ -169,7 +169,7 @@
   (#%expression
     (match deriv
       ;; ====
-      [(mrule z1 z2 rs ?1 me1 locals me2 ?2 etx next)
+      [(mrule z1 z2 rs de1 ?1 me1 locals me2 ?2 etx next)
        (define macro-id (and (pair? rs) (resolves->macro-id rs (phase))))
        (define macro-scope (and z1 me1 (get-new-scope z1 me1 (phase))))
        (define z1-scope (get-macro-scope z1 scope=>context (phase)))
@@ -215,45 +215,45 @@
        (void)]
       [(local-remark contents)
        (void)]
-      [(p:variable z1 z2 rs ?1)
+      [(p:variable z1 z2 rs de1 ?1)
        (void)]
-      [(p:module z1 z2 rs ?1 prep rename check1 ?2 tag2 check2 ?3 body shift)
+      [(p:module z1 z2 rs de1 ?1 prep rename check1 ?2 tag2 check2 ?3 body shift)
        (recur prep check1 check2 body)]
-      [(p:#%module-begin z1 z2 rs ?1 me pass12 ?2 pass3 ?3 pass4)
+      [(p:#%module-begin z1 z2 rs de1 ?1 me pass12 ?2 pass3 ?3 pass4)
        (recur pass12 pass3 pass4)]
-      [(p:define-syntaxes z1 z2 rs ?1 prep rhs locals)
+      [(p:define-syntaxes z1 z2 rs de1 ?1 prep rhs locals)
        (recur prep locals)
        (recur/phase-up rhs)]
-      [(p:define-values z1 z2 rs ?1 rhs)
+      [(p:define-values z1 z2 rs de1 ?1 rhs)
        (recur rhs)]
-      [(p:begin-for-syntax z1 z2 rs ?1 prep body locals)
+      [(p:begin-for-syntax z1 z2 rs de1 ?1 prep body locals)
        (recur prep locals)
        (recur/phase-up body)]
-      [(p:#%expression z1 z2 rs ?1 inner untag)
+      [(p:#%expression z1 z2 rs de1 ?1 inner untag)
        (recur inner)]
-      [(p:if z1 z2 rs ?1 test then else)
+      [(p:if z1 z2 rs de1 ?1 test then else)
        (recur test then else)]
-      [(p:wcm z1 z2 rs ?1 key mark body)
+      [(p:wcm z1 z2 rs de1 ?1 key mark body)
        (recur key mark body)]
-      [(p:set! _ _ _ _ id-resolves ?2 rhs)
+      [(p:set! _ _ _ _ _ id-resolves ?2 rhs)
        (recur rhs)]
-      [(p:set!-macro _ _ _ _ deriv)
+      [(p:set!-macro _ _ _ _ _ deriv)
        (recur deriv)]
-      [(p:#%app _ _ _ _ derivs)
+      [(p:#%app _ _ _ _ _ derivs)
        (recur derivs)]
-      [(p:begin _ _ _ _ derivs)
+      [(p:begin _ _ _ _ _ derivs)
        (recur derivs)]
-      [(p:begin0 _ _ _ _ derivs)
+      [(p:begin0 _ _ _ _ _ derivs)
        (recur derivs)]
-      [(p:lambda _ _ _ _ renames body)
+      [(p:lambda _ _ _ _ _ renames body)
        (recur body)]
-      [(p:case-lambda _ _ _ _ renames+bodies)
+      [(p:case-lambda _ _ _ _ _ renames+bodies)
        (recur renames+bodies)]
-      [(p:let-values _ _ _ _ renames rhss body)
+      [(p:let-values _ _ _ _ _ renames rhss body)
        (recur rhss body)]
-      [(p:letrec-values _ _ _ _ renames rhss body)
+      [(p:letrec-values _ _ _ _ _ renames rhss body)
        (recur rhss body)]
-      [(p:letrec-syntaxes+values z1 _ rs _ srenames prep sbindrhss vrhss body)
+      [(p:letrec-syntaxes+values z1 _ rs de1 _ srenames prep sbindrhss vrhss body)
        (recur prep sbindrhss vrhss body)
        (when #t ;; syntax bindings get dropped
          (define rhss-size
@@ -271,23 +271,23 @@
            (when #f
              (eprintf "* lsv-id-id = ~e\n" lsv-id)
              (eprintf "  ctx       = ~e\n" context))))]
-      [(p:provide _ _ _ _ inners ?2)
+      [(p:provide _ _ _ _ _ inners ?2)
        (recur inners)]
-      [(p:require _ _ _ _ locals)
+      [(p:require _ _ _ _ _ locals)
        (recur locals)]
-      [(p:submodule _ _ _ _ exp locals)
+      [(p:submodule _ _ _ _ _ exp locals)
        (recur exp locals)]
-      [(p:submodule* _ _ _ _ exp locals)
+      [(p:submodule* _ _ _ _ _ exp locals)
        (recur exp locals)]
-      [(p:#%stratified-body _ _ _ _ bderiv)
+      [(p:#%stratified-body _ _ _ _ _ bderiv)
        (recur bderiv)]
-      [(p:stop _ _ _ _) (void)]
-      [(p:unknown _ _ _ _) (void)]
-      [(p:#%top _ _ _ _) (void)]
-      [(p:#%datum _ _ _ _) (void)]
-      [(p:quote _ _ _ _) (void)]
-      [(p:quote-syntax z1 z2 _ _) (void)]
-      [(p:#%variable-reference _ _ _ _) (void)]
+      [(p:stop _ _ _ _ _) (void)]
+      [(p:unknown _ _ _ _ _) (void)]
+      [(p:#%top _ _ _ _ _) (void)]
+      [(p:#%datum _ _ _ _ _) (void)]
+      [(p:quote _ _ _ _ _) (void)]
+      [(p:quote-syntax z1 z2 _ _ _) (void)]
+      [(p:#%variable-reference _ _ _ _ _) (void)]
       [(lderiv _ _ ?1 derivs)
        (recur derivs)]
       [(bderiv _ _ _ pass1 pass2)
@@ -297,11 +297,11 @@
       [(b:error ?1) (void)]
       [(b:expr head)
        (recur head)]
-      [(b:splice head ?1 tail ?2)
+      [(b:splice head _ ?1 tail ?2)
        (recur head)]
-      [(b:defvals head ?1 rename ?2)
+      [(b:defvals head _ ?1 rename ?2)
        (recur head)]
-      [(b:defstx head ?1 rename ?2 prep bindrhs)
+      [(b:defstx head _ ?1 rename ?2 prep bindrhs)
        (recur head prep bindrhs)]
       [(bind-syntaxes rhs locals)
        (recur/phase-up rhs)
@@ -314,7 +314,7 @@
        (recur head prim)]
       [(modp1:lift head _ _ _ mods)
        (recur head mods)]
-      [(modp1:splice _ _)
+      [(modp1:splice _ _ _)
        (void)]
       [(modp2:skip)
        (void)]
