@@ -63,7 +63,7 @@
         [#:when (base? d)
          [#:learn (or (base-resolves d) null)]
          [#:when (base-de1 d)
-          [#:rename ?form (base-de1 d) 'disarm]]]
+          [#:rename ?form (base-de1 d) #;'disarm]]]
         #;[#:seek-check]
         [Expr* ?form d]
         [#:set-syntax e2] ;; FIXME
@@ -586,7 +586,7 @@
         [#:pass1]
         [Expr ?first head]
         [#:when da
-         [#:rename ?first da 'disarm]]
+         [#:rename ?first da #;'disarm]]
         [! ?1]
         [#:pass2]
         [#:let begin-form (% ?first)]
@@ -608,7 +608,7 @@
         [Expr ?first head]
         [! ?1]
         [#:when da
-         [#:rename ?first da 'disarm]]
+         [#:rename ?first da #;'disarm]]
         [#:pattern ((?define-values ?vars . ?body) . ?rest)]
         [#:rename (?vars . ?body) rename]
         [#:binders (% ?vars)]
@@ -622,7 +622,7 @@
         [Expr ?first head]
         [! ?1]
         [#:when da
-         [#:rename ?first da 'disarm]]
+         [#:rename ?first da #;'disarm]]
         [#:pattern ((?define-syntaxes ?vars . ?body) . ?rest)]
         [#:rename (?vars . ?body) rename]
         [#:binders (% ?vars)]
@@ -721,7 +721,7 @@
     [(cons (modp1*:case (modp1:splice da ?1 tail)) rest)
      (R [#:pattern (?first . ?rest)]
         [#:when da
-         [#:rename ?first da 'disarm]]
+         [#:rename ?first da #;'disarm]]
         [#:let begin-form (% ?first)]
         [#:let rest-forms (% ?rest)]
         [#:pattern ?forms]
