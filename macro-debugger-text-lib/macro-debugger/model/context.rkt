@@ -28,7 +28,7 @@
 (define (path-add-ref n p) (cons (ref n) p))
 (define (path-add-tail n p)
   (match p
-    [(cons (? tail t) p*) (cons (tail (+ n (tail-n t))) p*)]
+    [(cons (? tail? t) p*) (cons (tail (+ 1 n (tail-n t))) p*)]
     [_ (cons (tail n) p)]))
 (define (path-add-car p) (path-add-ref 0 p))
 (define (path-add-cdr p) (path-add-tail 0 p))
