@@ -52,7 +52,7 @@
 ;; syntax (with-new-local-context Expr[???] body ...+)
 (define-syntax-rule (with-new-local-context e . body)
   (let ([x e])
-    (parameterize ((the-big-context (cons (bigframe (the-context) (list x) x)))
+    (parameterize ((the-big-context (cons (bigframe (the-context) (list x) x) (the-big-context)))
                    (the-context null))
       (let () . body))))
 
@@ -143,11 +143,14 @@
         misstep?)]
   [walk/talk
    (-> step-type? (listof (or/c syntax? string? 'arrow))
-       step?)]
+       protostep?)]
   [foci
    (-> any/c (listof syntax?))]))
 
 (define (current-state-with e fs)
+  #;
+  (eprintf "current-state-with: ~e, ~e; ~e\n" (stx->datum e) (stx->datum fs)
+           (stx->datum (for/fold ([x 'HOLE]) ([p (the-context)]) (p x))))
   (define xst (the-xstate))
   (make state e (foci fs) (the-context) (the-big-context)
         (xstate-binders xst) (xstate-definites xst)
@@ -199,7 +202,9 @@
 (define pattern/c any/c) ;; FIXME?
 
 (define RST/c
-  (-> syntaxish? syntaxish? pattern/c state/c reduction-sequence/c
+  ;; First two args are any/c instead of syntaxish? because of
+  ;; #:new-local-context that initially sets syntax to #f.
+  (-> (or/c syntaxish? #f) (or/c syntaxish? #f) pattern/c state/c reduction-sequence/c
       RS/c))
 
 (define (RSunit f v p s ws) (rsok f v p s ws))
@@ -228,14 +233,14 @@
   (lambda (stx)
     (raise-syntax-error #f "no match result; used outside of wrap-user-expr" stx)))
 
-(define-syntax-rule (% p) (%e (quote-pattern p)))
+(define-syntax-rule (% p) (%e (quote-template-pattern p)))
 (define-syntax-rule (%e p) (pattern-template p the-match-result))
 
 (define-syntax wrap-user-expr
   (syntax-parser
     [(_ [f v p] expr:expr)
      #'(let ([mv (pattern-match p f)])
-         ;; (eprintf "wrap-user-expr: pattern match ~s, ~e = ~e\n" p f mv)
+         #;(eprintf "wrap-user-expr: pattern match ~s, ~e = ~e\n" p f mv)
          (syntax-parameterize ((the-match-result (make-rename-transformer #'mv)))
            expr))]))
 
@@ -301,6 +306,7 @@
                (R . more))]
     [(R** f v p s ws c:RClause . more)
      #'(begin
+         #;
          (let ([cstx (quote-syntax c)])
            (eprintf "doing [~s:~s] ~e\n" (syntax-line cstx) (syntax-column cstx) (quote c)))
          (c.macro f v p s ws c (R . more)))]))
@@ -323,7 +329,7 @@
      #:declare maybe-exn (expr/c #'(or/c exn? #f))
      #'(let ([x maybe-exn.c])
          (if x
-             (RSfail (cons (stumble v x) ws) x)
+             (RSfail x (cons (stumble v x) ws))
              (ke f v p s ws)))]))
 
 (define-syntax R/pattern
@@ -375,20 +381,18 @@
 
 (define-syntax R/left-foot
   (syntax-parser
-    [(_ f v p s ws [#:left-foot] ke)
-     #'(R/step f v p s ws [#:step #f v] ke)]
-    [(_ f v p s ws [#:left-foot fs] ke)
-     #'(R/step f v p s ws [#:step #f fs] ke)]))
+    [(_ f v p s ws [#:left-foot (~optional fs)] ke)
+     #:declare fs (expr/c #'syntaxish?)
+     #'(let ([s2 (current-state-with v (~? (wrap-user-expr [f v p] fs.c) v))])
+         (ke f v p s2 ws))]))
 
 (define-syntax R/step
   (syntax-parser
-    [(_ f v p s ws [#:step type] ke)
-     #'(R/step f v p s ws [#:step type v] ke)]
-    [(_ f v p s ws [#:step type fs] ke)
+    [(_ f v p s ws [#:step type (~optional fs)] ke)
      #:declare fs (expr/c #'syntaxish?)
      #:declare type (expr/c #'(or/c step-type? #f))
      #'(let ()
-         (define s2 (current-state-with v (wrap-user-expr [f v p] fs.c)))
+         (define s2 (current-state-with v (~? (wrap-user-expr [f v p] fs.c) v)))
          (define type-var type.c)
          (define ws2 (if type-var (cons (make step type-var s s2) ws) ws))
          (ke f v p s2 ws2))]))
@@ -432,6 +436,7 @@
 (define (do-rename f v p s ws ren-p renames description mark-flag)
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
+  #;(eprintf "do-rename: ~s => ~s\n" (stx->datum f) (stx->datum f2))
   (define whole-form-rename? (equal? p ren-p)) ;; FIXME is this right?
   (define renames-mapping (make-renames-mapping pre-renames renames))
   (define v2 (apply-renames-mapping renames-mapping v))
@@ -477,10 +482,11 @@
   (syntax-parser
     ;; Conditional (pattern changes lost afterwards ...) ;; FIXME???
     [(_ f v p s ws [#:if test [consequent ...] [alternate ...]] ke)
-     #'(let ([continue ke])
-         (if (wrap-user-expr [f v p] test)
-             (R** f v p s ws consequent ... => continue)
-             (R** f v p s ws alternate ... => continue)))]))
+     #'(RSbind (RSreset (if (wrap-user-expr [f v p] test)
+                            (R** f v p s ws consequent ...)
+                            (R** f v p s ws alternate ...))
+                        #:pattern p)
+               ke)]))
 
 (define-syntax R/when
   (syntax-parser
@@ -557,17 +563,17 @@
   (match hole
     [(? symbol? hole)
      (define path (subpattern-path p hole))
+     #;(eprintf "run: found ~s in ~s at ~s\n" hole p path)
      (define fctx (path-replacer f path))
      (define vctx (path-replacer v path))
      (define init-sub-f (path-get f path))
      (define init-sub-v (path-get v path))
      (run-one reducer init-sub-f fctx init-sub-v vctx fill p s ws)]
     [(list (? symbol? hole) '...)
-     (eprintf "run (multi) starting\n")
      (match-define (vector pre-path sub-path) (subpattern-path p hole #t))
-     (eprintf "run (multi) paths: ~e, ~e" pre-path sub-path)
+     #;(eprintf "run (multi) paths: ~e, ~e" pre-path sub-path)
      (let loop ([fill fill] [k 0] [f f] [v v] [s s] [ws ws])
-       (eprintf "run (multi): k = ~s, fill length = ~s\n" k (length fill))
+       #;(eprintf "run (multi): k = ~s, fill length = ~s\n" k (length fill))
        (match fill
          [(cons fill0 fill*)
           (define path (append pre-path (path-add-ref k sub-path)))
@@ -582,6 +588,10 @@
 ;; run-one : (X -> RST) Stx (Stx -> Stx) Stx (Stx -> Stx) X Pattern State RedSeq -> RS
 (define (run-one reducer init-f fctx init-v vctx fill p s ws)
   (RSbind (with-context vctx
+            #;
+            (eprintf "run-one: ~s on ~s in ~s --- ~s\n" reducer (stx->datum init-v)
+                     (stx->datum (vctx 'HOLE))
+                     (stx->datum (for/fold ([x 'HOLE]) ([p (the-context)]) (p x))))
             ((reducer fill) init-f init-v (quote-pattern _) s ws))
           (lambda (f2 v2 _p s2 ws2)
             (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s2 ws2))))
