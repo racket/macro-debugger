@@ -1,6 +1,7 @@
 #lang racket/base
 (require racket/match
-         syntax/stx)
+         syntax/stx
+         "stx-util.rkt")
 (provide path-add-ref
          path-add-tail
          path-add-car
@@ -86,9 +87,9 @@
   (cond [(pair? stx)
          (cons x (cdr stx))]
         [(and (syntax? stx) (pair? (syntax-e stx)))
-         (let ([dstx (syntax-disarm stx #f)])
+         (let ([dstx (stx-disarm stx)])
            (let ([result (cons x (cdr (syntax-e dstx)))])
-             (if resyntax? (syntax-rearm (datum->syntax dstx result stx stx) stx) result)))]
+             (if resyntax? (resyntax result stx dstx) result)))]
         [else (raise-type-error 'stx-replcar "stx-pair" stx)]))
 
 ;; stx-replcdr : syntax syntax -> syntax
@@ -96,9 +97,9 @@
   (cond [(pair? stx)
          (cons (car stx) x)]
         [(and (syntax? stx) (pair? (syntax-e stx)))
-         (let ([dstx (syntax-disarm stx #f)])
+         (let ([dstx (stx-disarm stx)])
            (let ([result (cons (car (syntax-e dstx)) x)])
-             (if resyntax? (syntax-rearm (datum->syntax dstx result stx stx) stx) result)))]
+             (if resyntax? (resyntax result stx dstx) result)))]
         [else (raise-type-error 'stx-replcdr "stx-pair" stx)]))
 
 (define ((path-replacer stx path) s #:resyntax? [resyntax? #t])
