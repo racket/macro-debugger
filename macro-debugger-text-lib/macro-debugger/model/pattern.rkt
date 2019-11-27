@@ -2,7 +2,8 @@
 (require (for-syntax racket/base)
          racket/match
          syntax/stx
-         "context.rkt")
+         "context.rkt"
+         "stx-util.rkt")
 (provide (all-defined-out))
 
 (module base racket/base
@@ -43,7 +44,7 @@
 
 (define-syntax (quote-pattern stx)
   (syntax-case stx ()
-    [(_ p) #`(quote ,(base:parse-pattern (syntax->datum #'p)))]))
+    [(_ p) #`(quote #,(parse-pattern (syntax->datum #'p)))]))
 
 (define (parse-pattern p0)
   (hash-ref! pattern-cache p0 (lambda () (base:parse-pattern p0))))
@@ -60,17 +61,17 @@
 (define (pattern-match p0 t0)
   (define menv
     (let loop ([p p0] [t t0])
-      (match p0
+      (match p
         [(? symbol? p) (list t)]
-        ['() (and (stx-null? t0) null)]
+        ['() (and (stx-null? t) null)]
         [(cons p1 p2)
-         (cond [(stx-pair? t0)
-                (let ([m1 (loop p1 (stx-car t0))]
-                      [m2 (loop p2 (stx-cdr t0))])
+         (cond [(stx-pair? t)
+                (let ([m1 (loop p1 (stx-car t))]
+                      [m2 (loop p2 (stx-cdr t))])
                   (and m1 m2 (append m1 m2)))]
                [else #f])]
         [(rep p* vars*)
-         (cond [(stx->list t0)
+         (cond [(stx->list t)
                 => (lambda (ts)
                      (define ms (map (lambda (t) (loop p* t)) ts))
                      (and (andmap values ms)
@@ -105,7 +106,8 @@
 
 ;; pattern-template : Pattern Match -> Stx
 (define (pattern-template p0 mv)
-  (let outerloop ([p p0] [vars (car mv)] [m (cdr mv)])
+  (match-define (match-result vars m) mv)
+  (let outerloop ([p p0] [vars vars] [m m])
     (define (var-index v)
       (or (for/first ([var (in-list vars)] [k (in-naturals)] #:when (eq? v var)) k)
           (error 'pattern-template "unknown var: ~e in ~e" v p)))
@@ -126,25 +128,23 @@
 
 ;; pattern-resyntax : Pattern Stx Stx -> Stx
 (define (pattern-resyntax p0 orig t0)
-  (define (resyntax orig t) ;; note: no disarm, rearm
-    (datum->syntax (syntax-disarm orig) t orig orig))
   (let loop ([p p0] [orig orig] [t t0])
     (if (or (syntax? t) (eq? t orig))
         t
         (match p
           [(cons p1 p2)
-           (resyntax orig
-                     (cons (loop p1 (stx-car orig) (car t))
-                           (loop p2 (stx-cdr orig) (cdr t))))]
+           (restx (cons (loop p1 (stx-car orig) (car t))
+                        (loop p2 (stx-cdr orig) (cdr t)))
+                  orig)]
           [(rep p* _)
            (let reploop ([orig orig] [t t])
              (cond [(syntax? t) t]
                    [(stx-pair? t)
-                    (resyntax orig
-                              (cons (loop p* (stx-car orig) (stx-car t))
-                                    (reploop (stx-cdr orig) (stx-cdr t))))]
-                   [else (resyntax orig t)]))]
-          [_ (resyntax orig t)]))))
+                    (restx (cons (loop p* (stx-car orig) (stx-car t))
+                                 (reploop (stx-cdr orig) (stx-cdr t)))
+                           orig)]
+                   [else (restx t orig)]))]
+          [_ (restx t orig)]))))
 
 ;; pattern-replace : Pattern Stx Pattern Stx -> Stx
 ;; Like (with-syntax ([p1 stx1]) (with-syntax ([p2 stx2]) (syntax p1))).
@@ -155,19 +155,19 @@
   (define stx-out (pattern-template p1 m-out))
   (if resyntax? (pattern-resyntax p1 stx1 stx-out) stx-out))
 
-;; subpattern-path : Pattern Symbol [Boolean] -> (U Path (values Path Path))
+;; subpattern-path : Pattern Symbol [Boolean] -> (U Path (vector Path Path))
 (define (subpattern-path p0 hole [rep? #f])
-  (or (let outerloop ([p p0] [acc null] [rep? rep?])
-        (let loop ([p p0] [ctx null])
+  (or (let outerloop ([p p0] [rep? rep?])
+        (let loop ([p p] [acc null])
           (match p
             [(cons p1 p2)
              (or (loop p1 (path-add-car acc))
                  (loop p2 (path-add-cdr acc)))]
             [(rep p* _)
-             (cond [(outerloop p* hole #f)
+             (cond [(outerloop p* #f)
                     => (lambda (subpath)
                          (if rep?
-                             (values (reverse acc) subpath)
+                             (vector (reverse acc) subpath)
                              (error 'subpattern->path "hole has ellipses: ~s, ~s" hole p0)))]
                    [else #f])]
             [(== hole)
