@@ -56,17 +56,15 @@
 
 ;; path-replace : Syntax Path Syntax [Boolean] -> syntax
 (define (path-replace stx path x #:resyntax? [resyntax? #t])
-  (cond [(null? path) x]
-        [(pair? path)
-         (let ([pathseg0 (car path)])
-           (pathseg-replace stx
-                            pathseg0
-                            (path-replace (pathseg-get stx pathseg0)
-                                          (cdr path)
-                                          x
-                                          resyntax?)
-                            resyntax?))]
-        [else (error 'path-replace "bad path: ~s" path)]))
+  (let loop ([stx stx] [path path])
+    (cond [(null? path) x]
+          [(pair? path)
+           (let ([pathseg0 (car path)])
+             (pathseg-replace stx
+                              pathseg0
+                              (loop (pathseg-get stx pathseg0) (cdr path))
+                              resyntax?))]
+          [else (error 'path-replace "bad path: ~s" path)])))
 
 ;; pathseg-replace : Syntax PathSeg Syntax Boolean -> syntax
 (define (pathseg-replace stx0 pathseg x resyntax?)
