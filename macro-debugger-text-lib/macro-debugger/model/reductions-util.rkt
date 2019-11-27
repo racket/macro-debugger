@@ -59,6 +59,22 @@
 ;; ============================================================
 ;; Expansion State
 
+(provide
+ (struct-out xstate)
+ (contract-out
+  [the-xstate (parameter/c (or/c xstate? #f))]
+  [new-xstate (-> xstate?)]
+  [next-seqno (-> exact-nonnegative-integer?)])
+ ;; FIXME
+ learn-binders 
+ learn-definites
+ add-lift
+ add-endlift
+ get/clear-lifts
+ get/clear-endlifts
+ add-frontier
+ clear-frontier)
+
 ;; An XState is:
 (struct xstate
   (seqno        ;; Nat
