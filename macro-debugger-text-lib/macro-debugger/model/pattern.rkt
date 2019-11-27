@@ -16,18 +16,22 @@
   ;; - Symbol
   ;; - (cons Pattern Pattern)
   ;; - '()
-  ;; - (rep Pattern VarList)
+  ;; - (rep Pattern VarList Pattern)
   ;; A VarList is (Listof Symbol)
-  (struct rep (p vars) #:prefab)
+  (struct rep (ph varsh pt) #:prefab)
 
-  ;; parse-pattern : Sexpr -> Pattern
-  (define (parse-pattern p0)
+  ;; parse-pattern : Sexpr [Boolean] -> Pattern
+  (define (parse-pattern p0 [template? #f])
     (let loop ([p p0])
       (match p
         ['() '()]
         [(? symbol? p) p]
-        [(list p '...) (let ([p* (parse-pattern p)]) (rep p* (pattern-vars p)))]
-        [(cons p1 p2) (cons (parse-pattern p1) (parse-pattern p2))]
+        [(list* ph '... pt)
+         (unless (or (null? pt) template?)
+           (error 'parse-pattern "ellipsis with tail: ~e in ~e" p p0))
+         (let ([ph (loop ph)] [pt (loop pt)])
+           (rep ph (pattern-vars ph) pt))]
+        [(cons p1 p2) (cons (loop p1) (loop p2))]
         [_ (error 'parse-pattern "bad pattern: ~e in ~e" p p0)])))
 
   ;; pattern-vars : Pattern -> VarList
@@ -37,19 +41,18 @@
         [(? symbol? p) (list p)]
         [(cons p1 p2) (append (loop p1) (loop p2))]
         ['() null]
-        [(rep p* vars*) vars*]))))
+        [(rep ph varsh '()) varsh]
+        [(rep ph varsh pt) (append varsh (pattern-vars pt))]))))
 
-(require (for-syntax 'base)
-         (rename-in 'base [parse-pattern base:parse-pattern]))
+(require (for-syntax 'base) 'base)
 
 (define-syntax (quote-pattern stx)
   (syntax-case stx ()
     [(_ p) #`(quote #,(parse-pattern (syntax->datum #'p)))]))
 
-(define (parse-pattern p0)
-  (hash-ref! pattern-cache p0 (lambda () (base:parse-pattern p0))))
-(define pattern-cache (make-weak-hasheq))
-
+(define-syntax (quote-template-pattern stx)
+  (syntax-case stx ()
+    [(_ p) #`(quote #,(parse-pattern (syntax->datum #'p) #t))]))
 
 ;; A Match is (match-result VarList MatchEnv)
 ;; where MatchEnv = (Listof MatchValue)
@@ -70,7 +73,7 @@
                       [m2 (loop p2 (stx-cdr t))])
                   (and m1 m2 (append m1 m2)))]
                [else #f])]
-        [(rep p* vars*)
+        [(rep p* vars* '())
          (cond [(stx->list t)
                 => (lambda (ts)
                      (define ms (map (lambda (t) (loop p* t)) ts))
@@ -111,20 +114,20 @@
     (define (var-index v)
       (or (for/first ([var (in-list vars)] [k (in-naturals)] #:when (eq? v var)) k)
           (error 'pattern-template "unknown var: ~e in ~e" v p)))
-    (define (get-var v m) (list-ref m (var-index v)))
-    (let loop ([p p] [m m])
+    (define (get-var v) (list-ref m (var-index v)))
+    (let loop ([p p])
       (match p
-        [(? symbol? p) (get-var p m)]
+        [(? symbol? p) (get-var p)]
         ['() null]
-        [(cons p1 p2) (cons (loop p1 m) (loop p2 m))]
-        [(rep (? symbol? p) _) (get-var p m)]
-        [(rep p* vars*)
-         (define m* (map (lambda (v) (get-var v m)) vars*))
+        [(cons p1 p2) (cons (loop p1) (loop p2))]
+        [(rep (? symbol? p) _ '()) (get-var p)]
+        [(rep p* vars* pt)
+         (define m* (map (lambda (v) (get-var v)) vars*))
          (let reploop ([m* m*])
            (cond [(andmap pair? m*)
                   (cons (outerloop p* vars* (map car m*))
                         (reploop (map cdr m*)))]
-                 [else null]))]))))
+                 [else (loop pt)]))]))))
 
 ;; pattern-resyntax : Pattern Stx Stx -> Stx
 (define (pattern-resyntax p0 orig t0)
@@ -136,7 +139,7 @@
            (restx (cons (loop p1 (stx-car orig) (car t))
                         (loop p2 (stx-cdr orig) (cdr t)))
                   orig)]
-          [(rep p* _)
+          [(rep p* _ '())
            (let reploop ([orig orig] [t t])
              (cond [(syntax? t) t]
                    [(stx-pair? t)
@@ -164,7 +167,7 @@
             [(cons p1 p2)
              (or (loop p1 (path-add-car acc))
                  (loop p2 (path-add-cdr acc)))]
-            [(rep p* _)
+            [(rep p* _ '())
              (cond [(outerloop p* #f)
                     => (lambda (subpath)
                          (if rep?
