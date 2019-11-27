@@ -134,7 +134,7 @@
    (-> syntaxish? syntaxish?
        state?)]
   [walk
-   (->* [syntaxish? syntaxish?]
+   (->* [syntaxish? syntaxish? step-type?]
         [#:foci1 syntaxish? #:foci2 syntaxish?]
         step?)]
   [stumble
@@ -176,15 +176,15 @@
  RS/c
  (contract-out
   [RSunit
-   (-> reduction-sequence/c any/c any/c state/c RS/c)]
+   (-> syntaxish? syntaxish? pattern/c state/c reduction-sequence/c RS/c)]
   [RSfail
    (-> reduction-sequence/c exn? RS/c)]
   [RSbind
    (-> RS/c (-> any/c any/c state/c reduction-sequence/c RS/c) RS/c)]
   [RScase
    (-> RS/c
-       (-> reduction-sequence/c any/c any/c state/c any)
-       (-> reduction-sequence/c exn? any)
+       (-> any/c any/c any/c state/c reduction-sequence/c any)
+       (-> exn? reduction-sequence/c any)
        any)]
   [RSreset
    (->* [RS/c] [#:pattern (or/c pattern/c #f)] RS/c)]))
@@ -216,7 +216,7 @@
     [(rsfailed exn rs) (fail exn rs)]))
 
 (define (RSreset a #:pattern [reset-p #f])
-  (RSbind (lambda (f v p s ws) (RSunit f v (or reset-p p) s ws))))
+  (RSbind a (lambda (f v p s ws) (RSunit f v (or reset-p p) s ws))))
 
 
 ;; ============================================================
@@ -229,12 +229,13 @@
     (raise-syntax-error #f "no match result; used outside of wrap-user-expr" stx)))
 
 (define-syntax-rule (% p) (%e (quote-pattern p)))
-(define-syntax-rule (%e p) (pattern-template the-match-result p))
+(define-syntax-rule (%e p) (pattern-template p the-match-result))
 
 (define-syntax wrap-user-expr
   (syntax-parser
     [(_ [f v p] expr:expr)
      #'(let ([mv (pattern-match p f)])
+         ;; (eprintf "wrap-user-expr: pattern match ~s, ~e = ~e\n" p f mv)
          (syntax-parameterize ((the-match-result (make-rename-transformer #'mv)))
            expr))]))
 
@@ -246,23 +247,6 @@
 (define-syntax ! (syntax-rules ()))
 
 ;; (R R-clause ...) : RST
-;; An R-clause is one of
-;;   [! expr]
-;;   [#:set-syntax expr]
-;;   [#:expect-syntax expr]
-;;   [#:pattern pattern]
-;;   [#:do expr ...]
-;;   [#:let var expr]
-;;   [#:left-foot]
-;;   [#:walk term2 description]
-;;   [#:rename pattern rename [description]]
-;;   [#:reductions expr]
-;;   [#:learn ids]
-;;   [#:if test R-clause ...]
-;;   [#:when test R-clause ...]
-;;   [#:hide-check ids]
-;;   [#:seek-check]
-;;   [generator hole fill]
 (begin-for-syntax
   (define clause-kw->macro
     (hash '#:set-syntax #'R/set-syntax
@@ -270,15 +254,26 @@
           '#:pattern #'R/pattern
           '#:do #'R/do
           '#:let #'R/let
+          '#:parameterize #'R/parameterize
           '#:left-foot #'R/left-foot
+          '#:step #'R/step
           '#:walk #'R/walk
           '#:rename #'R/rename
+          '#:rename/mark #'R/rename/mark
+          '#:rename/unmark #'R/rename/unmark
+          '#:new-local-context #'R/new-local-context
           '#:reductions #'R/reductions
           '#:learn #'R/learn
+          '#:binders #'R/binders
           '#:if #'R/if
           '#:when #'R/when
+          '#:pass1 #'R/pass1
+          '#:pass2 #'R/pass2
+          '#:in-hole #'R/in-hole
+          #|
           '#:hide-check #'R/hide-check
-          '#:seek-check #'R/seek-check))
+          '#:seek-check #'R/seek-check
+          |#))
 
   (define-syntax-class RClause #:attributes (macro)
     #:literals (!)
@@ -299,13 +294,16 @@
   (syntax-parser
     #:literals (=>)
     [(R** f v p s ws)
-     #'(RSunit ws f v s)]
+     #'(RSunit f v p s ws)]
     [(R** f v p s ws => k . more)
      #:declare k (expr/c #'RST/c)
-     #'(RSbind (RSreset (k.c f v s ws) #:pattern p)
+     #'(RSbind (RSreset (k.c f v p s ws) #:pattern p)
                (R . more))]
     [(R** f v p s ws c:RClause . more)
-     #'(c.macro f v p s ws c (R . more))]))
+     #'(begin
+         (let ([cstx (quote-syntax c)])
+           (eprintf "doing [~s:~s] ~e\n" (syntax-line cstx) (syntax-column cstx) (quote c)))
+         (c.macro f v p s ws c (R . more)))]))
 
 ;; A R/<Clause> macro has the form
 ;;   (R/<Clause> f v p s ws <Clause> kexpr)
@@ -409,16 +407,9 @@
 (define-syntax R/reductions
   (syntax-parser
     [(_ f v p s ws [#:reductions rs] ke)
-     #:declare rs (expr/c #'reduction-sequence?)
+     #:declare rs (expr/c #'reduction-sequence/c)
      #'(let ([ws2 (revappend (wrap-user-expr [f v p] rs.c) ws)])
          (ke f v p s ws2))]))
-
-;; FIXME: use more?
-(define-syntax R/in-hole
-  (syntax-parser
-    [(_ f v p s ws [#:in-hole hole . clauses] ke)
-     #'(let ([reducer (lambda (_) (R . clauses))])
-         (Run reducer f v p s ws hole #f ke))]))
 
 (define-syntax R/rename
   (syntax-parser
@@ -439,14 +430,14 @@
                ke)]))
 
 (define (do-rename f v p s ws ren-p renames description mark-flag)
-  (define pre-renames (pattern-template (pattern-match p f) ren-p))
+  (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
   (define whole-form-rename? (equal? p ren-p)) ;; FIXME is this right?
   (define renames-mapping (make-renames-mapping pre-renames renames))
   (define v2 (apply-renames-mapping renames-mapping v))
   (define ws2 
     (if description
-        (cons (walk v v2 description #:foci pre-renames #:foci2 renames) ws)
+        (cons (walk v v2 description #:foci1 pre-renames #:foci2 renames) ws)
         ws))
   (RSunit f2 v2 p s ws2))
 
@@ -456,8 +447,6 @@
      #:declare from (expr/c #'syntaxish?)
      #:declare to (expr/c #'syntaxish?)
      #'(let ([real-from (wrap-user-expr [f v p] (% pvar))])
-         (when (marking-table)
-           (add-to-renames-table (marking-table) from to))
          (R/rename* f v p s ws [#:rename* pvar to #f 'mark] ke))]))
 
 (define-syntax R/rename/unmark
@@ -472,7 +461,7 @@
   (syntax-parser
     ;; Add to definite binders
     [(_ f v p s ws [#:binders ids] ke)
-     #:declare ids (expr/c #'(listof identifier))
+     #:declare ids (expr/c #'any/c #;#'(listof identifier?))
      #'(begin (learn-binders (flatten-identifiers (wrap-user-expr [f v p] ids.c)))
               (ke f v p s ws))]))
 
@@ -525,13 +514,9 @@
 (define-syntax R/new-local-context
   (syntax-parser
     [(_ f v p s ws [#:new-local-context clause ...] ke)
-     ;; If vis = #t, then (clause ...) do not affect local config
-     ;; If vis = #f, then proceed normally
-     ;;   *except* must save & restore real term
-     #'(let* ([vis (visibility)]
-              [process-clauses (lambda () (R** #f #f '_ #f ws clause ...))])
+     #'(let ([process-clauses (lambda () (R** #f #f '_ #f ws clause ...))])
          (RSbind (with-new-local-context v (process-clauses))
-                 (lambda (f2 v2 s2 ws2)
+                 (lambda (f2 v2 _p s2 ws2)
                    (let ([v2 v] [s2 s])
                      (ke f v2 p s2 ws2)))))]))
 
@@ -540,8 +525,15 @@
     ;; Subterm handling
     [(R** f v p s ws [reducer hole fill] ke)
      #:declare reducer (expr/c #'(-> any/c RST/c))
-     #'(RSbind (let ([reducer-var reducer.c])
-                 (run reducer-var f v p s ws (quote hole) fill))
+     #'(RSbind (run reducer.c f v p s ws (quote hole) fill)
+               ke)]))
+
+;; FIXME: should this be used more?
+(define-syntax R/in-hole
+  (syntax-parser
+    [(_ f v p s ws [#:in-hole hole . clauses] ke)
+     #'(RSbind (let ([reducer (lambda (_) (R . clauses))])
+                 (run reducer f v p s ws (quote hole) #f))
                ke)]))
 
 ;; ============================================================
@@ -560,6 +552,7 @@
 
 ;; run : (X -> RST) Stx Stx Pattern State ReductionSequence Hole (U X (Listof X)) -> RS
 ;; where Hole = Symbol | (list Symbol '...) -- NOT a pattern value
+;; Note: run restores pattern after running reducer
 (define (run reducer f v p s ws hole fill)
   (match hole
     [(? symbol? hole)
@@ -568,27 +561,30 @@
      (define vctx (path-replacer v path))
      (define init-sub-f (path-get f path))
      (define init-sub-v (path-get v path))
-     (run-one reducer init-sub-f fctx init-sub-v vctx fill s ws)]
+     (run-one reducer init-sub-f fctx init-sub-v vctx fill p s ws)]
     [(list (? symbol? hole) '...)
-     (define-values (pre-path sub-path) (subpattern-path p hole #t))
+     (eprintf "run (multi) starting\n")
+     (match-define (vector pre-path sub-path) (subpattern-path p hole #t))
+     (eprintf "run (multi) paths: ~e, ~e" pre-path sub-path)
      (let loop ([fill fill] [k 0] [f f] [v v] [s s] [ws ws])
+       (eprintf "run (multi): k = ~s, fill length = ~s\n" k (length fill))
        (match fill
          [(cons fill0 fill*)
           (define path (append pre-path (path-add-ref k sub-path)))
-          (define fctx (path-replace f path))
-          (define vctx (path-replace v path))
+          (define fctx (path-replacer f path))
+          (define vctx (path-replacer v path))
           (define init-sub-f (path-get f path))
           (define init-sub-v (path-get v path))
-          (RSbind (run-one reducer init-sub-f fctx init-sub-v vctx fill s ws)
+          (RSbind (run-one reducer init-sub-f fctx init-sub-v vctx fill0 p s ws)
                   (lambda (f v _p s ws) (loop fill* (add1 k) f v s ws)))]
          ['() (RSunit f v p s ws)]))]))
 
-;; run-one : (X -> RST) Stx (Stx -> Stx) Stx (Stx -> Stx) X State ReductionSequence -> RS
-(define (run-one reducer init-f fctx init-v vctx fill s ws)
+;; run-one : (X -> RST) Stx (Stx -> Stx) Stx (Stx -> Stx) X Pattern State RedSeq -> RS
+(define (run-one reducer init-f fctx init-v vctx fill p s ws)
   (RSbind (with-context vctx
-            ((reducer fill) init-f init-v s ws))
-          (lambda (f2 v2 s2 ws2)
-            (RSunit (fctx f2 #:resyntax? #f) (vctx v2) s2 ws2))))
+            ((reducer fill) init-f init-v (quote-pattern _) s ws))
+          (lambda (f2 v2 _p s2 ws2)
+            (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s2 ws2))))
 
 ;; ------------------------------------
 
