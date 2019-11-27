@@ -112,14 +112,14 @@
       (or (for/first ([var (in-list vars)] [k (in-naturals)] #:when (eq? v var)) k)
           (error 'pattern-template "unknown var: ~e in ~e" v p)))
     (define (get-var v m) (list-ref m (var-index v)))
-    (let loop ([p p0] [m m])
+    (let loop ([p p] [m m])
       (match p
         [(? symbol? p) (get-var p m)]
         ['() null]
         [(cons p1 p2) (cons (loop p1 m) (loop p2 m))]
         [(rep (? symbol? p) _) (get-var p m)]
         [(rep p* vars*)
-         (define m* (map (lambda (v) (get-var v m)) m))
+         (define m* (map (lambda (v) (get-var v m)) vars*))
          (let reploop ([m* m*])
            (cond [(andmap pair? m*)
                   (cons (outerloop p* vars* (map car m*))
@@ -156,6 +156,7 @@
   (if resyntax? (pattern-resyntax p1 stx1 stx-out) stx-out))
 
 ;; subpattern-path : Pattern Symbol [Boolean] -> (U Path (vector Path Path))
+;; FIXME: this allocates a lot for a search ...
 (define (subpattern-path p0 hole [rep? #f])
   (or (let outerloop ([p p0] [rep? rep?])
         (let loop ([p p] [acc null])
