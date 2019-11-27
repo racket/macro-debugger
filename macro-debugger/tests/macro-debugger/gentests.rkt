@@ -125,7 +125,8 @@
 
 (define (interesting-step? st)
   (not (memq (protostep-type st)
-             '(resolve-variable rename-block rename-module rename-modbeg rename-mod-shift))))
+             '(resolve-variable rename-block rename-module rename-modbeg rename-mod-shift
+                                track-origin))))
 
 (define (reduction-sequence? rs)
   (andmap protostep? rs))
