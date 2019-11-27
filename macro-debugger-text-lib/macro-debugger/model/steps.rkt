@@ -1,10 +1,12 @@
 #lang racket/base
+(require racket/contract/base)
 (provide (struct-out protostep)
          (struct-out step)
          (struct-out misstep)
          (struct-out remarkstep)
          (struct-out state)
          (struct-out bigframe)
+         reduction-sequence/c
          context-fill
          state-term
          step-term1
@@ -16,7 +18,6 @@
          rewrite-step?
          rename-step?)
 
-;; A ReductionSequence is (Listof Step)
 ;; A Step is one of
 ;;  - (step StepType State State)
 ;;  - (misstep StepType State Exn)
@@ -25,6 +26,9 @@
 (struct step protostep (s2) #:transparent)
 (struct misstep protostep (exn) #:transparent)
 (struct remarkstep protostep (contents) #:transparent)
+
+;; A ReductionSequence is (Listof Step)
+(define reduction-sequence/c (listof protostep?))
 
 ;; A State is (state Stx Stxs Context BigContext Ids Ids Stxs Nat/#f)
 (struct state (e foci ctx lctx binders uses frontier seq) #:transparent)
