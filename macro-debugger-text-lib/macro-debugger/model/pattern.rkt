@@ -1,40 +1,60 @@
 #lang racket/base
-(require racket/match
-         syntax/stx)
+(require (for-syntax racket/base)
+         racket/match
+         syntax/stx
+         "context.rkt")
 (provide (all-defined-out))
 
-;; A Pattern is one of
-;; - Symbol
-;; - (cons Pattern Pattern)
-;; - '()
-;; - (rep Pattern VarList)
-(struct rep (p vars) #:prefab)
+(module base racket/base
+  (require racket/match)
+  (provide (struct-out rep)
+           parse-pattern
+           pattern-vars)
 
-;; A VarList is (Listof Symbol)
+  ;; A Pattern is one of
+  ;; - Symbol
+  ;; - (cons Pattern Pattern)
+  ;; - '()
+  ;; - (rep Pattern VarList)
+  ;; A VarList is (Listof Symbol)
+  (struct rep (p vars) #:prefab)
+
+  ;; parse-pattern : Sexpr -> Pattern
+  (define (parse-pattern p0)
+    (let loop ([p p0])
+      (match p
+        ['() '()]
+        [(? symbol? p) p]
+        [(list p '...) (let ([p* (parse-pattern p)]) (rep p* (pattern-vars p)))]
+        [(cons p1 p2) (cons (parse-pattern p1) (parse-pattern p2))]
+        [_ (error 'parse-pattern "bad pattern: ~e in ~e" p p0)])))
+
+  ;; pattern-vars : Pattern -> VarList
+  (define (pattern-vars p0)
+    (let loop ([p p0])
+      (match p
+        [(? symbol? p) (list p)]
+        [(cons p1 p2) (append (loop p1) (loop p2))]
+        ['() null]
+        [(rep p* vars*) vars*]))))
+
+(require (for-syntax 'base)
+         (rename-in 'base [parse-pattern base:parse-pattern]))
+
+(define-syntax (quote-pattern stx)
+  (syntax-case stx ()
+    [(_ p) #`(quote ,(base:parse-pattern (syntax->datum #'p)))]))
+
+(define (parse-pattern p0)
+  (hash-ref! pattern-cache p0 (lambda () (base:parse-pattern p0))))
+(define pattern-cache (make-weak-hasheq))
+
 
 ;; A Match is (match-result VarList MatchEnv)
 ;; where MatchEnv = (Listof MatchValue)
 ;;       MatchValue = Stx | (Listof MatchValue)
 (struct match-result (vars vals) #:prefab)
-
-;; parse-pattern : Sexpr -> Pattern
-(define (parse-pattern p0)
-  (let loop ([p p0])
-    (match p
-      ['() '()]
-      [(? symbol? p) p]
-      [(list p '...) (let ([p* (parse-pattern p)]) (rep p* (pattern-vars p)))]
-      [(cons p1 p2) (cons (parse-pattern p1) (parse-pattern p2))]
-      [_ (error 'parse-pattern "bad pattern: ~e in ~e" p p0)])))
-
-;; pattern-vars : Pattern -> VarList
-(define (pattern-vars p0)
-  (let loop ([p p0])
-    (match p
-      [(? symbol? p) (list p)]
-      [(cons p1 p2) (append (loop p1) (loop p2))]
-      ['() null]
-      [(rep p* vars*) vars*])))
+(define empty-match-result (match-result null null))
 
 ;; pattern-match : Pattern Stx -> Match/#f
 (define (pattern-match p0 t0)
@@ -125,3 +145,34 @@
                                     (reploop (stx-cdr orig) (stx-cdr t))))]
                    [else (resyntax orig t)]))]
           [_ (resyntax orig t)]))))
+
+;; pattern-replace : Pattern Stx Pattern Stx -> Stx
+;; Like (with-syntax ([p1 stx1]) (with-syntax ([p2 stx2]) (syntax p1))).
+(define (pattern-replace p1 stx1 p2 stx2 #:resyntax? [resyntax? #t])
+  (define m1 (pattern-match p1 stx1))
+  (define m2 (pattern-match p2 stx2))
+  (define m-out (pattern-match-update m1 m2))
+  (define stx-out (pattern-template p1 m-out))
+  (if resyntax? (pattern-resyntax p1 stx1 stx-out) stx-out))
+
+;; subpattern-path : Pattern Symbol [Boolean] -> (U Path (values Path Path))
+(define (subpattern-path p0 hole [rep? #f])
+  (or (let outerloop ([p p0] [acc null] [rep? rep?])
+        (let loop ([p p0] [ctx null])
+          (match p
+            [(cons p1 p2)
+             (or (loop p1 (path-add-car acc))
+                 (loop p2 (path-add-cdr acc)))]
+            [(rep p* _)
+             (cond [(outerloop p* hole #f)
+                    => (lambda (subpath)
+                         (if rep?
+                             (values (reverse acc) subpath)
+                             (error 'subpattern->path "hole has ellipses: ~s, ~s" hole p0)))]
+                   [else #f])]
+            [(== hole)
+             (when rep?
+               (error 'subpattern->path "hole does not have ellipses: ~s, ~s" hole p0))
+             (reverse acc)]
+            [else #f])))
+      (error 'subpattern->path "hole does not occur in pattern: ~s, ~s" hole p0)))
