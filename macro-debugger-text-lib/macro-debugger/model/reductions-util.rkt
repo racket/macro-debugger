@@ -12,6 +12,9 @@
          "context.rkt"
          "steps.rkt")
 
+(provide STRICT-CHECKS
+         DEBUG)
+
 (define-syntax-rule (STRICT-CHECKS form ...)
   (when #f form ... (void)))
 
@@ -99,7 +102,7 @@
 
 ;; learn-{binders,definites} : Id/s -> Void
 (define (learn-binders ids #:xstate [xst (the-xstate)])
-  (set-xstate-binders! xst (hash-set-list (xstate-binders xst) (flatten ids) (the-phase))))
+  (set-xstate-binders! xst (hash-set-list (xstate-binders xst) (flatten-identifiers ids) (the-phase))))
 (define (learn-definites ids #:xstate [xst (the-xstate)])
   (set-xstate-definites! xst (hash-set-list (xstate-definites xst) (flatten ids) (the-phase))))
 
@@ -255,7 +258,6 @@
 (begin-for-syntax
   (define clause-kw->macro
     (hash '#:set-syntax #'R/set-syntax
-          '#:expect-syntax #'R/expect-syntax
           '#:pattern #'R/pattern
           '#:do #'R/do
           '#:let #'R/let
@@ -268,8 +270,6 @@
           '#:rename/unmark #'R/rename/unmark
           '#:new-local-context #'R/new-local-context
           '#:reductions #'R/reductions
-          '#:learn #'R/learn
-          '#:binders #'R/binders
           '#:if #'R/if
           '#:when #'R/when
           '#:pass1 #'R/pass1
@@ -369,16 +369,6 @@
      #'(let ([f2 (wrap-user-expr [f v p] form.c)])
          (ke f2 f2 p s ws))]))
 
-;; FIXME: use #:do?
-(define-syntax R/expect-syntax
-  (syntax-parser
-    [(_ f v p s ws [#:expect-syntax expr ds] ke)
-     #:declare expr (expr/c #'syntax?)
-     #'(let ([expected (wrap-user-expr [f v p] expr)])
-         (STRICT-CHECKS
-          (check-same-stx 'expect-syntax f expected ds))
-         (ke f v p s ws))]))
-
 (define-syntax R/left-foot
   (syntax-parser
     [(_ f v p s ws [#:left-foot (~optional fs)] ke)
@@ -461,22 +451,6 @@
      #:declare to (expr/c #'syntaxish?)
      #'(let ([real-from (wrap-user-expr [f v p] (% pvar))])
          (R/rename* f v p s ws [#:rename* pvar to #f 'unmark] ke))]))
-
-(define-syntax R/binders ;; FIXME: just use #:do
-  (syntax-parser
-    ;; Add to definite binders
-    [(_ f v p s ws [#:binders ids] ke)
-     #:declare ids (expr/c #'any/c #;#'(listof identifier?))
-     #'(begin (learn-binders (flatten-identifiers (wrap-user-expr [f v p] ids.c)))
-              (ke f v p s ws))]))
-
-(define-syntax R/learn ;; FIXME: just use #:do
-  (syntax-parser
-    ;; Add to definite uses
-    [(_ f v p s ws [#:learn ids] ke)
-     #:declare ids (expr/c #'(listof identifier?))
-     #'(begin (learn-definites (wrap-user-expr [f v p] ids.c))
-              (ke f v p s ws))]))
 
 (define-syntax R/if
   (syntax-parser
@@ -634,6 +608,8 @@
             (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s2 ws2))))
 
 ;; ------------------------------------
+
+(provide check-same-stx)
 
 (define (revappend a b)
   (cond [(pair? a) (revappend (cdr a) (cons (car a) b))]

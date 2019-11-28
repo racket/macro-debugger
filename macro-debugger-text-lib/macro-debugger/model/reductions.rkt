@@ -59,7 +59,7 @@
   (match/count d
     [(deriv e1 e2)
      (R [#:pattern ?form]
-        [#:expect-syntax e1 (list d)]
+        [#:do (STRICT-CHECKS (check-same-stx 'Expr e1 (list d)))]
         [#:parameterize ((the-context
                           ;; This arms the artificial intermediate terms, since
                           ;; the expander generally (always?) re-arms the result
@@ -71,7 +71,7 @@
                                  (cons rearm-frame (the-context))]
                                 [else (the-context)])))
          [#:when (base? d)
-          [#:learn (or (base-resolves d) null)]
+          [#:do (learn-definites (or (base-resolves d) null))]
           [#:when (base-de1 d)
            [#:rename ?form (base-de1 d) #;'disarm]]]
          #;[#:seek-check]
@@ -86,7 +86,7 @@
   (match d
     ;; Primitives
     [(p:variable e1 e2 rs de1 ?1)
-     (R [#:learn (list e2)]
+     (R [#:do (learn-definites (list e2))]
         [#:when (or (not (identifier? e1))
                     (not (bound-identifier=? e1 e2)))
                 [#:walk e2 'resolve-variable]])]
@@ -132,13 +132,13 @@
         [#:pattern ?form]
         [PrepareEnv ?form prep]
         [#:pattern (?define-syntaxes ?vars ?rhs)]
-        [#:binders (% ?vars)]
+        [#:do (learn-binders (% ?vars))]
         [Expr/PhaseUp ?rhs rhs]
         [LocalActions ?rhs locals])]
     [(p:define-values e1 e2 rs de1 ?1 rhs)
      (R [! ?1]
         [#:pattern (?define-values ?vars ?rhs)]
-        [#:binders (% ?vars)]
+        [#:do (learn-binders (% ?vars))]
         [#:when rhs
                 [Expr ?rhs rhs]])]
     [(p:#%expression e1 e2 rs de1 ?1 inner #f)
@@ -186,7 +186,7 @@
      (R [! ?1]
         [#:pattern (?lambda ?formals . ?body)]
         [#:rename (?formals . ?body) renames 'rename-lambda]
-        [#:binders (% ?formals)]
+        [#:do (learn-binders (% ?formals))]
         [Block ?body body])]
     [(p:case-lambda e1 e2 rs de1 ?1 clauses)
      (R [! ?1]
@@ -196,14 +196,14 @@
      (R [! ?1]
         [#:pattern (?let-values ([?vars ?rhs] ...) . ?body)]
         [#:rename (((?vars ?rhs) ...) . ?body) renames 'rename-letX]
-        [#:binders (% (?vars ...))]
+        [#:do (learn-binders (% (?vars ...)))]
         [Expr (?rhs ...) rhss]
         [Block ?body body])]
     [(p:letrec-values e1 e2 rs de1 ?1 renames rhss body)
      (R [! ?1]
         [#:pattern (?letrec-values ([?vars ?rhs] ...) . ?body)]
         [#:rename (((?vars ?rhs) ...) . ?body) renames 'rename-letX]
-        [#:binders (% (?vars ...))]
+        [#:do (learn-binders (% (?vars ...)))]
         [Expr (?rhs ...) rhss]
         [Block ?body body])]
     [(p:letrec-syntaxes+values e1 e2 rs de1 ?1 srenames prep srhss vrhss body)
@@ -215,7 +215,7 @@
         [#:rename (((?svars ?srhs) ...) ((?vvars ?vrhs) ...) . ?body)
                    srenames
                    'rename-letX]
-        [#:binders (% (?svars ... ?vvars ...))]
+        [#:do (learn-binders (% (?svars ... ?vvars ...)))]
         [BindSyntaxes (?srhs ...) srhss]
         [Expr (?vrhs ...) vrhss]
         [Block ?body body]
@@ -229,11 +229,11 @@
     [(p:#%top e1 e2 rs de1 ?1)
      (R [! ?1]
         [#:pattern ?form]
-        [#:learn
-         (syntax-case (% ?form) ()
-           [(?top . ?var) (identifier? #'?var) (list #'?var)]
-           [?var (identifier? #'?var) (list #'?var)]
-           [?form (error 'macro-debugger "#%top has wrong form: ~s\n" #'?form)])])]
+        [#:do (learn-definites
+               (syntax-case (% ?form) ()
+                 [(?top . ?var) (identifier? #'?var) (list #'?var)]
+                 [?var (identifier? #'?var) (list #'?var)]
+                 [?form (error 'macro-debugger "#%top has wrong form: ~s\n" #'?form)]))])]
 
     [(p:provide e1 e2 rs de1 ?1 inners ?2)
      (let ([wrapped-inners (map expr->local-action inners)])
@@ -293,7 +293,7 @@
     [(p:set! e1 e2 rs de1 ?1 id-rs ?2 rhs)
      (R [! ?1]
         [#:pattern (?set! ?var ?rhs)]
-        [#:learn id-rs]
+        [#:do (learn-definites id-rs)]
         [! ?2]
         [Expr ?rhs rhs])]
 
@@ -313,7 +313,7 @@
      (R [! ?1]
         [#:pattern ?form]
         #;[#:hide-check rs]
-        [#:learn rs]
+        [#:do (learn-definites rs)]
         [#:pass1]
         [#:left-foot]
         [#:rename/mark ?form e1 me1] ;; MARK
@@ -385,7 +385,7 @@
      (R [! ?1]
         [#:pattern ((?formals . ?body) . ?rest)]
         [#:rename (?formals . ?body) rename 'rename-lambda]
-        [#:binders (% ?formals)]
+        [#:do (learn-binders (% ?formals))]
         [Block ?body body]
         [CaseLambdaClauses ?rest rest])]))
 
@@ -450,7 +450,7 @@
     [(local-lift expr ids)
      ;; FIXME: add action
      (R [#:do (take-lift!)]
-        [#:binders ids]
+        [#:do (learn-binders ids)]
         [#:reductions
          (list
           (walk/talk 'local-lift
@@ -494,7 +494,7 @@
     [(local-bind names ?1 renames bindrhs)
      [R [! ?1]
         ;; FIXME: use renames
-        [#:binders names]
+        [#:do (learn-binders names)]
         [#:when bindrhs => (BindSyntaxes bindrhs)]]]
     [(track-syntax operation new-stx old-stx)
      (R)
@@ -507,7 +507,7 @@
     [(local-value name ?1 resolves bound? binding)
      [R [! ?1]
         ;; FIXME: notify if binding != current (identifier-binding name)???
-        ;; [#:learn (list name)]
+        ;; [#:do (learn-definites (list name))]
         ;; Add remark step?
         ]]
     [(local-remark contents)
@@ -621,7 +621,7 @@
          [#:rename ?first da #;'disarm]]
         [#:pattern ((?define-values ?vars . ?body) . ?rest)]
         [#:rename (?vars . ?body) rename]
-        [#:binders (% ?vars)]
+        [#:do (learn-binders (% ?vars))]
         [! ?2]
         [#:pass2]
         [#:pattern (?first . ?rest)]
@@ -635,7 +635,7 @@
          [#:rename ?first da #;'disarm]]
         [#:pattern ((?define-syntaxes ?vars . ?body) . ?rest)]
         [#:rename (?vars . ?body) rename]
-        [#:binders (% ?vars)]
+        [#:do (learn-binders (% ?vars))]
         [! ?2]
         [#:pass2]
         [#:pattern ?form]
