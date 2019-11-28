@@ -394,12 +394,6 @@
          (define ws2 (if type (cons (make step type s1 s2) ws) ws))
          (ke f2 f2 p s2 ws2))]))
 
-;; STOPPED HERE
-
-
-
-
-
 (define-syntax R/reductions
   (syntax-parser
     [(_ f v p s ws [#:reductions rs] ke)
@@ -411,19 +405,15 @@
   (syntax-parser
     ;; Rename
     [(_ f v p s ws [#:rename pattern renames] ke)
-     #'(R/rename f v p s ws [#:rename pattern renames #f] ke)]
+     #'(RSbind (Rename f v p s ws pattern renames #f #f) ke)]
     [(_ f v p s ws [#:rename pattern renames description] ke)
-     #'(R/rename* f v p s ws [#:rename* pattern renames description #f] ke)]))
+     #'(RSbind (Rename f v p s ws pattern renames description #f) ke)]))
 
-(define-syntax R/rename*
-  (syntax-parser
-    [(_ f v p s ws [#:rename* pattern renames description mark-flag] ke)
-     #'(RSbind (let ()
-                 (define pattern-var (quote-pattern pattern))
-                 (define-values (renames-var description-var mark-flag-var)
-                   (wrap-user-expr [f v p] (values renames description mark-flag)))
-                 (do-rename f v p s ws pattern-var renames-var description-var mark-flag-var))
-               ke)]))
+(define-syntax-rule (Rename f v p s ws pattern renames description mark-flag)
+  (let ()
+    (define-values (renames-var description-var)
+      (wrap-user-expr [f v p] (values renames description)))
+    (do-rename f v p s ws (quote-pattern pattern) renames-var description-var mark-flag)))
 
 (define (do-rename f v p s ws ren-p renames description mark-flag)
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
@@ -444,7 +434,8 @@
      #:declare from (expr/c #'syntaxish?)
      #:declare to (expr/c #'syntaxish?)
      #'(let ([real-from (wrap-user-expr [f v p] (% pvar))])
-         (R/rename* f v p s ws [#:rename* pvar to #f 'mark] ke))]))
+         (STRICT-CHECKS (check-same-stx 'rename/mark f from.c))
+         (RSbind (Rename f v p s ws pvar to.c #f 'mark) ke))]))
 
 (define-syntax R/rename/unmark
   (syntax-parser
@@ -452,7 +443,8 @@
      #:declare from (expr/c #'syntaxish?)
      #:declare to (expr/c #'syntaxish?)
      #'(let ([real-from (wrap-user-expr [f v p] (% pvar))])
-         (R/rename* f v p s ws [#:rename* pvar to #f 'unmark] ke))]))
+         (STRICT-CHECKS (check-same-stx 'rename/unmark f from.c))
+         (RSbind (Rename f v p s ws pvar to.c #f 'unmark) ke))]))
 
 (define-syntax R/if
   (syntax-parser
