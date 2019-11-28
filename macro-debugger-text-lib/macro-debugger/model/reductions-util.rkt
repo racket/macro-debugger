@@ -71,9 +71,7 @@
  add-lift
  add-endlift
  get/clear-lifts
- get/clear-endlifts
- add-frontier
- clear-frontier)
+ get/clear-endlifts)
 
 ;; An XState is:
 (struct xstate
@@ -117,13 +115,6 @@
   (set-xstate-lifts! xst null))
 (define (get/clear-endlifts #:xstate [xst (the-xstate)])
   (set-xstate-endlifts! xst null))
-
-;; add-frontier : (Listof Syntax) -> Void
-;; clear-frontier : (Listof Syntax) -> Void
-(define (add-frontier stxs #:xstate [xst (the-xstate)])
-  (set-xstate-frontier! xst (hash-set-list (xstate-frontier xst) (flatten stxs) #t)))
-(define (clear-frontier stxs #:xstate [xst (the-xstate)])
-  (set-xstate-frontier! xst (hash-remove-list (xstate-frontier xst) (flatten stxs))))
 
 ;; add-step : Step -> Void
 (define (add-step step #:xstate [xst (the-xstate)])
