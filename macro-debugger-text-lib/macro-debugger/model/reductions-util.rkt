@@ -544,8 +544,45 @@
 
 ;; ============================================================
 
-(define (make-renames-mapping pre post) (void)) ;; FIXME
-(define (apply-renames-mapping renmap v) v) ;; FIXME
+;; A RenamesMapping is (renames-mapping Stxish Stxish Hasheq[Syntax => Stxish])
+;; It represents a *forward* mapping from pre-rename to post-rename.
+
+;; Note: for efficiency, we'll rely on the fact that pre and post contain no
+;; artificial syntax. So to apply the renames mapping to a term that *contains*
+;; the renamed parts, it's sufficient to recur through the term and *not* to
+;; recur through syntax in pre. (This is not true for the macro hiding problem,
+;; where a rename might contain the sought term; but that's a *backwards*
+;; mapping problem.)
+
+(struct renames-mapping (pre post h) #:transparent)
+
+(define (make-renames-mapping pre post)
+  (renames-mapping pre post
+                   (let loop ([pre pre] [post post] [h '#hasheq()])
+                     (cond [(pair? pre)
+                            (loop (car pre) (stx-car post)
+                                  (loop (cdr pre) (stx-cdr post) h))]
+                           [(syntax? pre)
+                            (hash-set h pre post)]
+                           [else h]))))
+
+
+(define (apply-renames-mapping renmap v)
+  (define h (renames-mapping-h renmap))
+  (let loop ([v v])
+    (cond [(syntax? v)
+           (or (hash-ref h v #f)
+               (cond [(syntax-unarmed? v)
+                      (define r (loop (syntax-e v)))
+                      (cond [(eq? r (syntax-e v)) v]
+                            [else (resyntax r v v)])]
+                     [else v]))]
+          [(pair? v)
+           (define r1 (loop (car v)))
+           (define r2 (loop (cdr v)))
+           (cond [(and (eq? r1 (car v)) (eq? r2 (cdr v))) v]
+                 [else (cons r1 r2)])]
+          [else v])))
 
 ;; ============================================================
 
