@@ -496,7 +496,10 @@
      [R [! ?1]
         ;; FIXME: use renames
         [#:do (learn-binders names)]
-        [#:when bindrhs => (BindSyntaxes bindrhs)]]]
+        [#:when bindrhs
+         [#:set-syntax (node-z1 bindrhs)] ;; FIXME: use renames?
+         [#:pattern ?form]
+         [BindSyntaxes ?form bindrhs]]]]
     [(track-syntax operation new-stx old-stx)
      (R)
      #|
@@ -552,7 +555,7 @@
                [#:pass2]
                [#:walk es2 'finish-letrec])
               ([#:rename ?block (wlderiv-es1 pass2)]
-               [#:set-syntax (wlderiv-es1 pass2)]
+               [#:set-syntax (wlderiv-es1 pass2)] ;; FIXME?
                [List ?block pass2])])]
     ;; Alternatively, allow lists, since `let`, etc., bodies
     ;; (generated form an internal definition context) are
@@ -642,8 +645,7 @@
 (define (BindSyntaxes bindrhs)
   (match bindrhs
     [(bind-syntaxes rhs locals)
-     (R [#:set-syntax (node-z1 rhs)] ;; set syntax; could be in local-bind
-        [#:pattern ?form]
+     (R [#:pattern ?form]
         [Expr/PhaseUp ?form rhs]
         [LocalActions ?form locals])]))
 
