@@ -65,7 +65,7 @@
                           ;; This arms the artificial intermediate terms, since
                           ;; the expander generally (always?) re-arms the result
                           ;; of expanding an armed term.
-                          (cond [(syntax-armed? e1)
+                          (cond [(and (syntax? e1) (syntax-armed? e1))
                                  (define (rearm-frame x)
                                    (syntax-property
                                     (syntax-rearm (datum->syntax #f x) e1)
