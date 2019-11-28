@@ -653,3 +653,90 @@
                  (if (syntax? stx)
                      (syntax->datum stx)
                      stx))]))
+
+;; ============================================================
+;; Macro hiding
+
+;; There are two aspects of the state of the reductions generator:
+
+;; - visibility: Are we showing or hiding steps on the current *actual* local
+;;   term? This is controlled by the hiding policy.
+
+;; - honesty: Does the current *visible* local term correspond to the current
+;;   *actual* local term? This depends on the history of visibility within the
+;;   current context and the (partly) on the honesty of the parent context.
+
+;; There are three modes (combinations of visibility and honesty):
+
+;; - truth   = visible and honest
+;; - gossip  = visible and not honest
+;; - fiction = not visible and not honest
+
+;; The mode (not visible but honest) exists only briefly on entry to macro
+;; hiding; it is reasonable to merge it with (not visible and not honest).
+
+;; The mode has the following consequences:
+;; - on *steps*
+;;   - truth: the step can be shown, and it updates the visible term
+;;   - gossip: the step cannot be shown, or it must be simulated
+;;     Consider the actual expansion (#%expression A) -> (#%expression A*) -> A*.
+;;     If hiding produces (#%expression A) -> (#%expression A**), then we cannot
+;;     apply the step (#%expression A*) -> A*. There are two options:
+;;     - drop the step
+;;     - simulation: rewrite the step to (#%expression A**) -> A**; this
+;;       requires custom code for each step (?)
+;;   - fiction: the step is not shown, and the visible term is not updated
+;;     (FIXME: need to separate rewrite from tracking in such steps, apply tracking!)
+;; - on entering a new context for reduction:
+;;   - truth: the mode of the new context is still truth
+;;   - gossip: if we know the context refers to a true subterm of the visible
+;;     term, we can enter truth mode (see Honesty Masks); otherwise we must stay
+;;     in gossip mode
+;;   - fiction: the mode of the new context is still fiction
+;; - on returning from a context:
+;;   - truth: the parent context's mode is unchanged
+;;   - gossip/fiction: the parent context's mode changes:
+;;     - parent mode was truth or gossip -> becomes gossip
+;;     - parent mode was fiction -> stays fiction
+
+;; Once we enter gossip (or fiction) mode, the visible term is not Stx, but a
+;; special data structure for tracking visible subterms. See Tracking.
+
+;; Why not unify gossip and fiction modes?
+;; - PRO: They're nearly the same in practice, which argues for unifying.
+;; - CON: Consider (λ () (define x A) (begin 1 2)), and suppose define is hidden.
+;;   In gossip mode with honesty mask, we have a hope of showing begin splicing.
+;; - CON: In (#%app e1 ... ek), we create known independent contexts for subexprs.
+;;   Fiction in e1 should not affect e2. But maybe this is just a special case of
+;;   (HOLE ...) contexts?
+
+;; ----------------------------------------
+;; Tracking
+
+;; ----------------------------------------
+;; Honesty Masks
+
+#|
+
+(define visible? (make-parameter #t))
+(define honest? (make-parameter #t))
+
+;; We can more precisely quantify honesty with an *honesty mask*: a tree that
+;; indicates what parts of the current term may be fictional.
+
+;; An HonestyMask is one of
+;; - 'F -- (partly, potentially) fictional term
+;; - 'T -- true term
+;; - (cons HonestyMask HonestyMask) -- a true pair with descriptions of its components' honesty
+;; * #(hmrep HonestyMask) -- a true list whose elements have the given honesty (only in specs?)
+(struct hmrep (hm) #:prefab)
+
+;; honesty>=? : HonestyMask HonestyMask -> Boolean
+;; Retuns #t if hm1 is at least as honest as hm2.
+(define (honesty>=? hm1 hm2)
+  ...)
+
+(define (honest? [hm (honesty-mask)])
+  (honesty>=? hm 'T))
+
+|#
