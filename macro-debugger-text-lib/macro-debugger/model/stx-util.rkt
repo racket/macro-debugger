@@ -5,6 +5,7 @@
          resyntax
          restx
          syntax-armed?
+         syntax-armed/tainted?
          syntax-unarmed?
          property:unlocked-by-expander)
 
@@ -38,8 +39,11 @@
   (and (not (syntax-tainted? stx))
        (syntax-tainted? (datum->syntax stx #f))))
 
+(define (syntax-armed/tainted? stx)
+  (syntax-tainted? (datum->syntax stx #f)))
+
 (define (syntax-unarmed? stx)
-  (not (syntax-tainted? (datum->syntax stx #f))))
+  (not (syntax-armed/tainted? stx)))
 
 ;; Used to communicate with syntax-browser
 (define property:unlocked-by-expander (gensym 'unlocked-by-expander))
