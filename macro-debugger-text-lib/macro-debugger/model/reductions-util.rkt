@@ -389,11 +389,13 @@
 
 (begin-for-syntax
   (define-syntax-class walk-clause
-    #:attributes (form1.c form2.c foci1.c foci2.c type)
+    #:attributes (state1.c form1.c form2.c foci1.c foci2.c type)
     (pattern [#:walk form2 type:expr
               (~alt (~optional (~seq #:foci foci2))
+                    (~optional (~seq #:from-state state1))
                     (~optional (~seq #:from form1))
                     (~optional (~seq #:from-foci foci1))) ...]
+             #:declare state1 (expr/c #'state/c)
              #:declare form1 (expr/c #'syntaxish?)
              #:declare foci1 (expr/c #'syntaxish?)
              #:declare form2 (expr/c #'syntaxish?)
@@ -403,11 +405,11 @@
   (syntax-parser
     [(_ f v p s ws w:walk-clause ke)
      #'(let ()
-         (define-values (f1 f2 type)
-           (wrap-user-expr [f v p] (values (~? w.form1.c v) w.form2.c w.type)))
+         (define-values (state1 f1 f2 type)
+           (wrap-user-expr [f v p] (values (~? w.state1.c #f) (~? w.form1.c v) w.form2.c w.type)))
          (define-values (fs1 fs2)
            (wrap-user-expr [f v p] (values (~? w.foci1.c f1) (~? w.foci2.c f2))))
-         (define s1 (current-state-with f1 fs1))
+         (define s1 (or state1 (current-state-with f1 fs1)))
          (define s2 (current-state-with f2 fs2))
          (define ws2 (if type (cons (make step type s1 s2) ws) ws))
          (ke f2 f2 p s2 ws2))]))
