@@ -262,8 +262,6 @@
           '#:do #'R/do
           '#:let #'R/let
           '#:parameterize #'R/parameterize
-          '#:left-foot #'R/left-foot
-          '#:step #'R/step
           '#:walk #'R/walk
           '#:rename #'R/rename
           '#:rename/mark #'R/rename/mark
@@ -368,24 +366,6 @@
      #:declare form (expr/c #'syntaxish?)
      #'(let ([f2 (wrap-user-expr [f v p] form.c)])
          (ke f2 f2 p s ws))]))
-
-(define-syntax R/left-foot
-  (syntax-parser
-    [(_ f v p s ws [#:left-foot (~optional fs)] ke)
-     #:declare fs (expr/c #'syntaxish?)
-     #'(let ([s2 (current-state-with v (~? (wrap-user-expr [f v p] fs.c) v))])
-         (ke f v p s2 ws))]))
-
-(define-syntax R/step
-  (syntax-parser
-    [(_ f v p s ws [#:step type (~optional fs)] ke)
-     #:declare fs (expr/c #'syntaxish?)
-     #:declare type (expr/c #'(or/c step-type? #f))
-     #'(let ()
-         (define s2 (current-state-with v (~? (wrap-user-expr [f v p] fs.c) v)))
-         (define type-var type.c)
-         (define ws2 (if type-var (cons (make step type-var s s2) ws) ws))
-         (ke f v p s2 ws2))]))
 
 (begin-for-syntax
   (define-syntax-class walk-clause
