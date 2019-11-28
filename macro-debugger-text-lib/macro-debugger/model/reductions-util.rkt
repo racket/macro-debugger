@@ -403,14 +403,10 @@
   (syntax-parser
     [(_ f v p s ws w:walk-clause ke)
      #'(let ()
-         (define-values (f1 fs1 f2 fs2 type)
-           (wrap-user-expr [f v p]
-                           (let ([f2 w.form2.c])
-                             (values (~? w.form1.c v)
-                                     (~? w.foci1.c v)
-                                     f2
-                                     (~? w.foci2.c f2)
-                                     w.type))))
+         (define-values (f1 f2 type)
+           (wrap-user-expr [f v p] (values (~? w.form1.c v) w.form2.c w.type)))
+         (define-values (fs1 fs2)
+           (wrap-user-expr [f v p] (values (~? w.foci1.c f1) (~? w.foci2.c f2))))
          (define s1 (current-state-with f1 fs1))
          (define s2 (current-state-with f2 fs2))
          (define ws2 (if type (cons (make step type s1 s2) ws) ws))
