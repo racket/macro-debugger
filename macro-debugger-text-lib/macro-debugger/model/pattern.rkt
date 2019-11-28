@@ -159,24 +159,28 @@
   (if resyntax? (pattern-resyntax p1 stx1 stx-out) stx-out))
 
 ;; subpattern-path : Pattern Symbol [Boolean] -> (U Path (vector Path Path))
-;; FIXME: this allocates a lot for a search ...
 (define (subpattern-path p0 hole [rep? #f])
-  (or (let outerloop ([p p0] [rep? rep?])
-        (let loop ([p p] [acc null])
-          (match p
-            [(cons p1 p2)
-             (or (loop p1 (path-add-car acc))
-                 (loop p2 (path-add-cdr acc)))]
-            [(rep p* _ '())
-             (cond [(outerloop p* #f)
-                    => (lambda (subpath)
-                         (if rep?
-                             (vector (reverse acc) subpath)
-                             (error 'subpattern->path "hole has ellipses: ~s, ~s" hole p0)))]
-                   [else #f])]
-            [(== hole)
-             (when rep?
-               (error 'subpattern->path "hole does not have ellipses: ~s, ~s" hole p0))
-             (reverse acc)]
-            [else #f])))
-      (error 'subpattern->path "hole does not occur in pattern: ~s, ~s" hole p0)))
+  (define (outerloop p repb)
+    (let loop ([p p])
+      (match p
+        [(cons p1 p2)
+         (cond [(loop p1) => path-add-car]
+               [(loop p2) => path-add-cdr]
+               [else #f])]
+        [(rep p* _ '())
+         (cond [(outerloop p* #f)
+                => (lambda (subpath)
+                     (unless repb
+                       (error 'subpattern->path "hole has ellipses: ~s, ~s" hole p0))
+                     (set-box! repb subpath)
+                     null)]
+               [else #f])]
+        [(== hole)
+         (when repb
+           (error 'subpattern->path "hole does not have ellipses: ~s, ~s" hole p0))
+         null]
+        [else #f])))
+  (let ([repb (and rep? (box #f))])
+    (cond [(outerloop p0 repb)
+           => (lambda (path) (if repb (vector path (unbox repb)) path))]
+          [(error 'subpattern->path "hole not found: ~s, ~s" hole p0)])))
