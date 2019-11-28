@@ -36,9 +36,7 @@
  (contract-out
   [the-phase (parameter/c exact-nonnegative-integer?)]
   [the-context (parameter/c list?)]
-  [the-big-context (parameter/c (listof bigframe?))])
- with-context
- with-new-local-context)
+  [the-big-context (parameter/c (listof bigframe?))]))
 
 (define the-phase (make-parameter 0))
 (define the-context (make-parameter null))
