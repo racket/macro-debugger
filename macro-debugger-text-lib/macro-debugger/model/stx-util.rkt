@@ -3,7 +3,8 @@
          syntaxish?
          stx-disarm
          resyntax
-         restx)
+         restx
+         syntax-unarmed?)
 
 (define (stx->datum x)
   (syntax->datum (datum->syntax #f x)))
@@ -30,3 +31,6 @@
 
 (define (restx v stx [dstx (stx-disarm stx)] #:rearm? [rearm? #t])
   (if (syntax? stx) (resyntax v stx dstx #:rearm? rearm?) v))
+
+(define (syntax-unarmed? stx)
+  (not (syntax-tainted? (datum->syntax stx #f))))
