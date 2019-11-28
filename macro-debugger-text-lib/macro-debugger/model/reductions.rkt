@@ -60,12 +60,22 @@
     [(deriv e1 e2)
      (R [#:pattern ?form]
         [#:expect-syntax e1 (list d)]
-        [#:when (base? d)
-         [#:learn (or (base-resolves d) null)]
-         [#:when (base-de1 d)
-          [#:rename ?form (base-de1 d) #;'disarm]]]
-        #;[#:seek-check]
-        [Expr* ?form d]
+        [#:parameterize ((the-context
+                          ;; This arms the artificial intermediate terms, since
+                          ;; the expander generally (always?) re-arms the result
+                          ;; of expanding an armed term.
+                          (cond [(and (base? d) (base-de1 d))
+                                 (define (rearm-frame x)
+                                   (syntax-rearm (datum->syntax #f x) e1))
+                                 (eprintf "installing re-arming frame...\n")
+                                 (cons rearm-frame (the-context))]
+                                [else (the-context)])))
+         [#:when (base? d)
+          [#:learn (or (base-resolves d) null)]
+          [#:when (base-de1 d)
+           [#:rename ?form (base-de1 d) #;'disarm]]]
+         #;[#:seek-check]
+         [Expr* ?form d]]
         [#:set-syntax e2] ;; FIXME
         )]
     [#f
