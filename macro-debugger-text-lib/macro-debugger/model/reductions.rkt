@@ -243,13 +243,12 @@
        (R [! ?1]
           [#:pattern ?form]
           [#:pass1]
-          [#:left-foot]
+          [#:let old-form (% ?form)]
           [LocalActions ?form wrapped-inners]
           [! ?2]
           [#:pass2]
-          [#:set-syntax e2]
-          [#:step 'provide]
-          [#:set-syntax e2]))]
+          [#:walk e2 'provide #:from old-form]
+          ))]
 
     [(p:require e1 e2 rs de1 ?1 locals)
      (R [! ?1]
@@ -318,15 +317,14 @@
         #;[#:hide-check rs]
         [#:do (learn-definites rs)]
         [#:pass1]
-        [#:left-foot]
+        [#:let old-state (current-state-with (% ?form) (list (% ?form)))]
         [#:rename/mark ?form e1 me1] ;; MARK
         [LocalActions ?form locals]
         [! ?2]
         [#:pass2]
         [#:set-syntax me2]
         [#:rename/unmark ?form me2 etx] ;; UNMARK
-        [#:step 'macro]
-        [#:set-syntax etx]
+        [#:walk etx 'macro #:from-state old-state]
         [Expr ?form next])]
 
     [(tagrule e1 e2 tagged-stx next)
