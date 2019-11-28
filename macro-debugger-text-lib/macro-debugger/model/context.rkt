@@ -7,8 +7,11 @@
          path-add-car
          path-add-cdr
          path-get
+         path-get-until
          path-replace
-         path-replacer)
+         path-replacer
+         path-cut-prefix
+         path-prefix?)
 
 ;; A Path is a (list-of PathSeg), where the PathSegs are listed outermost to innermost.
 ;; For example: (path-get #'((a b) (c d)) '(car 1)) = #'(b), not #'(c d).
@@ -41,6 +44,24 @@
        (loop (for/fold ([stx stx]) ([_i (in-range n)])
                (if (stx-pair? stx) (stx-cdr stx) (bad)))
              path)])))
+
+;; path-get-until : Stx Path (Stx -> Boolean) -> (values Stx Path)
+(define (path-get-until stx path stop?)
+  (define (bad) (error 'path-get-while "out of bounds: ~s, ~e" path stx))
+  (define (loop stx path)
+    (if (stop? stx) (values stx path) (okloop stx path)))
+  (define (okloop stx path)
+    (match path
+      ['() (values stx null)]
+      [(cons 'car path)
+       (if (stx-pair? stx) (loop (stx-car stx) path) (bad))]
+      [(cons (? exact-positive-integer? n) path)
+       (let tailloop ([stx stx] [n n])
+         (cond [(zero? n) (loop stx path)]
+               [(stop? stx) (values stx (path-add-tail n path))]
+               [(stx-pair? stx) (tailloop (stx-cdr stx))]
+               [else (bad)]))]))
+  (loop stx path))
 
 ;; path-replace : Stx Path Stx [Boolean] -> Stx
 (define (path-replace stx path x #:resyntax? [resyntax? #t])
@@ -79,3 +100,20 @@
 
 (define ((path-replacer stx path) s #:resyntax? [resyntax? #t])
   (path-replace stx path s #:resyntax? resyntax?))
+
+;; path-cut-prefix : Path Path -> Path/#f
+;; Removes a as a prefix of b (or returns #f if a is not a prefix of b).
+(define (path-cut-prefix p1 p2)
+  (let loop ([p1 p1] [p2 p2])
+    (match* [p1 p2]
+      [['() p2] p2]
+      [[(cons 'car p1b) (cons 'car p2b)]
+       (loop p1b p2b)]
+      [[(cons (? exact-positive-integer? n1) p1b) (cons (? exact-positive-integer? n2) p2b)]
+       (cond [(= n1 n2) (loop p1b p2b)]
+             [(< n1 n2) (loop p1b (cons (- n2 n1) p2b))]
+             [(> n1 n2) (loop (cons (- n1 n2) p1b) p2b)])]
+      [[_ _] #f])))
+
+;; path-prefix? : Path Path -> Boolean
+(define (path-prefix? a b) (and (path-cut-prefix a b) #t))
