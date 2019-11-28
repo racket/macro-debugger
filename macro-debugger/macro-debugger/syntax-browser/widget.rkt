@@ -13,7 +13,6 @@
          "properties.rkt"
          "text.rkt"
          "util.rkt"
-         macro-debugger/util/eomap
          macro-debugger/util/logger
          macro-debugger/util/mpi)
 (provide widget%)
@@ -162,9 +161,9 @@
          (when (send config get-draw-arrows?)
           (define (definite-phase id)
             (and definites
-                 (or (eomap-ref definites id #f)
+                 (or (hash-ref definites id #f)
                      (for/or ([shifted (in-list (hash-ref shift-table id null))])
-                       (eomap-ref definites shifted #f)))))
+                       (hash-ref definites shifted #f)))))
 
           (define phase-binder-table (make-hash))
           (define (get-binder-table phase)

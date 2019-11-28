@@ -245,7 +245,7 @@
               #:hi-colors (list hi-color
                                 "WhiteSmoke")
               #:hi-stxss (list (if highlight-foci? foci null)
-                               (if highlight-frontier? frontier null))))
+                               (if highlight-frontier? (hash-keys frontier) null))))
 
     ;; insert-syntax/redex
     (define/private (insert-syntax/redex stx foci binders shift-table
