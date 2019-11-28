@@ -10,6 +10,7 @@
          "stx-util.rkt"
          "pattern.rkt"
          "context.rkt"
+         "tracking.rkt"
          "steps.rkt")
 
 (provide STRICT-CHECKS
@@ -707,8 +708,10 @@
 ;; ----------------------------------------
 ;; Tracking
 
+;; Forward mode: representation of visible term is Stx. Adjustments
+;; are applied as they occur.
 
-
+;; Backward mode: representation is VT; see tracking.rkt.
 
 ;; ----------------------------------------
 ;; Honesty Masks
