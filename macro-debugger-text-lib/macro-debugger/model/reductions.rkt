@@ -593,9 +593,6 @@
         [#:let begin-form (% ?first)]
         [#:let rest-forms (% ?rest)]
         [#:pattern ?forms]
-        ;;[#:left-foot (list begin-form)]
-        ;;[#:set-syntax (append (stx->list (stx-cdr begin-form)) rest-forms)]
-        ;;[#:step 'splice-block (stx->list (stx-cdr begin-form))]
         [#:walk (append (stx->list (stx-cdr begin-form)) rest-forms) 'splice-block
          #:foci (stx->list (stx-cdr begin-form)) #:from-foci (list begin-form)]
         ;; [#:rename ?forms tail]
@@ -664,11 +661,7 @@
         [List ?forms lderiv]
         [#:pass2]
         ;; FIXME...
-        [#:let old-forms (% ?forms)]
-        ;;[#:left-foot null]
-        ;;[#:set-syntax (append stxs old-forms)]
-        ;;[#:step 'splice-lifts stxs]
-        [#:walk (append stxs old-forms) 'splice-lifts
+        [#:walk (append stxs (% ?forms)) 'splice-lifts
          #:foci stxs #:from-foci null]
         [BeginForSyntax ?forms rest])]))
 
@@ -694,9 +687,6 @@
     [(cons (mod:lift-end stxs) rest)
      (R [#:pattern ?forms]
         [#:when (pair? stxs)
-         ;;[#:left-foot null]
-         ;;[#:set-syntax (append stxs (stx->list (% ?forms)))]
-         ;;[#:step 'splice-end-lifts stxs]
          [#:walk (append stxs (stx->list (% ?forms))) 'splice-end-lifts
           #:foci stxs #:from-foci null]]
         [ModulePass1 ?forms rest])]
@@ -732,9 +722,6 @@
         [#:let begin-form (% ?first)]
         [#:let rest-forms (% ?rest)]
         [#:pattern ?forms]
-        ;;[#:left-foot (list begin-form)]
-        ;;[#:set-syntax tail]
-        ;;[#:step 'splice-module (stx->list (stx-cdr begin-form))]
         [#:walk tail 'splice-module
          #:foci (stx->list (stx-cdr begin-form)) #:from-foci (list begin-form)]
         [ModulePass1 ?forms rest])]
@@ -744,10 +731,6 @@
         [ModulePass1 ?rest rest])]
     [(cons (modp1*:lift lifted-defs lifted-reqs lifted-mods) rest)
      (R [#:pattern ?forms]
-        ;; FIXME: get visible-lifts ??
-        ;;[#:left-foot null]
-        ;;[#:set-syntax (append lifted-defs lifted-reqs lifted-mods (stx->list (% ?forms)))]
-        ;;[#:step 'splice-lifts (append lifted-defs lifted-reqs lifted-mods)]
         [#:walk (append lifted-defs lifted-reqs lifted-mods (stx->list (% ?forms))) 'splice-lifts
          #:foci (append lifted-defs lifted-reqs lifted-mods) #:from-foci null]
         [ModulePass1 ?forms rest])]
@@ -763,9 +746,6 @@
     [(cons (mod:lift-end stxs) rest)
      (R [#:pattern ?forms]
         [#:when (pair? stxs)
-         ;;[#:left-foot null]
-         ;;[#:set-syntax (append stxs (stx->list (% ?forms)))]
-         ;;[#:step 'splice-end-lifts stxs]
          [#:walk (append stxs (stx->list (% ?forms))) 'splice-end-lifts
           #:foci stxs #:from-foci null]]
         [ModulePass2 ?forms rest])]
@@ -790,9 +770,6 @@
           [LocalActions ?first locals]
           [#:pass2]
           [#:pattern ?forms]
-          ;;[#:left-foot null]
-          ;;[#:set-syntax (append lifted-reqs lifted-mods lifted-defs (stx->list (% ?forms)))]
-          ;;[#:step 'splice-lifts (append lifted-reqs lifted-mods lifted-defs)]
           [#:walk (append lifted-reqs lifted-mods lifted-defs (stx->list (% ?forms))) 'splice-lifts
            #:foci (append lifted-reqs lifted-mods lifted-defs) #:from-foci null]
           [ModulePass2 ?forms mbrules*]))]))
