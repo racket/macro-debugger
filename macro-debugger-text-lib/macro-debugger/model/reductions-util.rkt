@@ -387,16 +387,40 @@
          (define ws2 (if type-var (cons (make step type-var s s2) ws) ws))
          (ke f v p s2 ws2))]))
 
+(begin-for-syntax
+  (define-syntax-class walk-clause
+    #:attributes (form1.c form2.c foci1.c foci2.c type)
+    (pattern [#:walk form2 type:expr
+              (~alt (~optional (~seq #:foci foci2))
+                    (~optional (~seq #:from form1))
+                    (~optional (~seq #:from-foci foci1))) ...]
+             #:declare form1 (expr/c #'syntaxish?)
+             #:declare foci1 (expr/c #'syntaxish?)
+             #:declare form2 (expr/c #'syntaxish?)
+             #:declare foci2 (expr/c #'syntaxish?))))
+
 (define-syntax R/walk
   (syntax-parser
-    [(_ f v p s ws [#:walk form2 description] ke)
-     #:declare form2 (expr/c #'syntaxish?)
-     #'(let ([wfv (wrap-user-expr [f v p] form2.c)])
-         (R** f v p s ws
-              [#:left-foot]
-              [#:set-syntax wfv]
-              [#:step description]
-              => ke))]))
+    [(_ f v p s ws w:walk-clause ke)
+     #'(let ()
+         (define-values (f1 fs1 f2 fs2 type)
+           (wrap-user-expr [f v p]
+                           (let ([f2 w.form2.c])
+                             (values (~? w.form1.c v)
+                                     (~? w.foci1.c v)
+                                     f2
+                                     (~? w.foci2.c f2)
+                                     w.type))))
+         (define s1 (current-state-with f1 fs1))
+         (define s2 (current-state-with f2 fs2))
+         (define ws2 (if type (cons (make step type s1 s2) ws) ws))
+         (ke f2 f2 p s2 ws2))]))
+
+;; STOPPED HERE
+
+
+
+
 
 (define-syntax R/reductions
   (syntax-parser
