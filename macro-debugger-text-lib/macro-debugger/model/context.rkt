@@ -11,76 +11,51 @@
          path-replacer)
 
 ;; A Path is a (list-of PathSeg), where the PathSegs are listed outermost to innermost.
-;; For example: (path-get #'((a b) (c d)) (list (ref 0) (ref 1))) = #'b, not #'c
+;; For example: (path-get #'((a b) (c d)) '(car 1)) = #'(b), not #'(c d).
 
-;; Paths are reversible (they can be built in accumulators), but as a consequence they
-;; have non-canonical forms: for example, (list (ref 2)) = (list (tail 2) (ref 0)).
+;; Paths are not reversible! (They cannot be build using accumulators.)
+;; Paths have non-canonical forms: for example '(1 2 car) = '(list 3 car).
 
 ;; A PathSeg is one of
-;; - Nat -- represents nth car
-;; - NegativeInteger -- -n represents nth tail (n cdrs, n>0)
-(define (ref n) n)
-(define (ref? x) (exact-nonnegative-integer? x))
-(define (ref-n x) x)
-(define (tail n) (if (exact-positive-integer? n) (- n) (error 'tail "bad: ~e" n)))
-(define (tail? x) (and (exact-integer? x) (negative? x)))
-(define (tail-n x) (- x))
-(define (path-add-ref n p) (cons (ref n) p))
+;; - 'car            -- represents nth car
+;; - PositiveInteger -- -n represents nth tail (n cdrs, n>0)
+(define (path-add-ref n p) (path-add-tail n (cons 'car p)))
 (define (path-add-tail n p)
-  (match p
-    [(cons (? tail? t) p*) (cons (tail (+ n (tail-n t))) p*)]
-    [_ (cons (tail n) p)]))
-(define (path-add-car p) (path-add-ref 0 p))
+  (if (zero? n)
+      p
+      (match p
+        [(cons (? exact-positive-integer? t) p*) (cons (+ n t) p*)]
+        [_ (cons n p)])))
+(define (path-add-car p) (cons 'car p))
 (define (path-add-cdr p) (path-add-tail 1 p))
 
-;; path-get : syntax Path -> syntax
-(define (path-get stx path0)
-  (let loop ([stx stx] [path path0])
-    (cond [(null? path) stx]
-          [(pair? path) (loop (pathseg-get stx (car path)) (cdr path))]
-          [else (error 'path-get "bad path: ~s" path0)])))
-
-;; pathseg-get : syntax PathSeg -> syntax
-(define (pathseg-get stx0 path)
-  (cond [(ref? path)
-         (let loop ([n (ref-n path)] [stx stx0])
-           (cond [(not (stx-pair? stx))
-                  (error 'pathseg-get "path out of bounds: ~s, ~s" path stx0)]
-                 [(zero? n) (stx-car stx)]
-                 [else (loop (sub1 n) (stx-cdr stx))]))]
-        [(tail? path)
-         (let loop ([n (tail-n path)] [stx stx0])
-           (cond [(zero? n) stx]
-                 [(not (stx-pair? stx))
-                  (error 'pathseg-get "path out of bounds: ~s, ~s" path stx0)]
-                 [else (loop (sub1 n) (stx-cdr stx))]))]))
-
-;; path-replace : Syntax Path Syntax [Boolean] -> syntax
-(define (path-replace stx path x #:resyntax? [resyntax? #t])
+;; path-get : Stx Path -> Stx
+(define (path-get stx path)
+  (define (bad) (error 'path-get "out of bounds: ~s, ~e" path stx))
   (let loop ([stx stx] [path path])
-    (cond [(null? path) x]
-          [(pair? path)
-           (let ([pathseg0 (car path)])
-             (pathseg-replace stx
-                              pathseg0
-                              (loop (pathseg-get stx pathseg0) (cdr path))
-                              resyntax?))]
-          [else (error 'path-replace "bad path: ~s" path)])))
+    (match path
+      ['() stx]
+      [(cons 'car path)
+       (if (stx-pair? stx) (loop (stx-car stx) path) (bad))]
+      [(cons (? exact-positive-integer? n) path)
+       (loop (for/fold ([stx stx]) ([_i (in-range n)])
+               (if (stx-pair? stx) (stx-cdr stx) (bad)))
+             path)])))
 
-;; pathseg-replace : Syntax PathSeg Syntax Boolean -> syntax
-(define (pathseg-replace stx0 pathseg x resyntax?)
-  (cond [(ref? pathseg)
-         (let loop ([n (ref-n pathseg)] [stx stx0])
-           (cond [(not (stx-pair? stx))
-                  (error 'pathseg-replace "path out of bounds: ~s, ~s" pathseg stx0)]
-                 [(zero? n) (stx-replcar stx x resyntax?)]
-                 [else (stx-replcdr stx (loop (sub1 n) (stx-cdr stx)) resyntax?)]))]
-        [(tail? pathseg)
-         (let loop ([n (tail-n pathseg)] [stx stx0])
-           (cond [(zero? n) x]
-                 [(not (stx-pair? stx))
-                  (error 'pathseg-replace "path out of bounds: ~s, ~s" pathseg stx0)]
-                 [else (stx-replcdr stx (loop (sub1 n) (stx-cdr stx)) resyntax?)]))]))
+;; path-replace : Stx Path Stx [Boolean] -> Stx
+(define (path-replace stx path x #:resyntax? [resyntax? #t])
+  (define (bad) (error 'path-replace "out of bounds: ~s, ~e" path stx))
+  (let loop ([stx stx] [path path])
+    (match path
+      ['() x]
+      [(cons 'car path)
+       (unless (stx-pair? stx) (bad))
+       (stx-replcar stx (loop (stx-car stx) path) resyntax?)]
+      [(cons (? exact-positive-integer? n) path)
+       (let tailloop ([stx stx] [n n])
+         (cond [(zero? n) (loop stx path)]
+               [(not (stx-pair? stx)) (bad)]
+               [else (stx-replcdr stx (tailloop (stx-cdr stx) (sub1 n)) resyntax?)]))])))
 
 ;; stx-replcar : syntax syntax -> syntax
 (define (stx-replcar stx x resyntax?)
