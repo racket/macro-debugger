@@ -226,16 +226,16 @@
 
 (define-syntax-parameter the-match-result
   (lambda (stx)
-    (raise-syntax-error #f "no match result; used outside of wrap-user-expr" stx)))
+    (raise-syntax-error #f "no match result; used outside of with-pattern-match" stx)))
 
 (define-syntax-rule (% p) (%e (quote-template-pattern p)))
 (define-syntax-rule (%e p) (pattern-template p the-match-result))
 
-(define-syntax wrap-user-expr
+(define-syntax with-pattern-match
   (syntax-parser
-    [(_ [f v p] expr:expr)
+    [(_ [f p] expr:expr)
      #'(let ([mv (pattern-match p f)])
-         #;(eprintf "wrap-user-expr: pattern match ~s, ~e = ~e\n" p f mv)
+         #;(eprintf "with-pattern-match: pattern match ~s, ~e = ~e\n" p f mv)
          (syntax-parameterize ((the-match-result (make-rename-transformer #'mv)))
            expr))]))
 
@@ -332,20 +332,20 @@
     ;; Execute expressions for effect
     [(_ f v p s [#:do expr ...] ke)
      #'(begin
-         (wrap-user-expr [f v p] (let () expr ... (void)))
+         (with-pattern-match [f p] (let () expr ... (void)))
          (ke f v p s))]))
 
 (define-syntax R/let
   (syntax-parser
     [(_ f v p s [#:let var:id expr] ke)
-     #'(let ([var (wrap-user-expr [f v p] expr)])
+     #'(let ([var (with-pattern-match [f p] expr)])
          (ke f v p s))]))
 
 (define-syntax R/parameterize
   (syntax-parser
     [(_ f v p s [#:parameterize ((param expr) ...) . clauses] ke)
      #:declare param (expr/c #'parameter?)
-     #'(RSbind (parameterize ((param.c (wrap-user-expr [f v p] expr)) ...)
+     #'(RSbind (parameterize ((param.c (with-pattern-match [f p] expr)) ...)
                  (R** f v p s . clauses))
                ke)]))
 
@@ -355,7 +355,7 @@
     ;; Change syntax
     [(_ f v p s [#:set-syntax form] ke)
      #:declare form (expr/c #'syntaxish?)
-     #'(let ([f2 (wrap-user-expr [f v p] form.c)])
+     #'(let ([f2 (with-pattern-match [f p] form.c)])
          (ke f2 f2 p s))]))
 
 (begin-for-syntax
@@ -377,9 +377,11 @@
     [(_ f v p s w:walk-clause ke)
      #'(let ()
          (define-values (state1 f1 f2 type)
-           (wrap-user-expr [f v p] (values (~? w.state1.c #f) (~? w.form1.c v) w.form2.c w.type)))
+           (with-pattern-match [f p]
+             (values (~? w.state1.c #f) (~? w.form1.c v) w.form2.c w.type)))
          (define-values (fs1 fs2)
-           (wrap-user-expr [f v p] (values (~? w.foci1.c f1) (~? w.foci2.c f2))))
+           (with-pattern-match [f p]
+             (values (~? w.foci1.c f1) (~? w.foci2.c f2))))
          (define s1 (or state1 (current-state-with f1 fs1)))
          (define s2 (current-state-with f2 fs2))
          (when type (add-step (make step type s1 s2)))
@@ -396,7 +398,7 @@
 (define-syntax-rule (Rename f v p s pattern renames description mark-flag)
   (let ()
     (define-values (renames-var description-var)
-      (wrap-user-expr [f v p] (values renames description)))
+      (with-pattern-match [f p] (values renames description)))
     (do-rename f v p s (quote-pattern pattern) renames-var description-var mark-flag)))
 
 (define (do-rename f v p s ren-p renames description mark-flag)
@@ -415,7 +417,7 @@
     [(_ f v p s [#:rename/mark pvar from to] ke)
      #:declare from (expr/c #'syntaxish?)
      #:declare to (expr/c #'syntaxish?)
-     #'(let ([real-from (wrap-user-expr [f v p] (% pvar))])
+     #'(let ([real-from (with-pattern-match [f p] (% pvar))])
          (STRICT-CHECKS (check-same-stx 'rename/mark f from.c))
          (RSbind (Rename f v p s pvar to.c #f 'mark) ke))]))
 
@@ -424,7 +426,7 @@
     [(_ f v p s [#:rename/unmark pvar from to] ke)
      #:declare from (expr/c #'syntaxish?)
      #:declare to (expr/c #'syntaxish?)
-     #'(let ([real-from (wrap-user-expr [f v p] (% pvar))])
+     #'(let ([real-from (with-pattern-match [f p] (% pvar))])
          (STRICT-CHECKS (check-same-stx 'rename/unmark f from.c))
          (RSbind (Rename f v p s pvar to.c #f 'unmark) ke))]))
 
@@ -432,7 +434,7 @@
   (syntax-parser
     ;; Conditional (pattern changes lost afterwards ...) ;; FIXME???
     [(_ f v p s [#:if test [consequent ...] [alternate ...]] ke)
-     #'(RSbind (RSreset (if (wrap-user-expr [f v p] test)
+     #'(RSbind (RSreset (if (with-pattern-match [f p] test)
                             (R** f v p s consequent ...)
                             (R** f v p s alternate ...))
                         #:pattern p)
