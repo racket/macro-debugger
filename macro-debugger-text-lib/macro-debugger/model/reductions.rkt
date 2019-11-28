@@ -529,18 +529,6 @@
     [#f
      (R)]))
 
-(define (Submodules subs)
-  (match subs
-    ['()
-     (R)]
-    [(cons sub rest)
-     (R [#:pattern ?form]
-        [#:new-local-context
-         [#:pattern ?form]
-         [#:set-syntax (wderiv-e1 sub)]
-         [Expr ?form sub]]
-        [Submodules ?form rest])]))
-
 ;; List : ListDerivation -> RST
 (define (List ld)
   (match ld
