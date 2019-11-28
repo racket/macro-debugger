@@ -3,6 +3,7 @@
          racket/class/iop
          racket/struct
          syntax/stx
+         "../model/stx-util.rkt"
          "interfaces.rkt")
 (provide (all-defined-out))
 
@@ -24,12 +25,25 @@
 ;; reader change (interning strings, etc) highlights the issue.
 
 (define PRINT-PROTECTION? #t)
-(struct armed-stx (contents)
+(define show-tainted-stx? (make-parameter #t))
+
+(struct wrapped-stx (contents mode)
   #:property prop:custom-write
-  (lambda (self out mode) (fprintf out "🔑~s" (armed-stx-contents self))))
-(struct tainted-stx (contents)
-  #:property prop:custom-write
-  (lambda (self out mode) (fprintf out "💥~s" (tainted-stx-contents self))))
+  (lambda (self out mode)
+    (fprintf out "~a~s"
+             (wrapped-mode-prefix (wrapped-stx-mode self))
+             (wrapped-stx-contents self))))
+
+(define (wrapped-mode-prefix mode)
+  (case mode
+    [(armed) "🔒"]
+    [(armed-unlocked) "🔓"]
+    [(tainted) "💥"]
+    [else ""]))
+
+(define (syntax-armed-unlocked? stx)
+  (and (syntax? stx) (syntax-property stx property:unlocked-by-expander)))
+
 (define (syntax-armed? stx)
   (and (syntax? stx) (not (syntax-tainted? stx)) (syntax-tainted? (datum->syntax stx #f))))
 
@@ -88,10 +102,13 @@
     (let ([flat=>stx (make-hasheq)]
           [stx=>flat (make-hasheq)])
       (define (loop obj)
-        (cond [(and (syntax? obj) (syntax-tainted? obj))
-               (tainted-stx (loop* obj))]
+        (cond [(and (syntax? obj) (syntax-tainted? obj) (show-tainted-stx?))
+               (parameterize ((show-tainted-stx? #f))
+                 (wrapped-stx (loop* obj) 'tainted))]
+              [(and (syntax? obj) (syntax-armed-unlocked? obj))
+               (wrapped-stx (loop* obj) 'armed-unlocked)]
               [(and (syntax? obj) (syntax-armed? obj))
-               (armed-stx (loop* obj))]
+               (wrapped-stx (loop* obj) 'armed)]
               [else (loop* obj)]))
       (define (loop* obj)
         (cond [(hash-ref stx=>flat obj #f)
