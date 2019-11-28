@@ -707,13 +707,11 @@
 ;; ----------------------------------------
 ;; Tracking
 
+
+
+
 ;; ----------------------------------------
 ;; Honesty Masks
-
-#|
-
-(define visible? (make-parameter #t))
-(define honest? (make-parameter #t))
 
 ;; We can more precisely quantify honesty with an *honesty mask*: a tree that
 ;; indicates what parts of the current term may be fictional.
@@ -721,16 +719,32 @@
 ;; An HonestyMask is one of
 ;; - 'F -- (partly, potentially) fictional term
 ;; - 'T -- true term
-;; - (cons HonestyMask HonestyMask) -- a true pair with descriptions of its components' honesty
-;; * #(hmrep HonestyMask) -- a true list whose elements have the given honesty (only in specs?)
+;; - (cons HonestyMask HonestyMask) -- a true pair
+
+;; Note: Since HonestyMask < Stxish, can use path functions on HonestyMasks.
+
+;; hmcons : HonestyMask HonestyMask -> HonestyMask
+;; Note: (cons T T) = T --- pair might be artificial, but can sync? (FIXME)
+(define (hmcons hm1 hm2) (if (and (eq? hm1 'T) (eq? hm2 'T)) 'T (cons hm1 hm2)))
+
+;; honesty-merge : HonestyMask HonestyMask -> HonestyMask
+(define (honesty-merge hm1 hm2)
+  (let loop ([hm1 hm1] [hm2 hm2])
+    (match* [hm1 hm2]
+      [['T hm] hm]
+      [[hm 'T] hm]
+      [[(cons hm1a hm1b) (cons hm2a hm2b)]
+       (cons (loop hm1a hm2a) (loop hm1b hm2b))]
+      [[_ _] 'F])))
+
+;; update-honesty: HonestyMask Path HonestyMask -> HonestyMask
+;; Merges the first hm's subtree at path with second subtree.
+(define (update-honesty hm1 p hm2)
+  (path-replace hm1 p (honesty-merge (path-get hm1 p) hm2)))
+
+;; An HonestyMaskSpec extends HonestyMask with
+;; - #(hmrep HonestyMask) -- a true list whose elements have the given honesty
 (struct hmrep (hm) #:prefab)
 
-;; honesty>=? : HonestyMask HonestyMask -> Boolean
+;; honesty>=? : HonestyMask HonestyMaskSpec -> Boolean
 ;; Retuns #t if hm1 is at least as honest as hm2.
-(define (honesty>=? hm1 hm2)
-  ...)
-
-(define (honest? [hm (honesty-mask)])
-  (honesty>=? hm 'T))
-
-|#
