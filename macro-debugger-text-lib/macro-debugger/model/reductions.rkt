@@ -31,13 +31,16 @@
 
 ;; reductions+ : WDeriv -> (list-of step) Binders Definites ?stx ?exn
 (define (reductions+ d)
-  (parameterize ((the-xstate (new-xstate)))
-    (RScase ((Expr d) (wderiv-e1 d) (wderiv-e1 d) (quote-pattern _) #f null)
-            (lambda (f v p s ws)
-              (values (reverse ws) (xstate-binders (the-xstate)) (xstate-definites (the-xstate))
+  (define xst (new-xstate))
+  (parameterize ((the-xstate xst))
+    (RScase ((Expr d) (wderiv-e1 d) (wderiv-e1 d) (quote-pattern _) #f)
+            (lambda (f v p s)
+              (values (reverse (xstate-steps xst))
+                      (xstate-binders xst) (xstate-definites xst)
                       v #f))
-            (lambda (exn ws)
-              (values (reverse ws) (xstate-binders (the-xstate)) (xstate-definites (the-xstate))
+            (lambda (exn)
+              (values (reverse (xstate-steps xst))
+                      (xstate-binders xst) (xstate-definites xst)
                       #f exn)))))
 
 ;; Syntax
@@ -452,46 +455,42 @@
      ;; FIXME: add action
      (R [#:do (take-lift!)]
         [#:do (learn-binders ids)]
-        [#:reductions
-         (list
-          (walk/talk 'local-lift
-                     (list "The macro lifted an expression"
-                           ""
-                           "Expression:"
-                           expr
-                           "Identifiers:"
-                           (datum->syntax #f ids))))])]
+        [#:do (add-step
+               (walk/talk 'local-lift
+                          (list "The macro lifted an expression"
+                                ""
+                                "Expression:"
+                                expr
+                                "Identifiers:"
+                                (datum->syntax #f ids))))])]
 
     [(local-lift-end decl)
      ;; (walk/mono decl 'module-lift)
-     (R [#:reductions
-         (list
-          (walk/talk 'local-lift
-                     (list "The macro lifted a declaration to the end of the module"
-                           ""
-                           "Declaration:"
-                           decl)))])]
+     (R [#:do (add-step
+               (walk/talk 'local-lift
+                          (list "The macro lifted a declaration to the end of the module"
+                                ""
+                                "Declaration:"
+                                decl)))])]
     [(local-lift-require req expr mexpr)
      ;; lift require
-     (R [#:reductions
-         (list
-          (walk/talk 'local-lift
-                     (list "The macro lifted a require"
-                           ""
-                           "Require:"
-                           req)))]
+     (R [#:do (add-step
+               (walk/talk 'local-lift
+                          (list "The macro lifted a require"
+                                ""
+                                "Require:"
+                                req)))]
         [#:set-syntax expr]
         [#:pattern ?form]
         [#:rename/mark ?form expr mexpr])]
     [(local-lift-provide prov)
      ;; lift provide
-     (R [#:reductions
-         (list
-          (walk/talk 'local-lift
-                     (list "The macro lifted a provide"
-                           ""
-                           "Provide:"
-                           prov)))])]
+     (R [#:do (add-step
+               (walk/talk 'local-lift
+                          (list "The macro lifted a provide"
+                                ""
+                                "Provide:"
+                                prov)))])]
     [(local-bind names ?1 renames bindrhs)
      [R [! ?1]
         ;; FIXME: use renames
@@ -515,18 +514,18 @@
         ;; Add remark step?
         ]]
     [(local-remark contents)
-     (R [#:reductions (list (walk/talk 'remark contents))])]
+     (R [#:do (add-step (walk/talk 'remark contents))])]
     [(local-mess events)
      ;; FIXME: While it is not generally possible to parse tokens as one or more
      ;; interrupted derivations (possibly interleaved with successful derivs),
      ;; it should be possible to recover *some* information and display it.
-     (R [#:reductions
-         (let ([texts
-                (list (~a "Some expansion history has been lost due to a jump "
-                          "within expansion.")
-                      (~a "For example, a macro may have caught an "
-                          "exception coming from within a call to `local-expand'."))])
-           (list (walk/talk 'remark texts)))])]
+     (R [#:do (add-step
+               (let ([texts
+                      (list (~a "Some expansion history has been lost due to a jump "
+                                "within expansion.")
+                            (~a "For example, a macro may have caught an "
+                                "exception coming from within a call to `local-expand'."))])
+                 (list (walk/talk 'remark texts))))])]
     [#f
      (R)]))
 
