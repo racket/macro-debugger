@@ -7,6 +7,7 @@
          "deriv-util.rkt"
          "deriv.rkt"
          "pattern.rkt"
+         "stx-util.rkt"
          "reductions-util.rkt")
 
 (provide reductions
@@ -64,9 +65,11 @@
                           ;; This arms the artificial intermediate terms, since
                           ;; the expander generally (always?) re-arms the result
                           ;; of expanding an armed term.
-                          (cond [(and (base? d) (base-de1 d))
+                          (cond [(syntax-armed? e1)
                                  (define (rearm-frame x)
-                                   (syntax-rearm (datum->syntax #f x) e1))
+                                   (syntax-property
+                                    (syntax-rearm (datum->syntax #f x) e1)
+                                    property:unlocked-by-expander #t))
                                  (eprintf "installing re-arming frame...\n")
                                  (cons rearm-frame (the-context))]
                                 [else (the-context)])))
