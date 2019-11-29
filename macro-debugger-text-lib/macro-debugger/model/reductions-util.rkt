@@ -600,7 +600,7 @@
            (define sub-v v)
            (define sub-vt (the-vt))
            (define sub-vt-mask (the-vt-mask))
-           (values identity-vctx sub-v sub-vt-mask)]
+           (values identity-vctx sub-v sub-vt sub-vt-mask)]
           [else
            ;; can take vctx, but must also take narrowed VT (when sub-hm != 'T)
            (define vctx (path-replacer v path))
