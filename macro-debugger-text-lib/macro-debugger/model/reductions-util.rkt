@@ -143,7 +143,8 @@
   (set-xstate-endlifts! xst null))
 
 ;; add-step : Step -> Void
-(define (add-step step #:xstate [xst (the-xstate)])
+(define (add-step step) (when (honest?) (do-add-step step)))
+(define (do-add-step step #:xstate [xst (the-xstate)])
   (set-xstate-steps! xst (cons step (xstate-steps xst))))
 
 ;; ============================================================
@@ -319,8 +320,11 @@
          (DEBUG
           (let ([cstx (quote-syntax c)])
             (define where (format "[~s:~s]" (syntax-line cstx) (syntax-column cstx)))
-            (eprintf "doing ~a ~e, honesty = ~s\n" where (quote c) (honesty))))
+            (eprintf "doing ~a ~e, honesty = ~s\n" where (trim-quoted-clause (quote c)) (honesty))))
          (c.macro f v p s c (R . more)))]))
+
+(define (trim-quoted-clause c)
+  (match c [(cons (and kw (or '#:parameterize #:when #:if)) _) `(,kw _)] [_ c]))
 
 ;; A R/<Clause> macro has the form
 ;;   (R/<Clause> f v p s <Clause> kexpr)
@@ -382,9 +386,7 @@
 
 (define (change-visible-term f f2 v)
   (cond [(honest?) f2]
-        [else (set-honesty 'F f)
-              (DEBUG (eprintf "change-visible-term => ~e\n" (stx->datum v)))
-              v]))
+        [else (set-honesty 'F f) v]))
 
 (begin-for-syntax
   (define-syntax-class walk-clause
@@ -404,7 +406,7 @@
   (syntax-parser
     [(_ f v p s w:walk-clause ke)
      #'(let ()
-         (eprintf "\nWALK\n v = ~e\n\n" (stx->datum v))
+         ;; (eprintf "\nWALK\n v = ~e\n\n" (stx->datum v))
          (define-values (state1 f1 f2 type)
            (with-pattern-match [f p]
              (values (~? w.state1.c #f) (~? w.form1.c v) w.form2.c w.type)))
@@ -444,7 +446,7 @@
     ;; FIXME: better condition/heuristic for when to add rename step?
     (add-step (walk v v2 description #:foci1 pre-renames #:foci2 renames)))
   ;; renaming preserves honesty
-  (when (the-vt) (vt-track pre-renames renames (the-vt) description))
+  (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
   (RSunit f2 v2 p s))
 
 ;; FIXME: restore marking-table ??? (for local-expand, maybe?)
@@ -572,12 +574,14 @@
         [else
          (match (vt-seek f (the-vt) (the-vt-mask))
            ['()
-            (DEBUG (eprintf "seek-check: no paths found for ~e" (stx->datum f)))
+            (DEBUG (eprintf "seek-check: no paths found for ~e\n" (stx->datum f))
+                   (eprintf "  the-vt = ~v\n" (the-vt))
+                   (eprintf "  the-vt-mask = ~v\n" (the-vt-mask)))
             (k f v p s)]
            [(cons path more-paths)
-            (DEBUG (eprintf "seek-check: found path ~e for ~e" path (stx->datum f))
+            (DEBUG (eprintf "seek-check: found path ~e for ~e\n" path (stx->datum f))
                    (unless (null? more-paths)
-                     (eprintf "seek-check: multiple paths found for ~e" (stx->datum f))))
+                     (eprintf "seek-check: multiple paths found for ~e\n" (stx->datum f))))
             (define vctx (path-replacer v path))
             ((parameterize ((the-context (cons vctx (the-context)))
                             (honesty 'T)
