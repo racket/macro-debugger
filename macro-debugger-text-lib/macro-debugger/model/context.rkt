@@ -59,7 +59,7 @@
        (let tailloop ([stx stx] [n n])
          (cond [(zero? n) (loop stx path)]
                [(stop? stx) (values stx (path-add-tail n path))]
-               [(stx-pair? stx) (tailloop (stx-cdr stx))]
+               [(stx-pair? stx) (tailloop (stx-cdr stx) (sub1 n))]
                [else (bad)]))]))
   (loop stx path))
 
