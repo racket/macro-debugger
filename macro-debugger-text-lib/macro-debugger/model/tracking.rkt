@@ -73,7 +73,9 @@
 
 ;; Note: (syntax-e (track-origin stx)) may or not be equal to (syntax-e stx); it
 ;; depends on whether stx's scopes have already been propagated. Likewise for
-;; syntax-property.
+;; syntax-property. (FIXME: measure)
+
+;; FIXME: add lookup caches? where? how to make caches most useful given narrowings?
 
 ;; vt-track : Stx Stx VT [Any] -> VT
 (define (vt-track from to in [type #f])
@@ -84,7 +86,17 @@
          (vt:shallow from to in type)]
         [else (vt:track from to in type)]))
 
+;; vt-merge-at-path : VT Path VT -> VT
+(define (vt-merge-at-path vt path sub-vt)
+  (vt:patch path sub-vt vt))
+
 ;; ----------------------------------------
+
+;; vt-seek : Stx VT Path -> (Listof Path)
+;; The mask is removed from the prefix of each result; results that do not
+;; extend the mask are discarded.
+(define (vt-seek want vt mask)
+  (filter list? (map (lambda (p) (path-cut-prefix mask p)) (seek want vt null))))
 
 ;; seek : Stx VT Path -> (Listof Path)
 ;; Find the path(s) of the NARROW subterm of WANT in VT. This function
