@@ -42,25 +42,12 @@
 (define the-context (make-parameter null))
 (define the-big-context (make-parameter null))
 
-;; visible : (Parameterof Boolean)
-(define visible (make-parameter #t))
+(define visible (make-parameter #t))        ;; (Parameterof Boolean)
+(define the-vt (make-parameter #f))         ;; (Parameterof VT)
+(define the-vt-mask (make-parameter null))  ;; (Parameterof Path)
+(define honesty (make-parameter 'T))        ;; (Parameterof HonestyMask)
 
-;; visible-subterms : (Parameterof VT/#f)
-(define visible-subterms (make-parameter #f))
-
-;; honesty : (Parameterof HonestyMask)
-(define honesty (make-parameter 'T))
-
-;; syntax (with-context Expr[Frame] body ...+)
-(define-syntax-rule (with-context f . body)
-  (parameterize ((the-context (cons f (the-context)))) . body))
-
-;; syntax (with-new-local-context Expr[???] body ...+)
-(define-syntax-rule (with-new-local-context e . body)
-  (let ([x e])
-    (parameterize ((the-big-context (cons (bigframe (the-context) (list x) x) (the-big-context)))
-                   (the-context null))
-      (let () . body))))
+;; Invariant: (honesty) = 'T  iff  (the-vt) = #f
 
 ;; ============================================================
 ;; Expansion State
@@ -485,6 +472,13 @@
                    (let ([v2 v] [s2 s])
                      (ke f v2 p s2)))))]))
 
+;; syntax (with-new-local-context Expr[???] body ...+)
+(define-syntax-rule (with-new-local-context e . body)
+  (let ([x e])
+    (parameterize ((the-big-context (cons (bigframe (the-context) (list x) x) (the-big-context)))
+                   (the-context null))
+      (let () . body))))
+
 (define-syntax R/run
   (syntax-parser
     ;; Subterm handling
@@ -552,6 +546,12 @@
 ;; - let init-ev (vsub) be the term s.t. v = vctx[init-ev]
 ;; - recur on (reducer fill) with [init-e init-ev _ _] with context extended with ???
 
+;; honesty never decreases on entry to context, only on hide, hidden step, and exit from context
+;; honesty, not "visibility", determines visibility of most operations (FIXME: rename visibility)
+
+(struct complete-fiction ())
+(define the-fictional-term (complete-fiction))
+
 ;; run : (X -> RST) Stx Stx Pattern State Hole (U X (Listof X)) -> RS
 ;; where Hole = Symbol | (list Symbol '...) -- NOT a pattern value
 ;; Note: run restores pattern after running reducer
@@ -559,12 +559,7 @@
   (match hole
     [(? symbol? hole)
      (define path (subpattern-path p hole))
-     #;(eprintf "run: found ~s in ~s at ~s\n" hole p path)
-     (define fctx (path-replacer f path))
-     (define vctx (path-replacer v path))
-     (define init-sub-f (path-get f path))
-     (define init-sub-v (path-get v path))
-     (run-one reducer init-sub-f fctx init-sub-v vctx fill p s)]
+     (run/path reducer f v p s path fill)]
     [(list (? symbol? hole) '...)
      (match-define (vector pre-path sub-path) (subpattern-path p hole #t))
      #;(eprintf "run (multi) paths: ~e, ~e" pre-path sub-path)
@@ -573,24 +568,51 @@
        (match fill
          [(cons fill0 fill*)
           (define path (append pre-path (path-add-ref k sub-path)))
-          (define fctx (path-replacer f path))
-          (define vctx (path-replacer v path))
-          (define init-sub-f (path-get f path))
-          (define init-sub-v (path-get v path))
-          (RSbind (run-one reducer init-sub-f fctx init-sub-v vctx fill0 p s)
+          (RSbind (run/path reducer f v p s path fill0)
                   (lambda (f v _p s) (loop fill* (add1 k) f v s)))]
          ['() (RSunit f v p s)]))]))
 
-;; run-one : (X -> RST) Stx (Stx -> Stx) Stx (Stx -> Stx) X Pattern State -> RS
-(define (run-one reducer init-f fctx init-v vctx fill p s)
-  (RSbind (with-context vctx
-            #;
-            (eprintf "run-one: ~s on ~s in ~s --- ~s\n" reducer (stx->datum init-v)
-                     (stx->datum (vctx 'HOLE))
-                     (stx->datum (for/fold ([x 'HOLE]) ([p (the-context)]) (p x))))
-            ((reducer fill) init-f init-v (quote-pattern _) s))
-          (lambda (f2 v2 _p s2)
-            (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s2))))
+(define (run/path reducer f v p s path fill)
+  #;(eprintf "run: found ~s in ~s at ~s\n" hole p path)
+  (define fctx (path-replacer f path))
+  (define sub-f (path-get f path))
+  (define sub-hm (honesty-at-path (honesty) path))
+  (define-values (vctx sub-v sub-vt sub-vt-mask)
+    (cond [(eq? sub-hm 'F)
+           ;; path might be out of bounds for v => can't take vctx => sub-v is meaningless
+           ;; probably not much point in narrowing VT (and nontrivial to do right)
+           ;; FIXME: it would be slightly better to know whether we were *inside* an F,
+           ;;   because we care about whether the context is honest, not the term
+           (define (identity-vctx x) x)
+           (define sub-v v)
+           (define sub-vt (the-vt))
+           (define sub-vt-mask (the-vt-mask))
+           (values identity-vctx sub-v sub-vt-mask)]
+          [else
+           ;; can take vctx, but must also take narrowed VT (when sub-hm != 'T)
+           (define vctx (path-replacer v path))
+           (define sub-v (path-get v path))
+           (define sub-vt (if (eq? sub-hm 'T) #f (the-vt)))
+           (define sub-vt-mask (if sub-vt (append (the-vt-mask) path) null))
+           (values vctx sub-v sub-vt sub-vt-mask)]))
+  ((parameterize ((the-context (cons vctx (the-context)))
+                  (honesty sub-hm)
+                  (the-vt sub-vt)
+                  (the-vt-mask sub-vt-mask))
+     (RScase ((reducer fill) sub-f sub-v (quote-pattern _) s)
+             (lambda (f2 v2 _p2 _s2)
+               ;; inside parameterize
+               (define end-hm (honesty))
+               (define end-vt (the-vt))
+               (lambda ()
+                 ;; outside of parameterize
+                 (honesty (honesty-merge-at-path (honesty) path end-hm))
+                 (the-vt (cond [(eq? sub-hm 'F) (the-vt)]
+                               [(eq? end-vt #f) (the-vt)]
+                               [else (vt-merge-at-path (or (the-vt) f) path end-vt)]))
+                 (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s)))
+             (lambda (exn)
+               (lambda () (RSfail exn)))))))
 
 ;; ------------------------------------
 
@@ -719,6 +741,13 @@
 ;; Note: (cons T T) = T --- pair might be artificial, but can sync? (FIXME)
 (define (hmcons hm1 hm2) (if (and (eq? hm1 'T) (eq? hm2 'T)) 'T (cons hm1 hm2)))
 
+;; honesty-at-path : HonestyMask Path -> HonestyMask
+(define (honesty-at-path hm path)
+  (define-values (hm* path*) (path-get-until hm path symbol?))
+  ;; Either we used whole path, or we stopped short at 'T or 'F, and
+  ;; the subterms of a 'T or 'F term is 'T or 'F, respectively.
+  hm*)
+
 ;; honesty-merge : HonestyMask HonestyMask -> HonestyMask
 (define (honesty-merge hm1 hm2)
   (let loop ([hm1 hm1] [hm2 hm2])
@@ -731,8 +760,24 @@
 
 ;; honesty-merge-at-path: HonestyMask Path HonestyMask -> HonestyMask
 ;; Merges the first hm's subtree at path with second subtree.
-(define (honesty-merge-at-path hm1 p hm2)
-  (path-replace hm1 p (honesty-merge (path-get hm1 p) hm2)))
+(define (honesty-merge-at-path hm1 path hm2)
+  (define (loop hm1 path)
+    (match path
+      ['() (honesty-merge hm1 hm2)]
+      [(cons 'car path)
+       (match hm1
+         [(cons hm1a hm1b) (cons (loop hm1a path) hm1b)]
+         ['T (cons (loop 'T path) 'T)]
+         ['F 'F])]
+      [(cons (? exact-positive-integer? n) path)
+       (let tailloop ([hm1 hm1] [n n])
+         (cond [(zero? n) (loop hm1 path)]
+               [else
+                (match hm1
+                  [(cons hm1a hm1b) (cons hm1a (tailloop hm1b (sub1 n)))]
+                  ['T (cons 'T (tailloop 'T (sub1 n)))]
+                  ['F 'F])]))]))
+  (loop hm1 path))
 
 ;; An HonestyMaskSpec extends HonestyMask with
 ;; - #(hmrep HonestyMask) -- a true list whose elements have the given honesty
@@ -753,4 +798,3 @@
 
 ;; honest? : -> Boolean
 (define (honest?) (honesty>=? (honesty) 'T))
-
