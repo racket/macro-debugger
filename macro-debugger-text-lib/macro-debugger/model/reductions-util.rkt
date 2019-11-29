@@ -800,7 +800,7 @@
       [(cons 'car path)
        (match hm1
          [(cons hm1a hm1b) (cons (loop hm1a path) hm1b)]
-         ['T (cons (loop 'T path) 'T)]
+         ['T (hmcons (loop 'T path) 'T)]
          ['F 'F])]
       [(cons (? exact-positive-integer? n) path)
        (let tailloop ([hm1 hm1] [n n])
@@ -808,7 +808,7 @@
                [else
                 (match hm1
                   [(cons hm1a hm1b) (hmcons hm1a (tailloop hm1b (sub1 n)))]
-                  ['T (cons 'T (tailloop 'T (sub1 n)))]
+                  ['T (hmcons 'T (tailloop 'T (sub1 n)))]
                   ['F 'F])]))]))
   (loop hm1 path))
 
