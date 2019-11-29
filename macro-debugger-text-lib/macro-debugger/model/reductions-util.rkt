@@ -71,7 +71,7 @@
 ;; PRE: hm <= (honesty) -- that is, honesty is only decreased or left unchanged
 ;; Invariant: (honesty) = 'T  iff  (the-vt) = #f
 (define (set-honesty hm f)
-  (DEBUG (eprintf "set-honesty : ~s => ~s\n" (honesty) hm))
+  (DEBUG (unless (eq? (honesty) hm) (eprintf "set-honesty : ~s => ~s\n" (honesty) hm)))
   (when (eq? (honesty) 'T) (the-vt f))
   (honesty hm))
 
@@ -375,11 +375,13 @@
     [(_ f v p s [#:set-syntax form] ke)
      #:declare form (expr/c #'syntaxish?)
      #'(let ([f2 (with-pattern-match [f p] form.c)])
-         (ke f (change-visible-term f f2 v) p s))]))
+         (ke f2 (change-visible-term f f2 v) p s))]))
 
 (define (change-visible-term f f2 v)
   (cond [(honest?) f2]
-        [else (set-honesty 'F f) v]))
+        [else (set-honesty 'F f)
+              (DEBUG (eprintf "change-visible-term => ~e\n" (stx->datum v)))
+              v]))
 
 (begin-for-syntax
   (define-syntax-class walk-clause
@@ -399,17 +401,21 @@
   (syntax-parser
     [(_ f v p s w:walk-clause ke)
      #'(let ()
+         (eprintf "\nWALK\n v = ~e\n\n" (stx->datum v))
          (define-values (state1 f1 f2 type)
            (with-pattern-match [f p]
              (values (~? w.state1.c #f) (~? w.form1.c v) w.form2.c w.type)))
          (define-values (fs1 fs2)
            (with-pattern-match [f p]
              (values (~? w.foci1.c f1) (~? w.foci2.c f2))))
-         (define s1 (or state1 (current-state-with f1 fs1)))
-         (define s2 (current-state-with f2 fs2))
-         (when (and type (honest?))
-           (add-step (make step type s1 s2)))
-         (ke f2 (change-visible-term f f2 v) p s2))]))
+         (do-walk f v p s state1 f1 fs1 f2 fs2 type ke))]))
+
+(define (do-walk f v p s state1 f1 fs1 f2 fs2 type k)
+  (define s1 (or state1 (current-state-with f1 fs1)))
+  (define s2 (current-state-with f2 fs2))
+  (when (and type (honest?))
+    (add-step (make step type s1 s2)))
+  (k f2 (change-visible-term f f2 v) p s2))
 
 (define-syntax R/rename
   (syntax-parser
@@ -426,6 +432,7 @@
     (do-rename f v p s (quote-pattern pattern) renames-var description-var mark-flag)))
 
 (define (do-rename f v p s ren-p renames description mark-flag)
+  (eprintf "do-rename: ~e at ~s\n" (stx->datum renames) ren-p)
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
   (define renames-mapping (make-renames-mapping pre-renames renames))
