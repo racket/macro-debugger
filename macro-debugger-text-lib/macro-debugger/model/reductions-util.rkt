@@ -433,7 +433,7 @@
   (when description
     (add-step (walk v v2 description #:foci1 pre-renames #:foci2 renames)))
   ;; renaming preserves honesty
-  (when (the-vt) (the-vt pre-renames renames (the-vt) description))
+  (when (the-vt) (vt-track pre-renames renames (the-vt) description))
   (RSunit f2 v2 p s))
 
 ;; FIXME: restore marking-table ??? (for local-expand, maybe?)
