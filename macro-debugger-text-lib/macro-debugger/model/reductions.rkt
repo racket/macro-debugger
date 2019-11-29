@@ -32,16 +32,18 @@
 ;; reductions+ : WDeriv -> (list-of step) Binders Definites ?stx ?exn
 (define (reductions+ d)
   (define xst (new-xstate))
-  (parameterize ((the-xstate xst))
-    (RScase ((Expr d) (wderiv-e1 d) (wderiv-e1 d) (quote-pattern _) #f)
-            (lambda (f v p s)
-              (values (reverse (xstate-steps xst))
-                      (xstate-binders xst) (xstate-definites xst)
-                      v #f))
-            (lambda (exn)
-              (values (reverse (xstate-steps xst))
-                      (xstate-binders xst) (xstate-definites xst)
-                      #f exn)))))
+  (call-with-initial-context
+   #:xstate xst
+   (lambda ()
+     (RScase ((Expr d) (wderiv-e1 d) (wderiv-e1 d) (quote-pattern _) #f)
+             (lambda (f v p s)
+               (values (reverse (xstate-steps xst))
+                       (xstate-binders xst) (xstate-definites xst)
+                       v #f))
+             (lambda (exn)
+               (values (reverse (xstate-steps xst))
+                       (xstate-binders xst) (xstate-definites xst)
+                       #f exn))))))
 
 ;; Syntax
 
