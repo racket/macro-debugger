@@ -71,7 +71,7 @@
 ;; PRE: hm <= (honesty) -- that is, honesty is only decreased or left unchanged
 ;; Invariant: (honesty) = 'T  iff  (the-vt) = #f
 (define (set-honesty hm f)
-  (eprintf "set-honesty : ~s => ~s\n" (honesty) hm)
+  (DEBUG (eprintf "set-honesty : ~s => ~s\n" (honesty) hm))
   (when (eq? (honesty) 'T) (the-vt f))
   (honesty hm))
 
@@ -166,9 +166,6 @@
    (-> any/c (listof syntax?))]))
 
 (define (current-state-with e fs)
-  #;
-  (eprintf "current-state-with: ~e, ~e; ~e\n" (stx->datum e) (stx->datum fs)
-           (stx->datum (for/fold ([x 'HOLE]) ([p (the-context)]) (p x))))
   (define xst (the-xstate))
   (make state e (foci fs) (the-context) (the-big-context)
         (xstate-binders xst) (xstate-definites xst)
@@ -258,7 +255,6 @@
   (syntax-parser
     [(_ [f p] expr:expr)
      #'(let ([mv (pattern-match p f)])
-         #;(eprintf "with-pattern-match: pattern match ~s, ~e = ~e\n" p f mv)
          (syntax-parameterize ((the-match-result (make-rename-transformer #'mv)))
            expr))]))
 
@@ -383,10 +379,7 @@
 
 (define (change-visible-term f f2 v)
   (cond [(honest?) f2]
-        [else
-         (eprintf "change-visible-term: honesty ~s ->F, ~e\n  =/=> ~e\n  ===> ~e\n" (honesty)
-                  (stx->datum f) (stx->datum f2) (stx->datum v))
-         (set-honesty 'F f) v]))
+        [else (set-honesty 'F f) v]))
 
 (begin-for-syntax
   (define-syntax-class walk-clause
@@ -435,7 +428,6 @@
 (define (do-rename f v p s ren-p renames description mark-flag)
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
-  #;(eprintf "do-rename: ~s => ~s\n" (stx->datum f) (stx->datum f2))
   (define renames-mapping (make-renames-mapping pre-renames renames))
   (define v2 (apply-renames-mapping renames-mapping v))
   (when description
@@ -661,9 +653,7 @@
      (run/path reducer f v p s path fill)]
     [(list (? symbol? hole) '...)
      (match-define (vector pre-path sub-path) (subpattern-path p hole #t))
-     #;(eprintf "run (multi) paths: ~e, ~e" pre-path sub-path)
      (let loop ([fill fill] [k 0] [f f] [v v] [s s])
-       #;(eprintf "run (multi): k = ~s, fill length = ~s\n" k (length fill))
        (match fill
          [(cons fill0 fill*)
           (define path (append pre-path (path-add-ref k sub-path)))
@@ -672,11 +662,10 @@
          ['() (RSunit f v p s)]))]))
 
 (define (run/path reducer f v p s path fill)
-  #;(eprintf "run: found ~s in ~s at ~s\n" hole p path)
   (define fctx (path-replacer f path))
   (define sub-f (path-get f path))
   (define sub-hm (honesty-at-path (honesty) path))
-  (eprintf "run/path: honesty ~e at path ~s => ~e\n" (honesty) path sub-hm)
+  (DEBUG (eprintf "run/path: honesty ~e at path ~s => ~e\n" (honesty) path sub-hm))
   (define-values (vctx sub-v sub-vt sub-vt-mask)
     (cond [(eq? sub-hm 'F)
            ;; path might be out of bounds for v => can't take vctx => sub-v is meaningless
@@ -695,7 +684,7 @@
            (define sub-vt (if (eq? sub-hm 'T) #f (the-vt)))
            (define sub-vt-mask (if sub-vt (append (the-vt-mask) path) null))
            (values vctx sub-v sub-vt sub-vt-mask)]))
-  (eprintf "run/path: run ~s on f=~e; v=~e\n" reducer (stx->datum sub-f) (stx->datum sub-v))
+  (DEBUG (eprintf "run/path: run ~s on f=~e; v=~e\n" reducer (stx->datum sub-f) (stx->datum sub-v)))
   ((parameterize ((the-context (cons vctx (the-context)))
                   (honesty sub-hm)
                   (the-vt sub-vt)
@@ -708,7 +697,7 @@
                (lambda ()
                  ;; outside of parameterize
                  (define merged-hm (honesty-merge-at-path (honesty) path end-hm))
-                 (eprintf "run/path merge old ~s and sub ~s => ~s\n" (honesty) end-hm merged-hm)
+                 (DEBUG (eprintf "run/path merge old ~s and sub ~s => ~s\n" (honesty) end-hm merged-hm))
                  (honesty merged-hm)
                  (the-vt (cond [(eq? sub-hm 'F) (the-vt)]
                                [(eq? end-vt #f) (the-vt)]
