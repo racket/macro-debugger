@@ -47,7 +47,11 @@
 (define the-vt-mask (make-parameter null))  ;; (Parameterof Path)
 (define honesty (make-parameter 'T))        ;; (Parameterof HonestyMask)
 
+;; set-honesty : HonestyMask Stx -> Void
 ;; Invariant: (honesty) = 'T  iff  (the-vt) = #f
+(define (set-honesty hm f)
+  (when (eq? (honesty) 'T) (the-vt f))
+  (honesty hm))
 
 ;; ============================================================
 ;; Expansion State
@@ -350,7 +354,11 @@
     [(_ f v p s [#:set-syntax form] ke)
      #:declare form (expr/c #'syntaxish?)
      #'(let ([f2 (with-pattern-match [f p] form.c)])
-         (ke f2 f2 p s))]))
+         (ke f (change-visible-term f f2 v) p s))]))
+
+(define (change-visible-term f f2 v)
+  (cond [(honest?) f2]
+        [else (set-honesty 'F f) v]))
 
 (begin-for-syntax
   (define-syntax-class walk-clause
@@ -379,7 +387,7 @@
          (define s1 (or state1 (current-state-with f1 fs1)))
          (define s2 (current-state-with f2 fs2))
          (when type (add-step (make step type s1 s2)))
-         (ke f2 f2 p s2))]))
+         (ke f2 (change-visible-term f f2 v) p s2))]))
 
 (define-syntax R/rename
   (syntax-parser
@@ -394,6 +402,10 @@
     (define-values (renames-var description-var)
       (with-pattern-match [f p] (values renames description)))
     (do-rename f v p s (quote-pattern pattern) renames-var description-var mark-flag)))
+
+
+;; STOPPED HERE
+
 
 (define (do-rename f v p s ren-p renames description mark-flag)
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
