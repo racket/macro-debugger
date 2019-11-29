@@ -30,6 +30,15 @@
 (define state/c (or/c state? #f))
 
 ;; ============================================================
+;; Hiding configuration
+
+(provide
+ (contract-out
+  [macro-policy (parameter/c (-> identifier? any/c))]))
+
+(define macro-policy (make-parameter (lambda (id) #t)))
+
+;; ============================================================
 ;; Expansion Context
 
 (provide
@@ -37,7 +46,8 @@
   [the-phase (parameter/c exact-nonnegative-integer?)]
   [the-context (parameter/c list?)]
   [the-big-context (parameter/c (listof bigframe?))]
-  [call-with-initial-context (-> (-> any) #:xstate xstate? any)]))
+  [call-with-initial-context (-> (-> any) #:xstate xstate? any)])
+ honest?)
 
 (define the-phase (make-parameter 0))
 (define the-context (make-parameter null))
@@ -64,6 +74,9 @@
   (eprintf "set-honesty : ~s => ~s\n" (honesty) hm)
   (when (eq? (honesty) 'T) (the-vt f))
   (honesty hm))
+
+;; honest? : -> Boolean
+(define (honest?) (eq? (honesty) 'T))
 
 ;; ============================================================
 ;; Expansion State
@@ -274,10 +287,9 @@
           '#:pass1 #'R/pass1
           '#:pass2 #'R/pass2
           '#:in-hole #'R/in-hole
-          #|
           '#:hide-check #'R/hide-check
           '#:seek-check #'R/seek-check
-          |#))
+          ))
 
   (define-syntax-class RClause #:attributes (macro)
     #:literals (!)
@@ -531,6 +543,56 @@
      #'(RSbind (let ([reducer (lambda (_) (R . clauses))])
                  (run reducer f v p s (quote hole) #f))
                ke)]))
+
+;; ============================================================
+
+(define-syntax R/hide-check
+  (syntax-parser
+   [(_ f v p s [#:hide-check rs] ke)
+    #:declare rs (expr/c #'(listof identifier?))
+    #'(do-hide-check f v p s (with-pattern-match [f p] rs.c) ke)]))
+
+(define (do-hide-check f v p s ids k)
+  (unless (or (eq? (honesty) 'F) (andmap (macro-policy) ids))
+    (DEBUG
+     (eprintf "hide-check: hiding with f=~e, v=~e\n" (stx->datum f) (stx->datum v)))
+    ;; FIXME: marking-table ???
+    ;; FIXME: set-honesty needs to rebuild table if honesty strictly *decreases*
+    (set-honesty 'F f))
+  (k f v p s))
+
+(define-syntax-rule (R/seek-check f v p s [#:seek-check] ke)
+  (do-seek-check f v p s ke))
+
+(define (do-seek-check f v p s k)
+  (cond [(honest?) (k f v p s)]
+        [else
+         (match (vt-seek f (the-vt) (the-vt-mask))
+           ['()
+            (DEBUG (eprintf "seek-check: no paths found for ~e" (stx->datum f)))
+            (k f v p s)]
+           [(cons path more-paths)
+            (DEBUG (eprintf "seek-check: found path ~e for ~e" path (stx->datum f))
+                   (unless (null? more-paths)
+                     (eprintf "seek-check: multiple paths found for ~e" (stx->datum f))))
+            (define vctx (path-replacer v path))
+            ((parameterize ((the-context (cons vctx (the-context)))
+                            (honesty 'T)
+                            (the-vt #f)
+                            (the-vt-mask null))
+               (RScase (k f f p s)
+                       (lambda (f2 v2 p2 s2)
+                         ;; inside parameterize
+                         (define end-vt (the-vt))
+                         (lambda ()
+                           ;; outside parameterize
+                           (the-vt (vt-merge-at-path (the-vt) path (or end-vt f2)))
+                           ;; note: returning a true term into a fictional
+                           ;; context does not increase honesty
+                           (RSunit f2 (vctx v2) p s)))
+                       (lambda (exn)
+                         (lambda ()
+                           (RSfail exn))))))])]))
 
 ;; ============================================================
 
@@ -836,7 +898,3 @@
       [[(cons hm1a hm1b) (hmrep hm2e)]
        (and (loop hm1a hm2e) (loop hm1b hm2))]
       [[_ _] #f])))
-
-;; honest? : -> Boolean
-(define (honest?)
-  (honesty>=? (honesty) 'T))

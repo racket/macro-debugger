@@ -16,8 +16,6 @@
 ;; ============================================================
 ;; Dummy definitions
 
-(define macro-policy (make-parameter #f))
-
 ;; ============================================================
 ;; Reductions
 
@@ -82,12 +80,12 @@
           [#:do (learn-definites (or (base-resolves d) null))]
           [#:when (base-de1 d)
            [#:rename ?form (base-de1 d) #;'disarm]]]
-         #;[#:seek-check]
+         [#:seek-check]
          [Expr* ?form d]]
         [#:set-syntax e2] ;; FIXME
         )]
     [#f
-     (R #;[#:seek-check]
+     (R [#:seek-check]
         => (Expr* d))]))
 
 (define (Expr* d)
@@ -99,7 +97,7 @@
                     (not (bound-identifier=? e1 e2)))
                 [#:walk e2 'resolve-variable]])]
     [(p:module e1 e2 rs de1 ?1 prep rename check ?2 tag2 check2 ?3 body shift)
-     (R #;[#:hide-check rs]
+     (R [#:hide-check rs]
         [! ?1]
         [#:pattern ?form]
         [PrepareEnv ?form prep]
@@ -232,7 +230,7 @@
         [#:walk e2 'lsv-remove-syntax])]
     [(p:#%datum e1 e2 rs de1 ?1)
      (R [! ?1]
-        #;[#:hide-check rs]
+        [#:hide-check rs]
         [#:walk e2 'macro])]
     [(p:#%top e1 e2 rs de1 ?1)
      (R [! ?1]
@@ -266,7 +264,7 @@
         [#:pattern (?sb . ?body)]
         [Block ?body bderiv]
         [#:pass2]
-        #;[#:hide-check rs]
+        [#:hide-check rs]
         [#:pattern ?form]
         [#:walk e2 'macro])]
 
@@ -319,7 +317,7 @@
     [(mrule e1 e2 rs de1 ?1 me1 locals me2 ?2 etx next)
      (R [! ?1]
         [#:pattern ?form]
-        #;[#:hide-check rs]
+        [#:hide-check rs]
         [#:do (learn-definites rs)]
         [#:pass1]
         [#:let old-state (current-state-with (% ?form) (list (% ?form)))]
@@ -334,7 +332,7 @@
 
     [(tagrule e1 e2 tagged-stx next)
      (R [#:pattern ?form]
-        #;[#:hide-check (list (stx-car tagged-stx))]
+        [#:hide-check (list (stx-car tagged-stx))]
         [#:walk tagged-stx
                 (case (syntax-e (stx-car tagged-stx))
                   ((#%app) 'tag-app)
@@ -408,8 +406,7 @@
         [#:parameterize ((macro-policy
                           ;; If macro with local-expand is transparent,
                           ;; then all local-expansions must be transparent.
-                          #;(if (visibility) (lambda _ #t) (macro-policy))
-                          #f))
+                          (if (honest?) (lambda (x) #t) (macro-policy))))
          [#:new-local-context
           [#:pattern ?form]
           [LocalAction ?form local]]]
