@@ -404,7 +404,8 @@
              (values (~? w.foci1.c f1) (~? w.foci2.c f2))))
          (define s1 (or state1 (current-state-with f1 fs1)))
          (define s2 (current-state-with f2 fs2))
-         (when type (add-step (make step type s1 s2)))
+         (when (and type (honest?))
+           (add-step (make step type s1 s2)))
          (ke f2 (change-visible-term f f2 v) p s2))]))
 
 (define-syntax R/rename
