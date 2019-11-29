@@ -374,7 +374,8 @@
 (define (change-visible-term f f2 v)
   (cond [(honest?) f2]
         [else
-         (eprintf "change-visible-term: honesty ~s ->F, ~e, ~e, ~e\n" (honesty) f f2 v)
+         (eprintf "change-visible-term: honesty ~s ->F, ~e\n  =/=> ~e\n  ===> ~e\n" (honesty)
+                  (stx->datum f) (stx->datum f2) (stx->datum v))
          (set-honesty 'F f) v]))
 
 (begin-for-syntax
@@ -626,6 +627,7 @@
            (define sub-vt (if (eq? sub-hm 'T) #f (the-vt)))
            (define sub-vt-mask (if sub-vt (append (the-vt-mask) path) null))
            (values vctx sub-v sub-vt sub-vt-mask)]))
+  (eprintf "run/path: run ~s on f=~e; v=~e\n" reducer (stx->datum sub-f) (stx->datum sub-v))
   ((parameterize ((the-context (cons vctx (the-context)))
                   (honesty sub-hm)
                   (the-vt sub-vt)
@@ -831,5 +833,4 @@
 
 ;; honest? : -> Boolean
 (define (honest?)
-  (eprintf "honest? ~s\n" (honesty))
   (honesty>=? (honesty) 'T))
