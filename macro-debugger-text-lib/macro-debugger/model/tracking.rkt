@@ -82,7 +82,7 @@
   (cond [(eq? from to) in]
         [(and (syntax? to)
               (or (syntax-armed? to)
-                  (equal? (syntax-e from) (syntax-e to))))
+                  (equal? (syntax-e to) (if (syntax? from) (syntax-e from) from))))
          (vt:shallow from to in type)]
         [else (vt:track from to in type)]))
 
