@@ -20,7 +20,7 @@
   (when #f form ... (void)))
 
 (define-syntax-rule (DEBUG form ...)
-  (when #f form ... (void)))
+  (when #t form ... (void)))
 
 (define (hash-set-list h ks v)
   (for/fold ([h h]) ([k (in-list ks)]) (hash-set h k v)))
@@ -60,8 +60,10 @@
     (proc)))
 
 ;; set-honesty : HonestyMask Stx -> Void
+;; PRE: hm <= (honesty) -- that is, honesty is only decreased or left unchanged
 ;; Invariant: (honesty) = 'T  iff  (the-vt) = #f
 (define (set-honesty hm f)
+  (eprintf "set-honesty : ~s => ~s\n" (honesty) hm)
   (when (eq? (honesty) 'T) (the-vt f))
   (honesty hm))
 
@@ -305,9 +307,10 @@
                (R . more))]
     [(R** f v p s c:RClause . more)
      #'(begin
-         #;
-         (let ([cstx (quote-syntax c)])
-           (eprintf "doing [~s:~s] ~e\n" (syntax-line cstx) (syntax-column cstx) (quote c)))
+         (DEBUG
+          (let ([cstx (quote-syntax c)])
+            (define where (format "[~s:~s]" (syntax-line cstx) (syntax-column cstx)))
+            (eprintf "doing ~a ~e, honesty = ~s\n" where (quote c) (honesty))))
          (c.macro f v p s c (R . more)))]))
 
 ;; A R/<Clause> macro has the form
@@ -370,7 +373,9 @@
 
 (define (change-visible-term f f2 v)
   (cond [(honest?) f2]
-        [else (set-honesty 'F f) v]))
+        [else
+         (eprintf "change-visible-term: honesty ~s ->F, ~e, ~e, ~e\n" (honesty) f f2 v)
+         (set-honesty 'F f) v]))
 
 (begin-for-syntax
   (define-syntax-class walk-clause
@@ -602,6 +607,7 @@
   (define fctx (path-replacer f path))
   (define sub-f (path-get f path))
   (define sub-hm (honesty-at-path (honesty) path))
+  (eprintf "run/path: honesty ~e at path ~s => ~e\n" (honesty) path sub-hm)
   (define-values (vctx sub-v sub-vt sub-vt-mask)
     (cond [(eq? sub-hm 'F)
            ;; path might be out of bounds for v => can't take vctx => sub-v is meaningless
@@ -631,7 +637,9 @@
                (define end-vt (the-vt))
                (lambda ()
                  ;; outside of parameterize
-                 (honesty (honesty-merge-at-path (honesty) path end-hm))
+                 (define merged-hm (honesty-merge-at-path (honesty) path end-hm))
+                 (eprintf "run/path merge old ~s and sub ~s => ~s\n" (honesty) end-hm merged-hm)
+                 (honesty merged-hm)
                  (the-vt (cond [(eq? sub-hm 'F) (the-vt)]
                                [(eq? end-vt #f) (the-vt)]
                                [else (vt-merge-at-path (or (the-vt) f) path end-vt)]))
@@ -799,7 +807,7 @@
          (cond [(zero? n) (loop hm1 path)]
                [else
                 (match hm1
-                  [(cons hm1a hm1b) (cons hm1a (tailloop hm1b (sub1 n)))]
+                  [(cons hm1a hm1b) (hmcons hm1a (tailloop hm1b (sub1 n)))]
                   ['T (cons 'T (tailloop 'T (sub1 n)))]
                   ['F 'F])]))]))
   (loop hm1 path))
@@ -822,4 +830,6 @@
       [[_ _] #f])))
 
 ;; honest? : -> Boolean
-(define (honest?) (honesty>=? (honesty) 'T))
+(define (honest?)
+  (eprintf "honest? ~s\n" (honesty))
+  (honesty>=? (honesty) 'T))
