@@ -36,7 +36,8 @@
  (contract-out
   [the-phase (parameter/c exact-nonnegative-integer?)]
   [the-context (parameter/c list?)]
-  [the-big-context (parameter/c (listof bigframe?))]))
+  [the-big-context (parameter/c (listof bigframe?))]
+  [call-with-initial-context (-> (-> any) #:xstate xstate? any)]))
 
 (define the-phase (make-parameter 0))
 (define the-context (make-parameter null))
@@ -46,6 +47,17 @@
 (define the-vt (make-parameter #f))         ;; (Parameterof VT)
 (define the-vt-mask (make-parameter null))  ;; (Parameterof Path)
 (define honesty (make-parameter 'T))        ;; (Parameterof HonestyMask)
+
+(define (call-with-initial-context proc #:xstate xst)
+  (parameterize ((the-xstate xst)
+                 (the-phase 0)
+                 (the-context null)
+                 (the-big-context null)
+                 (visible #t)
+                 (the-vt #f)
+                 (the-vt-mask null)
+                 (honesty 'T))
+    (proc)))
 
 ;; set-honesty : HonestyMask Stx -> Void
 ;; Invariant: (honesty) = 'T  iff  (the-vt) = #f
