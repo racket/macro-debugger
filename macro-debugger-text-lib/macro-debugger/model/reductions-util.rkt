@@ -78,6 +78,9 @@
 ;; honest? : -> Boolean
 (define (honest?) (eq? (honesty) 'T))
 
+;; not-complete-fiction? : -> Boolean
+(define (not-complete-fiction?) (not (eq? (honesty) 'F)))
+
 ;; ============================================================
 ;; Expansion State
 
@@ -437,7 +440,8 @@
   (define f2 (pattern-replace p f ren-p renames))
   (define renames-mapping (make-renames-mapping pre-renames renames))
   (define v2 (apply-renames-mapping renames-mapping v))
-  (when description
+  (when (and description (not-complete-fiction?))
+    ;; FIXME: better condition/heuristic for when to add rename step?
     (add-step (walk v v2 description #:foci1 pre-renames #:foci2 renames)))
   ;; renaming preserves honesty
   (when (the-vt) (vt-track pre-renames renames (the-vt) description))
