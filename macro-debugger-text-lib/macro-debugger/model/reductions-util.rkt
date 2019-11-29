@@ -42,6 +42,15 @@
 (define the-context (make-parameter null))
 (define the-big-context (make-parameter null))
 
+;; visible : (Parameterof Boolean)
+(define visible (make-parameter #t))
+
+;; visible-subterms : (Parameterof VT/#f)
+(define visible-subterms (make-parameter #f))
+
+;; honesty : (Parameterof HonestyMask)
+(define honesty (make-parameter 'T))
+
 ;; syntax (with-context Expr[Frame] body ...+)
 (define-syntax-rule (with-context f . body)
   (parameterize ((the-context (cons f (the-context)))) . body))
@@ -697,8 +706,7 @@
 ;; ----------------------------------------
 ;; Honesty Masks
 
-;; We can more precisely quantify honesty with an *honesty mask*: a tree that
-;; indicates what parts of the current term may be fictional.
+;; An *honesty mask* indicates what parts of the current term may be fictional.
 
 ;; An HonestyMask is one of
 ;; - 'F -- (partly, potentially) fictional term
@@ -718,12 +726,12 @@
       [['T hm] hm]
       [[hm 'T] hm]
       [[(cons hm1a hm1b) (cons hm2a hm2b)]
-       (cons (loop hm1a hm2a) (loop hm1b hm2b))]
+       (hmcons (loop hm1a hm2a) (loop hm1b hm2b))]
       [[_ _] 'F])))
 
-;; update-honesty: HonestyMask Path HonestyMask -> HonestyMask
+;; honesty-merge-at-path: HonestyMask Path HonestyMask -> HonestyMask
 ;; Merges the first hm's subtree at path with second subtree.
-(define (update-honesty hm1 p hm2)
+(define (honesty-merge-at-path hm1 p hm2)
   (path-replace hm1 p (honesty-merge (path-get hm1 p) hm2)))
 
 ;; An HonestyMaskSpec extends HonestyMask with
@@ -732,3 +740,17 @@
 
 ;; honesty>=? : HonestyMask HonestyMaskSpec -> Boolean
 ;; Retuns #t if hm1 is at least as honest as hm2.
+(define (honesty>=? hm1 hm2)
+  (let loop ([hm1 hm1] [hm2 hm2])
+    (match* [hm1 hm2]
+      [['T _] #t]
+      [[_ 'F] #t]
+      [[(cons hm1a hm1b) (cons hm2a hm2b)]
+       (and (loop hm1a hm2a) (loop hm1b hm2b))]
+      [[(cons hm1a hm1b) (hmrep hm2e)]
+       (and (loop hm1a hm2e) (loop hm1b hm2))]
+      [[_ _] #f])))
+
+;; honest? : -> Boolean
+(define (honest?) (honesty>=? (honesty) 'T))
+
