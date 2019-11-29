@@ -43,7 +43,6 @@
 (define the-context (make-parameter null))
 (define the-big-context (make-parameter null))
 
-(define visible (make-parameter #t))        ;; (Parameterof Boolean)
 (define the-vt (make-parameter #f))         ;; (Parameterof VT)
 (define the-vt-mask (make-parameter null))  ;; (Parameterof Path)
 (define honesty (make-parameter 'T))        ;; (Parameterof HonestyMask)
@@ -53,7 +52,6 @@
                  (the-phase 0)
                  (the-context null)
                  (the-big-context null)
-                 (visible #t)
                  (the-vt #f)
                  (the-vt-mask null)
                  (honesty 'T))
@@ -422,10 +420,6 @@
       (with-pattern-match [f p] (values renames description)))
     (do-rename f v p s (quote-pattern pattern) renames-var description-var mark-flag)))
 
-
-;; STOPPED HERE
-
-
 (define (do-rename f v p s ren-p renames description mark-flag)
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
@@ -434,9 +428,11 @@
   (define v2 (apply-renames-mapping renames-mapping v))
   (when description
     (add-step (walk v v2 description #:foci1 pre-renames #:foci2 renames)))
-  (when (the-vt)
-    (the-vt pre-renames renames (the-vt) description))
+  ;; renaming preserves honesty
+  (when (the-vt) (the-vt pre-renames renames (the-vt) description))
   (RSunit f2 v2 p s))
+
+;; FIXME: restore marking-table ??? (for local-expand, maybe?)
 
 (define-syntax R/rename/mark
   (syntax-parser
@@ -455,6 +451,11 @@
      #'(let ([real-from (with-pattern-match [f p] (% pvar))])
          (STRICT-CHECKS (check-same-stx 'rename/unmark f from.c))
          (RSbind (Rename f v p s pvar to.c #f 'unmark) ke))]))
+
+;; What if honesty is all we need?
+;; hide = (set-honesty 'F _)
+;; seek = ...
+
 
 (define-syntax R/if
   (syntax-parser
@@ -498,18 +499,22 @@
 (define-syntax R/new-local-context
   (syntax-parser
     [(_ f v p s [#:new-local-context clause ...] ke)
-     #'(let ([process-clauses (lambda () (R** #f #f '_ #f clause ...))])
-         (RSbind (with-new-local-context v (process-clauses))
-                 (lambda (f2 v2 _p s2)
-                   (let ([v2 v] [s2 s])
-                     (ke f v2 p s2)))))]))
+     #'(do-local-context f v p s (R clause ...) ke)]))
 
-;; syntax (with-new-local-context Expr[???] body ...+)
-(define-syntax-rule (with-new-local-context e . body)
-  (let ([x e])
-    (parameterize ((the-big-context (cons (bigframe (the-context) (list x) x) (the-big-context)))
-                   (the-context null))
-      (let () . body))))
+(define (do-local-context f v p s rst k)
+  (cond [(honest?)
+         (RSbind (call/local-context v (lambda () (rst #f #f (quote-pattern _) #f)))
+                 (lambda (_f2 _v2 _p2 _s2)
+                   (k f v p s)))]
+        [else
+         (RSbind (rst #f v (quote-pattern _) #f)
+                 (lambda (_f2 v2 _p2 _s2)
+                   (k f v2 p s)))]))
+
+(define (call/local-context v proc)
+  (define bf (bigframe (the-context) (list v) v))
+  (parameterize ((the-big-context (cons bf (the-big-context))))
+    (proc)))
 
 (define-syntax R/run
   (syntax-parser
