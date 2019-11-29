@@ -63,30 +63,32 @@
   (match/count d
     [(deriv e1 e2)
      (R [#:pattern ?form]
+        [#:do (DEBUG (eprintf ">> ~.s\n" (stx->datum e1)))]
         [#:do (STRICT-CHECKS (check-same-stx 'Expr e1 (list d)))]
-        [#:parameterize ((the-context
-                          ;; This arms the artificial intermediate terms, since
-                          ;; the expander generally (always?) re-arms the result
-                          ;; of expanding an armed term.
-                          (cond [(and (syntax? e1) (syntax-armed? e1))
-                                 (define (rearm-frame x)
-                                   (syntax-property
-                                    (syntax-rearm (datum->syntax #f x) e1)
-                                    property:unlocked-by-expander #t))
-                                 (eprintf "installing re-arming frame...\n")
-                                 (cons rearm-frame (the-context))]
-                                [else (the-context)])))
+        [#:parameterize ((the-context (add-rearm-frame e1 (the-context))))
          [#:when (base? d)
           [#:do (learn-definites (or (base-resolves d) null))]
           [#:when (base-de1 d)
            [#:rename ?form (base-de1 d) #;'disarm]]]
          [#:seek-check]
          [Expr* ?form d]]
-        [#:set-syntax e2] ;; FIXME
+        [#:rename ?form e2 #;'sync]
         )]
     [#f
      (R [#:seek-check]
         => (Expr* d))]))
+
+;; add-rearm-frame : Stx Context -> Context
+(define (add-rearm-frame e1 ctx)
+  ;; This arms the artificial intermediate terms, since
+  ;; the expander generally (always?) re-arms the result
+  ;; of expanding an armed term.
+  (cond [(and (syntax? e1) (syntax-armed? e1))
+         (define (rearm-frame x)
+           (syntax-property (syntax-rearm (datum->syntax #f x) e1)
+                            property:unlocked-by-expander #t))
+         (cons rearm-frame (the-context))]
+        [else (the-context)]))
 
 (define (Expr* d)
   (match d
@@ -285,7 +287,7 @@
      (define transparent-stx (hash-ref opaque-table (syntax-e e1) #f))
      (R [#:pattern ?form]
         [#:when transparent-stx
-         [#:set-syntax transparent-stx]])]
+         [#:set-syntax transparent-stx]])] ;; FIXME: walk?
 
     ;; The rest of the automatic primitives
     [(p::STOP e1 e2 rs de1 ?1)
@@ -553,7 +555,6 @@
                [#:pass2]
                [#:walk es2 'finish-letrec])
               ([#:rename ?block (wlderiv-es1 pass2)]
-               [#:set-syntax (wlderiv-es1 pass2)] ;; FIXME?
                [List ?block pass2])])]
     ;; Alternatively, allow lists, since `let`, etc., bodies
     ;; (generated form an internal definition context) are
