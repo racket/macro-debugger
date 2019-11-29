@@ -143,7 +143,8 @@
                               (for/list ([step actual])
                                 (format "~s: ~s\n"
                                         (protostep-type step)
-                                        (stx->datum (step-term2 step)))))))]
+                                        (and (step? step)
+                                             (stx->datum (step-term2 step))))))))]
         [else 'ok]))
 
 (define (compare-steps actual expected [prev-details #f])
