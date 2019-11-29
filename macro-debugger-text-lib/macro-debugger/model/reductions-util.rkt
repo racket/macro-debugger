@@ -411,11 +411,12 @@
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
   #;(eprintf "do-rename: ~s => ~s\n" (stx->datum f) (stx->datum f2))
-  (define whole-form-rename? (equal? p ren-p)) ;; FIXME is this right?
   (define renames-mapping (make-renames-mapping pre-renames renames))
   (define v2 (apply-renames-mapping renames-mapping v))
   (when description
     (add-step (walk v v2 description #:foci1 pre-renames #:foci2 renames)))
+  (when (the-vt)
+    (the-vt pre-renames renames (the-vt) description))
   (RSunit f2 v2 p s))
 
 (define-syntax R/rename/mark
