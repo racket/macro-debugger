@@ -575,8 +575,8 @@
          (match (vt-seek f (the-vt) (the-vt-mask))
            ['()
             (DEBUG (eprintf "seek-check: no paths found for ~e\n" (stx->datum f))
-                   (eprintf "  the-vt = ~v\n" (the-vt))
-                   (eprintf "  the-vt-mask = ~v\n" (the-vt-mask)))
+                   #;(eprintf "  the-vt = ~v\n" (the-vt))
+                   #;(eprintf "  the-vt-mask = ~v\n" (the-vt-mask)))
             (k f v p s)]
            [(cons path more-paths)
             (DEBUG (eprintf "seek-check: found path ~e for ~e\n" path (stx->datum f))
