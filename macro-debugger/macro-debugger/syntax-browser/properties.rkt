@@ -6,6 +6,7 @@
          framework
          racket/class/iop
          macro-debugger/syntax-browser/interfaces
+         macro-debugger/model/stx-util
          "util.rkt"
          macro-debugger/util/mpi)
 (provide properties-view%
@@ -221,8 +222,8 @@
       (display-extra-source-info stx)
       (display-symbol-property-info stx)
       (display-marks stx)
-      ;; Disable until correct:
-      (when #f (display-taint stx)))
+      (when #t (display-taint stx))
+      (display-artificial stx))
 
     ;; display-source-info : syntax -> void
     (define/private (display-source-info stx)
@@ -286,7 +287,8 @@
                  link-sd
                  (lambda _
                    (set! marks-phase (max 0 (sub1 marks-phase)))
-                   (send view refresh)))))
+                   (send view refresh))))
+      (display "\n" #f))
 
     ;; display-taint : syntax -> void
     (define/private (display-taint stx)
@@ -298,7 +300,13 @@
                      [(syntax-armed? stx)
                       "armed"]
                      [else "clean"])
-               #f))
+               #f)
+      (display "\n\n" #f))
+
+    ;; display-artificial : syntax -> void
+    (define/private (display-artificial stx)
+      (when (syntax-artificial? stx)
+        (display "This syntax is artificial.\n\n" n/a-sd)))
 
     ;; display-kv : any any -> void
     (define/private (display-kv key value)
