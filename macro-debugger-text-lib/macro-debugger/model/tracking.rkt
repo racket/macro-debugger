@@ -49,11 +49,9 @@
 
 ;; A VT is one of
 ;; - Stx                            -- the term itself
-;; - (vt:track Stx Stx VT Any)      -- scope/arm/etc FROM, producing TO, within IN
-;; - (vt:shallow Stx Stx VT Any)    -- shallow map FROM to TO, within IN
+;; - (vt:track Stx Stx VT Hash)     -- scope/arm/etc FROM, producing TO, within IN
 ;; - (vt:patch Path VT VT)          -- replace subterm at AT with TO, within IN
-(struct vt:track (from to in type) #:prefab)
-(struct vt:shallow (from to in type) #:prefab)
+(struct vt:track (from to in h) #:prefab)
 (struct vt:patch (at to in) #:prefab)
 
 ;; If vt ends in [e1->e2], and we want to search for e, then the naive approach
@@ -65,26 +63,31 @@
 ;; version of e1, we apply the narrowing. Note that the search for e1 might
 ;; itself evolve through adjustments---that's fine.
 
-;; A vt:shallow node is an optimization for [e1->e2] where there's no point in
-;; recursively searching through e2. For example, if (syntax-arm e1) -> e2, then
-;; we can't search within e2. Or if (track-origin e1) -> e2, then the proper
-;; subterms of e1 and e2 *might be* identical, in which case we might as well
-;; just check e2 and then skip straight to the parent.
-
-;; Note: (syntax-e (track-origin stx)) may or not be equal to (syntax-e stx); it
-;; depends on whether stx's scopes have already been propagated. Likewise for
-;; syntax-property. (FIXME: measure)
-
-;; FIXME: add lookup caches? where? how to make caches most useful given narrowings?
-
 ;; vt-track : Stx Stx VT [Any] -> VT
 (define (vt-track from to in [type #f])
   (cond [(eq? from to) in]
-        [(and (syntax? to)
-              (or (syntax-armed? to)
-                  (equal? (syntax-e to) (if (syntax? from) (syntax-e from) from))))
-         (vt:shallow from to in type)]
-        [else (vt:track from to in type)]))
+        [else (vt:track from to in (make-track-hash from to))]))
+
+;; hash maps Syntax => (cons Stx Path)
+(define (make-track-hash from to)
+  (define h (make-hasheq))
+  (define (loop to from rpath)
+    (cond [(syntax? to)
+           (hash-set! h to (cons from (reverse rpath)))
+           (loop (syntax-e to) from rpath)]
+          [(pair? to)
+           (cond [(pair? from) ;; rpath = null
+                  (loop (car to) (car from) rpath)
+                  (loop (cdr to) (cdr from) rpath)]
+                 [(and (syntax? from) (syntax-armed/tainted? from))
+                  (loop (car to) from (path-add-car rpath))
+                  (loop (cdr to) from (path-add-cdr rpath))]
+                 [(syntax? from)
+                  (loop to (syntax-e from) rpath)]
+                 [else (error 'make-track-hash "mismatch: ~e, ~e" from to)])]
+          ;; FIXME: vector, box, prefab
+          [else (void)]))
+  (begin (loop to from null) h))
 
 ;; vt-merge-at-path : VT Path VT -> VT
 (define (vt-merge-at-path vt path sub-vt)
@@ -115,16 +118,21 @@
      ;; and vt only tracked their disarming. (FIXME: test)
      (do ([path1 <- (stx-seek want stx)])
          (return (path-append path1 narrow)))]
-    [(vt:track from to in _)
+    [(vt:track from to in (? hash? h))
      ;; Possibilities:
      ;; - WANT is in TO (and corresponding subterm of FROM is in IN)
      ;; - WANT is in IN -- FIXME: add strict replacement flag?
+     (disj (cond [(hash-ref h want #f)
+                  => (match-lambda
+                       [(cons want* narrow*)
+                        (seek want* in (append narrow* narrow))])]
+                 [else null])
+           (seek want in narrow))]
+    [(vt:track from to in _)
+     ;; NOTE: unreachable case, left for comparison, history, etc
      (disj (do ([path1 <- (seek want to)]
                 [path2 <- (seek from in (path-append path1 narrow))])
                (return path2))
-           (seek want in narrow))]
-    [(vt:shallow from to in _)
-     (disj (if (equal? want to) (seek from in narrow) null)
            (seek want in narrow))]
     [(vt:patch at to in)
      ;; Possibilities:
