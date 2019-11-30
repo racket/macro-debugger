@@ -343,7 +343,7 @@
      #:declare maybe-exn (expr/c #'(or/c exn? #f))
      #'(let ([x maybe-exn.c])
          (if x
-             (begin (add-step (stumble v x))
+             (begin (do-add-step (stumble v x))
                     (RSfail x))
              (ke f v p s)))]))
 
@@ -419,7 +419,7 @@
   (define s1 (or state1 (current-state-with f1 fs1)))
   (define s2 (current-state-with f2 fs2))
   (when (and type (honest?))
-    (add-step (make step type s1 s2)))
+    (do-add-step (make step type s1 s2)))
   (k f2 (change-visible-term f f2 v) p s2))
 
 (define-syntax R/rename
@@ -444,7 +444,7 @@
   (define v2 (apply-renames-mapping renames-mapping v))
   (when (and description (not-complete-fiction?))
     ;; FIXME: better condition/heuristic for when to add rename step?
-    (add-step (walk v v2 description #:foci1 pre-renames #:foci2 renames)))
+    (do-add-step (walk v v2 description #:foci1 pre-renames #:foci2 renames)))
   ;; renaming preserves honesty
   (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
   (RSunit f2 v2 p s))
