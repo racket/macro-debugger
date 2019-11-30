@@ -37,7 +37,7 @@
              (lambda (f v p s)
                (values (reverse (xstate-steps xst))
                        (xstate-binders xst) (xstate-definites xst)
-                       v #f))
+                       (datum->artificial-syntax v) #f))
              (lambda (exn)
                (values (reverse (xstate-steps xst))
                        (xstate-binders xst) (xstate-definites xst)
