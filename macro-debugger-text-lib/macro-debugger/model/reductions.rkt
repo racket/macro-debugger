@@ -85,7 +85,7 @@
   ;; of expanding an armed term.
   (cond [(and (syntax? e1) (syntax-armed? e1))
          (define (rearm-frame x)
-           (syntax-property (syntax-rearm (datum->syntax #f x) e1)
+           (syntax-property (syntax-rearm (datum->artificial-syntax x) e1)
                             property:unlocked-by-expander #t))
          (cons rearm-frame (the-context))]
         [else (the-context)]))
@@ -453,7 +453,7 @@
                                 "Expression:"
                                 expr
                                 "Identifiers:"
-                                (datum->syntax #f ids))))])]
+                                (datum->artificial-syntax ids))))])]
 
     [(local-lift-end decl)
      ;; (walk/mono decl 'module-lift)

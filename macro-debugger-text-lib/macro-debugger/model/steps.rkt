@@ -1,5 +1,6 @@
 #lang racket/base
-(require racket/contract/base)
+(require racket/contract/base
+         "stx-util.rkt")
 (provide (struct-out protostep)
          (struct-out step)
          (struct-out misstep)
@@ -42,8 +43,7 @@
 
 ;; context-fill : Context Syntax -> Syntax
 (define (context-fill ctx stx)
-  (datum->syntax
-   #f
+  (datum->artificial-syntax
    (let loop ([ctx ctx] [stx stx])
      (if (null? ctx)
          stx
