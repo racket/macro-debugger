@@ -501,13 +501,9 @@
          [#:pattern ?form]
          [BindSyntaxes ?form bindrhs]]]]
     [(track-syntax operation new-stx old-stx)
-     (R)
-     #|
-     ;; Do nothing for now... need to account for marks also.
-     [R [#:set-syntax before]
+     (R [#:set-syntax old-stx]
         [#:pattern ?form]
-        [#:rename ?form after 'track-origin]]
-     |#]
+        [#:rename ?form new-stx #;operation])]
     [(local-value name ?1 resolves bound? binding)
      [R [! ?1]
         ;; FIXME: notify if binding != current (identifier-binding name)???
