@@ -436,38 +436,42 @@
       (with-pattern-match [f p] (values renames description)))
     (do-rename f v p s (quote-pattern pattern) renames-var description-var mark-flag)))
 
-(define (do-rename f v p s ren-p renames description mark-flag)
+(define (do-rename f v p s ren-p renames description mode)
   (eprintf "do-rename: ~e at ~s\n" (stx->datum renames) ren-p)
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
+  ;; renaming preserves honesty
+  (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
+  ;; ----
   (define renames-mapping (make-renames-mapping pre-renames renames))
-  (define v2 (apply-renames-mapping renames-mapping v))
+  (define v2
+    (case mode
+      [(mark)
+       (when (marking-table)
+         (add-to-renames-mapping! (marking-table) pre-renames renames))
+       v]
+      [(unmark)
+       (apply-renames-mapping
+        (compose-renames-mapping (marking-table) renames-mapping)
+        v)]
+      [else ;; normal renaming
+       (apply-renames-mapping renames-mapping v)]))
   (when (and description (not-complete-fiction?))
     ;; FIXME: better condition/heuristic for when to add rename step?
     (do-add-step (walk v v2 description #:foci1 pre-renames #:foci2 renames)))
-  ;; renaming preserves honesty
-  (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
   (RSunit f2 v2 p s))
-
-;; FIXME: restore marking-table ??? (for local-expand, maybe?)
 
 (define-syntax R/rename/mark
   (syntax-parser
-    [(_ f v p s [#:rename/mark pvar from to] ke)
-     #:declare from (expr/c #'syntaxish?)
+    [(_ f v p s [#:rename/mark pvar to] ke)
      #:declare to (expr/c #'syntaxish?)
-     #'(let ([real-from (with-pattern-match [f p] (% pvar))])
-         (STRICT-CHECKS (check-same-stx 'rename/mark f from.c))
-         (RSbind (Rename f v p s pvar to.c #f 'mark) ke))]))
+     #'(RSbind (Rename f v p s pvar to.c #f 'mark) ke)]))
 
 (define-syntax R/rename/unmark
   (syntax-parser
-    [(_ f v p s [#:rename/unmark pvar from to] ke)
-     #:declare from (expr/c #'syntaxish?)
+    [(_ f v p s [#:rename/unmark pvar to] ke)
      #:declare to (expr/c #'syntaxish?)
-     #'(let ([real-from (with-pattern-match [f p] (% pvar))])
-         (STRICT-CHECKS (check-same-stx 'rename/unmark f from.c))
-         (RSbind (Rename f v p s pvar to.c #f 'unmark) ke))]))
+     #'(RSbind (Rename f v p s pvar to.c #f 'unmark) ke)]))
 
 ;; What if honesty is all we need?
 ;; hide = (set-honesty 'F _)
@@ -586,7 +590,8 @@
             ((parameterize ((the-context (cons vctx (the-context)))
                             (honesty 'T)
                             (the-vt #f)
-                            (the-vt-mask null))
+                            (the-vt-mask null)
+                            (marking-table (or (marking-table) (make-renames-mapping null null))))
                (RScase (k f f p s)
                        (lambda (f2 v2 p2 s2)
                          ;; inside parameterize
@@ -603,7 +608,7 @@
 
 ;; ============================================================
 
-;; A RenamesMapping is (renames-mapping Stxish Stxish Hasheq[Syntax => Stxish])
+;; A RenamesMapping is (renames-mapping Hasheq[Syntax => Stxish])
 ;; It represents a *forward* mapping from pre-rename to post-rename.
 
 ;; Note: for efficiency, we'll rely on the fact that pre and post contain no
@@ -613,35 +618,90 @@
 ;; where a rename might contain the sought term; but that's a *backwards*
 ;; mapping problem.)
 
-(struct renames-mapping (pre post h) #:transparent)
+(struct renames-mapping (h) #:transparent
+  #:property prop:procedure
+  (lambda (self x) (hash-ref (renames-mapping-h self) x #f)))
 
 (define (make-renames-mapping pre post)
-  (renames-mapping pre post
-                   (let loop ([pre pre] [post post] [h '#hasheq()])
-                     (cond [(pair? pre)
-                            (loop (car pre) (stx-car post)
-                                  (loop (cdr pre) (stx-cdr post) h))]
-                           [(syntax? pre)
-                            (hash-set h pre post)]
-                           [else h]))))
+  (define rm (renames-mapping (make-hasheq)))
+  (begin (add-to-renames-mapping! rm pre post) rm))
+
+(define (add-to-renames-mapping! rm from0 to0)
+  (define table (renames-mapping-h rm))
+  (let loop ([from from0] [to to0])
+    (cond [(eqv? from to)
+           (void)]
+          [(and (syntax? from) (syntax? to))
+           (hash-set! table from to)
+           (loop (syntax-e from) (syntax-e to))]
+          [(syntax? from)
+           (hash-set! table from to)
+           (loop (syntax-e from) to)]
+          [(syntax? to)
+           (loop from (syntax-e to))]
+          [(and (pair? from) (pair? to))
+           (loop (car from) (car to))
+           (loop (cdr from) (cdr to))]
+          [(and (vector? from) (vector? to))
+           (loop (vector->list from) (vector->list to))]
+          [(and (box? from) (box? to))
+           (loop (unbox from) (unbox to))]
+          [(and (struct? from) (struct? to))
+           (loop (struct->vector from) (struct->vector to))]
+          [else (void)])))
+
+;; apply-renames-mapping : (Syntax -> Stx/#f) Stx -> Stx
+(define (apply-renames-mapping rm stx #:resyntax? [resyntax? #f])
+  (define h (renames-mapping-h rm))
+  (let loop ([stx stx])
+    (cond [(and (syntax? stx) (rm stx)) => values]
+          [(syntax? stx)
+           (let* ([inner (syntax-e stx)] ;; FIXME: disarm stx?
+                  [rinner (loop inner)])
+             (cond [(eq? rinner inner) stx]
+                   [resyntax? (resyntax rinner stx)]
+                   [else rinner]))]
+          [(pair? stx)
+           (let ([ra (apply-renames-mapping mapping (car stx))]
+                 [rb (apply-renames-mapping mapping (cdr stx))])
+             (cond [(and (eq? ra (car stx)) (eq? rb (cdr stx))) stx]
+                   [else (cons ra rb)]))]
+          [(vector? stx)
+           (define relems (for/list ([e (in-vector stx)]) (loop e)))
+           (cond [(for/and ([e (in-vector stx)] [re (in-list relems)]) (eq? e re))
+                  stx]
+                 [else (list->vector relems)])]
+          [(box? stx)
+           (let* ([inner (unbox stx)]
+                  [rinner (apply-renames-mapping mapping inner)])
+             (cond [(eq? rinner inner) stx]
+                   [else (box inner)]))]
+          [(prefab-struct-key stx)
+           (let* ([inner (struct->vector stx)]
+                  [rinner (apply-renames-mapping mapping inner)])
+             (cond [(eq? rinner inner) stx]
+                   [else (apply make-prefab-struct
+                                (prefab-struct-key stx)
+                                (cdr (vector->list rinner)))]))]
+          [else stx])))
+
+(define ((compose-renames-mappings rm1 rm2) x)
+  (cond [(rm1 x) => rm2] [else #f]))
+
+;; ============================================================
+;; Marking table
+
+(define marking-table (make-parameter #f)) ;; (Parameterof RenamesMapping/#f)
+
+;; OLD:
+;; visibility-off:
+;; - if marking-table exists, apply to subterms (for backward search?)
+;; - otherwise, set marking-table to (make-hasheq)
+;; on seek-point success:
+;; - parameterize marking-table to #f
 
 
-(define (apply-renames-mapping renmap v)
-  (define h (renames-mapping-h renmap))
-  (let loop ([v v])
-    (cond [(syntax? v)
-           (or (hash-ref h v #f)
-               (cond [(syntax-unarmed? v)
-                      (define r (loop (syntax-e v)))
-                      (cond [(eq? r (syntax-e v)) v]
-                            [else (resyntax r v v)])]
-                     [else v]))]
-          [(pair? v)
-           (define r1 (loop (car v)))
-           (define r2 (loop (cdr v)))
-           (cond [(and (eq? r1 (car v)) (eq? r2 (cdr v))) v]
-                 [else (cons r1 r2)])]
-          [else v])))
+
 
 ;; ============================================================
 
