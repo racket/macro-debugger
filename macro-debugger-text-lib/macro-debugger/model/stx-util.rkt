@@ -7,7 +7,10 @@
          syntax-armed?
          syntax-armed/tainted?
          syntax-unarmed?
-         property:unlocked-by-expander)
+         property:unlocked-by-expander
+         property:artificial
+         datum->artificial-syntax
+         syntax-artificial?)
 
 (define (stx->datum x)
   (syntax->datum (datum->syntax #f x)))
@@ -29,7 +32,7 @@
 (define (resyntax v stx [dstx (stx-disarm stx)] #:rearm? [rearm? #t])
   (unless (and (syntax? stx) (syntax? dstx))
     (error 'resyntax "not syntax: ~e, ~e" stx dstx))
-  (define stx* (datum->syntax dstx v stx stx))
+  (define stx* (mark-artificial (datum->syntax dstx v stx stx)))
   (if rearm? (syntax-rearm stx* stx) stx*))
 
 (define (restx v stx [dstx (stx-disarm stx)] #:rearm? [rearm? #t])
@@ -47,3 +50,20 @@
 
 ;; Used to communicate with syntax-browser
 (define property:unlocked-by-expander (gensym 'unlocked-by-expander))
+(define property:artificial (gensym 'artificial))
+
+(define (mark-artificial stx)
+  (syntax-property stx property:artificial #t))
+
+(define (datum->artificial-syntax x)
+  (define (loop x)
+    (cond [(pair? x) (mark-artificial (datum->syntax #f (tailloop x)))]
+          [(syntax? x) x]
+          [else (mark-artificial (datum->syntax #f x))]))
+  (define (tailloop x)
+    (cond [(pair? x) (cons (loop (car x)) (tailloop (cdr x)))]
+          [else (loop x)]))
+  (loop x))
+
+(define (syntax-artificial? stx)
+  (syntax-property stx property:artificial))
