@@ -430,16 +430,7 @@
                  (hash-set! opaque-table (syntax-e opaque) e2))]])]
 
     [(local-expansion e1 e2 for-stx? me1 inner lifted me2 opaque)
-     (R [#:let avail
-               (if for-stx?
-                   lifted
-                   (cdr (reverse (stx->list (stx-cdr lifted)))))]
-        [#:let recombine
-               (lambda (lifts form)
-                 (if for-stx?
-                     (reform-let-lifts lifted lifts form)
-                     (reform-begin-lifts lifted lifts form)))]
-        [#:parameterize ((the-phase (if for-stx? (add1 (the-phase)) (the-phase))))
+     (R [#:parameterize ((the-phase (if for-stx? (add1 (the-phase)) (the-phase))))
          [#:set-syntax e1]
          [#:pattern ?form]
          [#:rename/unmark ?form e1 me1]
@@ -454,8 +445,7 @@
 
     [(local-lift expr ids)
      ;; FIXME: add action
-     (R [#:do (take-lift!)]
-        [#:do (learn-binders ids)]
+     (R [#:do (learn-binders ids)]
         [#:do (add-step
                (walk/talk 'local-lift
                           (list "The macro lifted an expression"
@@ -802,34 +792,6 @@
         [ModulePass4 ?rest rest])]))
 
 ;; Lifts
-
-(define (take-lift!) (void))
-
-(define (reform-begin-lifts orig-lifted lifts body)
-  (define begin-kw (stx-car orig-lifted))
-  (datum->syntax orig-lifted
-                 `(,begin-kw ,@lifts ,body)
-                 orig-lifted
-                 orig-lifted))
-
-(define (reform-let-lifts orig-lifted lifts body)
-  (if (null? lifts)
-      body
-      (reform-let-lifts orig-lifted
-                        (cdr lifts)
-                        (with-syntax ([(?let-values ?lift) (car lifts)])
-                          (datum->syntax (car lifts)
-                                         ;; FIXME???
-                                         `(,#'?let-values ,#'?lift ,body)
-                                         (car lifts)
-                                         (car lifts))))))
-
-;; lift-error
-(define (lift-error sym . args)
-  (apply eprintf args)
-  (newline (current-error-port))
-  (when #f
-    (apply error sym args)))
 
 (define (expr->local-action d)
   (match d
