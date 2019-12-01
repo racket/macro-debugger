@@ -5,9 +5,11 @@
          "stx-util.rkt")
 (provide (all-defined-out))
 
+#;
 (module util racket/base
   (provide (all-defined-out))
   ;; List monad
+  ;; type (M X) = (Listof X)
   (define-syntax do
     (syntax-rules (<- =)
       [(_ ([var <- rhs] . rest) . body)
@@ -19,8 +21,31 @@
   (define return list)
   (define (bind1 c f) (for*/list ([x (in-list c)]) (f x)))
   (define (bind c f) (for*/list ([x (in-list c)] [y (in-list (f x))]) y))
+  (define (fail) null)
+  (define (to-list c) c)
   ;; Misc
   (define (stx? x) (or (syntax? x) (pair? x) (null? x))))
+
+(module util racket/base
+  (provide (all-defined-out))
+  ;; Maybe monad
+  ;; type (M X) = X | #f -- X must not overlap with #f
+  (define-syntax do
+    (syntax-rules (<- =)
+      [(_ ([var <- rhs] . rest) . body)
+       (bind rhs (lambda (var) (do rest . body)))]
+      [(_ ([(var ...) = rhs] . rest) . body)
+       (let-values ([(var ...) rhs]) (do rest . body))]
+      [(_ () . body) (let () . body)]))
+  (define-syntax-rule (disj a b) (or a b))
+  (define (return x) x)
+  (define (bind1 c f) (if c (f c) #f))
+  (define (bind c f) (if c (f c) #f))
+  (define (fail) #f)
+  (define (to-list c) (if c (list c) null))
+  ;; Misc
+  (define (stx? x) (or (syntax? x) (pair? x) (null? x))))
+
 (require 'util)
 
 ;; ----------------------------------------
@@ -34,16 +59,16 @@
 ;; stx-ref : Stx Path -> Syntaxish
 (define (stx-ref stx path) (path-get stx path))
 
-;; stx-seek : Stx Stx -> (Listof Path)
+;; stx-seek : Stx Stx -> (M Path)
 ;; FIXME: vectors, structs, etc...
 ;; FIXME: assume at most one match, avoid general disj?
 (define (stx-seek want in)
   (cond [(equal? want in) (return null)]
-        [(and (syntax? in) (syntax-armed/tainted? in)) null] ;; shortcut
+        [(and (syntax? in) (syntax-armed/tainted? in)) (fail)] ;; shortcut
         [(stx-pair? in)
          (disj (bind1 (stx-seek want (stx-car in)) path-add-car)
                (bind1 (stx-seek want (stx-cdr in)) path-add-cdr))]
-        [else null]))
+        [else (fail)]))
 
 ;; ----------------------------------------
 
@@ -99,11 +124,11 @@
 ;; The mask is removed from the prefix of each result; results that do not
 ;; extend the mask are discarded.
 (define (vt-seek want vt mask)
-  (filter list? (map (lambda (p) (path-cut-prefix mask p)) (seek want vt null))))
+  (filter list? (map (lambda (p) (path-cut-prefix mask p)) (to-list (seek want vt null)))))
 (define (vt-seek/no-cut want vt mask)
-  (filter (lambda (p) (path-prefix? mask p)) (seek want vt null)))
+  (filter (lambda (p) (path-prefix? mask p)) (to-list (seek want vt null))))
 
-;; seek : Stx VT Path -> (Listof Path)
+;; seek : Stx VT Path -> (M Path)
 ;; Find the path(s) of the NARROW subterm of WANT in VT. This function
 ;; discharges as much of the delayed narrowing as possible, then calls seek*.
 (define (seek want vt [narrow null])
@@ -111,7 +136,7 @@
     (path-get-until want narrow (lambda (x) (and (syntax? x) (syntax-armed/tainted? x)))))
   (seek* want* vt narrow*))
 
-;; seek* : Stx VT Path -> (Listof Path)
+;; seek* : Stx VT Path -> (M Path)
 ;; PRE: narrow is null or want is armed (or tainted)
 (define (seek* want vt narrow)
   (match vt
@@ -128,7 +153,7 @@
                   => (match-lambda
                        [(cons want* narrow*)
                         (seek want* in (append narrow* narrow))])]
-                 [else null])
+                 [else (fail)])
            (seek want in narrow))]
     [(vt:track from to in _)
      ;; NOTE: unreachable case, left for comparison, history, etc
@@ -141,5 +166,7 @@
      ;; - WANT is in TO
      ;; - WANT is in IN and no part of it is replaced
      ;; - WANT is in IN[AT:=TO] (but not IN) -- I think this is impossible in practice (???)
-     (disj (filter (lambda (p) (not (path-prefix? at p))) (seek want in narrow))
+     (disj (do ([p <- (seek want in narrow)]
+                [p <- (if (path-prefix? at p) (fail) (return p))])
+               (return p))
            (bind1 (seek want to narrow) (lambda (path) (path-append at path))))]))
