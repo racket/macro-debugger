@@ -444,30 +444,61 @@
   ;; renaming preserves honesty
   (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
   ;; ----
-  ;; FIXME: renames might have more structure than pre-renames! Especially if arming!
-  (define renames-mapping (make-renames-mapping pre-renames renames))
-  (define v2
-    (cond [(honest?) (pattern-replace p f ren-p renames #:resyntax? #t)]
-          [(or (eq? mode #f) (honest?)) ;; FIXME: honest? or more complicated?
-           ;; PROBLEM: v might have artificial syntax that prevents sync!
-           ;; What if we don't resyntax v, keep in sync with f?
-           (apply-renames-mapping renames-mapping v)]
+  ;; Note: renames might have more structure than pre-renames, especially if arming!
+  (define-values (v2 foci1 foci2)
+    (cond [(honest?)
+           (values (pattern-replace p f ren-p renames #:resyntax? #t)
+                   pre-renames renames)]
           [(eq? mode 'mark)
-           (when (marking-table) ;; FIXME: marking-table presence should be predictable...
-             (add-to-renames-mapping! (marking-table) pre-renames renames))
-           v]
-          [(eq? mode 'unmark)
-           (cond [(marking-table)
-                  (apply-renames-mapping
-                   (compose-renames-mappings (marking-table) renames-mapping)
-                   v)]
-                 [else v])]
-          [else (error 'do-rename "missing case!")]))
+           (values v null null)]
+          [else
+           (define-values (v2 foci1 foci2)
+             (do-rename-v v (the-vt) (the-vt-mask) (honesty) pre-renames renames))
+           (values (honesty-composite (honesty) f2 v2) foci1 foci2)]))
   (eprintf "  renamed: ~s\n" (stx-eq-diff v2 v))
-  (when (and description (not-complete-fiction?))
+  (when (and description #; (not-complete-fiction?))
     ;; FIXME: better condition/heuristic for when to add rename step?
-    (do-add-step (walk v v2 description #:foci1 pre-renames #:foci2 renames)))
+    (do-add-step (walk v v2 description #:foci1 foci1 #:foci2 foci2)))
   (RSunit f2 v2 p s))
+
+(define (honesty-composite hm f v #:resyntax? [resyntax? #t])
+  (let loop ([hm hm] [f f] [v v])
+    (match hm
+      ['T f]
+      ['F v]
+      [(cons hma hmb)
+       (define c (cons (loop hma (stx-car f) (stx-car v))
+                       (loop hmb (stx-cdr f) (stx-cdr v))))
+       (if resyntax? (resyntax c v) c)])))
+
+(define (do-rename-v v vt vt-mask hm pre post)
+  ;; fictional-subvs is a hash (set) containing all fictional subterms of v
+  (define fictional-subvs (make-hash))
+  (let loop ([hm hm] [v (stx->datum v)])
+    (match hm
+      ['F (let floop ([v v])
+            (hash-set! fictional-subvs v #t)
+            (when (pair? v) (floop (car v)) (floop (cdr v))))]
+      ['T (void)]
+      [(cons hma hmb) (loop hma (car v)) (loop hmb (cdr v))]))
+  ;; Recur through pre,post to find the largest sub-renames that apply to v.
+  ;; Use fictional-subvs to prune the search (if pre-d not in fictional-subvs, can skip).
+  (define (init-k v accren) (values v (map car accren) (map cdr accren)))
+  (let loop ([pre pre] [post post] [pre-d (stx->datum pre)] [v v] [accren null] [k init-k])
+    (define (try-rename)
+      (cond [(hash-ref fictional-subvs pre-d #f)
+             (match (vt-seek pre vt vt-mask)
+               [(cons path _)
+                (cons (path-replace v path post #:resyntax? #t)
+                      (cons (cons pre post) accren))]
+               [else #f])]
+            [else #f]))
+    (cond [(try-rename) => (match-lambda [(cons v accren) (k v accren)])]
+          [(pair? pre-d)
+           (loop (stx-car pre) (stx-car post) (car pre-d) v accren
+                 (lambda (v accren)
+                   (loop (stx-cdr pre) (stx-cdr post) (cdr pre-d) v accren k)))]
+          [else (k v accren)])))
 
 (define-syntax R/rename/mark
   (syntax-parser

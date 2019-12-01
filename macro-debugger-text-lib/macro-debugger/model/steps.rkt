@@ -72,7 +72,7 @@
     (sync             . "Sync with expander")
 
     (rename-lambda    . "Rename formal parameters")
-    (rename-letX      . "Rename formal parameters")
+    (rename-letX      . "Rename bound names")
     (rename-block     . "Introduce scope for internal definition context")
     (rename-module    . "Introduce scope for module")
     (rename-mod-shift . "Shift the self module-path-index")
