@@ -492,7 +492,7 @@
   (let loop ([pre pre] [post post] [pre-d (stx->datum pre)] [v v] [accren null] [k init-k])
     (define (try-rename)
       (cond [(hash-ref fictional-subvs pre-d #f)
-             (match (vt-seek pre vt vt-mask)
+             (match (vt-seek/no-cut pre vt vt-mask)
                [(cons path _)
                 (cons (path-replace v path post #:resyntax? #t)
                       (cons (cons pre post) accren))]
@@ -815,9 +815,13 @@
                  (define merged-hm (honesty-merge-at-path (honesty) path end-hm))
                  (DEBUG (eprintf "run/path merge old ~s and sub ~s => ~s\n" (honesty) end-hm merged-hm))
                  (honesty merged-hm)
-                 (the-vt (cond [(eq? sub-hm 'F) end-vt]
-                               [(eq? end-vt #f) (the-vt)]
-                               [else (vt-merge-at-path (or (the-vt) f) path end-vt)]))
+                 (the-vt (cond
+                           ;; Case: sub-hm < T, end-vt extends sub-vt
+                           [sub-vt end-vt]
+                           ;; Case: sub-hm = T but honesty decreased during subreduction
+                           [end-vt (vt-merge-at-path f path end-vt)]
+                           ;; Case: sub-hm = end-hm = T
+                           [else (the-vt)]))
                  (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s)))
              (lambda (exn)
                (lambda () (RSfail exn)))))))

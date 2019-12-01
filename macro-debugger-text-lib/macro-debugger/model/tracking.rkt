@@ -100,6 +100,8 @@
 ;; extend the mask are discarded.
 (define (vt-seek want vt mask)
   (filter list? (map (lambda (p) (path-cut-prefix mask p)) (seek want vt null))))
+(define (vt-seek/no-cut want vt mask)
+  (filter (lambda (p) (path-prefix? mask p)) (seek want vt null)))
 
 ;; seek : Stx VT Path -> (Listof Path)
 ;; Find the path(s) of the NARROW subterm of WANT in VT. This function
