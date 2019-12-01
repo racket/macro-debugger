@@ -778,7 +778,7 @@
                  (define merged-hm (honesty-merge-at-path (honesty) path end-hm))
                  (DEBUG (eprintf "run/path merge old ~s and sub ~s => ~s\n" (honesty) end-hm merged-hm))
                  (honesty merged-hm)
-                 (the-vt (cond [(eq? sub-hm 'F) (the-vt)]
+                 (the-vt (cond [(eq? sub-hm 'F) end-vt]
                                [(eq? end-vt #f) (the-vt)]
                                [else (vt-merge-at-path (or (the-vt) f) path end-vt)]))
                  (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s)))
