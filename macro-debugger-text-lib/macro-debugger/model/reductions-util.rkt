@@ -281,6 +281,7 @@
           '#:rename #'R/rename
           '#:rename/mark #'R/rename/mark
           '#:rename/unmark #'R/rename/unmark
+          '#:with-marking #'R/with-marking
           '#:new-local-context #'R/new-local-context
           '#:if #'R/if
           '#:when #'R/when
@@ -437,7 +438,7 @@
     (do-rename f v p s (quote-pattern pattern) renames-var description-var mark-flag)))
 
 (define (do-rename f v p s ren-p renames description mode)
-  (eprintf "do-rename: ~e at ~s\n" (stx->datum renames) ren-p)
+  (eprintf "do-rename(~s): ~e at ~s\n" (or mode description) (stx->datum renames) ren-p)
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
   ;; renaming preserves honesty
@@ -445,17 +446,20 @@
   ;; ----
   (define renames-mapping (make-renames-mapping pre-renames renames))
   (define v2
-    (case mode
-      [(mark)
-       (when (marking-table)
-         (add-to-renames-mapping! (marking-table) pre-renames renames))
-       v]
-      [(unmark)
-       (apply-renames-mapping
-        (compose-renames-mapping (marking-table) renames-mapping)
-        v)]
-      [else ;; normal renaming
-       (apply-renames-mapping renames-mapping v)]))
+    (cond [(or (eq? mode #f) (honest?)) ;; FIXME: honest? or more complicated?
+           (apply-renames-mapping renames-mapping v)]
+          [(eq? mode 'mark)
+           (when (marking-table) ;; FIXME: marking-table presence should be predictable...
+             (add-to-renames-mapping! (marking-table) pre-renames renames))
+           v]
+          [(eq? mode 'unmark)
+           (cond [(marking-table)
+                  (apply-renames-mapping
+                   (compose-renames-mappings (marking-table) renames-mapping)
+                   v)]
+                 [else v])]
+          [else (error 'do-rename "missing case!")]))
+  (eprintf "  renamed: ~s\n" (stx-eq-diff v2 v))
   (when (and description (not-complete-fiction?))
     ;; FIXME: better condition/heuristic for when to add rename step?
     (do-add-step (walk v v2 description #:foci1 pre-renames #:foci2 renames)))
@@ -472,6 +476,15 @@
     [(_ f v p s [#:rename/unmark pvar to] ke)
      #:declare to (expr/c #'syntaxish?)
      #'(RSbind (Rename f v p s pvar to.c #f 'unmark) ke)]))
+
+;; - corresponds to the dynamic extent of a syntax-local-introduce bindings
+;; - used to delay mark, to keep visible syntax unmarked
+(define-syntax-rule (R/with-marking f v p s [#:with-marking c ...] ke)
+  (RSbind (do-marking f v p s (R c ...)) ke))
+
+(define (do-marking f v p s rst)
+  (parameterize ((marking-table (if (honest?) #f (make-renames-mapping null null))))
+    (rst f v p s)))
 
 ;; What if honesty is all we need?
 ;; hide = (set-honesty 'F _)
@@ -584,8 +597,10 @@
             (k f v p s)]
            [(cons path more-paths)
             (DEBUG (eprintf "seek-check: found path ~e for ~e\n" path (stx->datum f))
-                   (unless (null? more-paths)
-                     (eprintf "seek-check: multiple paths found for ~e\n" (stx->datum f))))
+                   (let ([unique-paths (remove-duplicates (cons path more-paths))])
+                     (when (> (length unique-paths) 1)
+                       (eprintf "seek-check: multiple paths found for ~e\n paths = ~v\n"
+                                (stx->datum f) unique-paths))))
             (define vctx (path-replacer v path))
             ((parameterize ((the-context (cons vctx (the-context)))
                             (honesty 'T)
@@ -629,9 +644,7 @@
 (define (add-to-renames-mapping! rm from0 to0)
   (define table (renames-mapping-h rm))
   (let loop ([from from0] [to to0])
-    (cond [(eqv? from to)
-           (void)]
-          [(and (syntax? from) (syntax? to))
+    (cond [(and (syntax? from) (syntax? to))
            (hash-set! table from to)
            (loop (syntax-e from) (syntax-e to))]
           [(syntax? from)
@@ -648,11 +661,12 @@
            (loop (unbox from) (unbox to))]
           [(and (struct? from) (struct? to))
            (loop (struct->vector from) (struct->vector to))]
+          [(eqv? from to)
+           (void)]
           [else (void)])))
 
 ;; apply-renames-mapping : (Syntax -> Stx/#f) Stx -> Stx
 (define (apply-renames-mapping rm stx #:resyntax? [resyntax? #f])
-  (define h (renames-mapping-h rm))
   (let loop ([stx stx])
     (cond [(and (syntax? stx) (rm stx)) => values]
           [(syntax? stx)
@@ -662,8 +676,8 @@
                    [resyntax? (resyntax rinner stx)]
                    [else rinner]))]
           [(pair? stx)
-           (let ([ra (apply-renames-mapping mapping (car stx))]
-                 [rb (apply-renames-mapping mapping (cdr stx))])
+           (let ([ra (loop (car stx))]
+                 [rb (loop (cdr stx))])
              (cond [(and (eq? ra (car stx)) (eq? rb (cdr stx))) stx]
                    [else (cons ra rb)]))]
           [(vector? stx)
@@ -673,12 +687,12 @@
                  [else (list->vector relems)])]
           [(box? stx)
            (let* ([inner (unbox stx)]
-                  [rinner (apply-renames-mapping mapping inner)])
+                  [rinner (loop inner)])
              (cond [(eq? rinner inner) stx]
                    [else (box inner)]))]
           [(prefab-struct-key stx)
            (let* ([inner (struct->vector stx)]
-                  [rinner (apply-renames-mapping mapping inner)])
+                  [rinner (loop inner)])
              (cond [(eq? rinner inner) stx]
                    [else (apply make-prefab-struct
                                 (prefab-struct-key stx)
@@ -692,16 +706,6 @@
 ;; Marking table
 
 (define marking-table (make-parameter #f)) ;; (Parameterof RenamesMapping/#f)
-
-;; OLD:
-;; visibility-off:
-;; - if marking-table exists, apply to subterms (for backward search?)
-;; - otherwise, set marking-table to (make-hasheq)
-;; on seek-point success:
-;; - parameterize marking-table to #f
-
-
-
 
 ;; ============================================================
 
@@ -806,6 +810,18 @@
              (if same-form?
                  "wrong starting point (wraps)!"
                  "wrong starting point (form)!")))))
+
+(define (stx-eq-diff a b)
+  (let loop ([a a] [b b])
+    (cond [(and (stx-null? a) (stx-null? b)) '()]
+          [(equal? a b) '_]
+          [(stx-pair? a)
+           (cons (loop (stx-car a) (stx-car b))
+                 (loop (stx-cdr a) (stx-cdr b)))]
+          [else
+           (unless (equal? (stx->datum a) (stx->datum b))
+             (error 'stx-eq-diff "different shapes: ~e, ~e" a b))
+           (stx->datum a)])))
 
 (define (wrongness a b)
   (cond [(eq? a b)

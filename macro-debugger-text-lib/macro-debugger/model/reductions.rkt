@@ -72,7 +72,11 @@
            [#:rename ?form (base-de1 d) #;'disarm]]]
          [#:seek-check]
          [Expr* ?form d]]
-        [#:rename ?form e2 #;'sync]
+        [#:do (add-step
+               (walk/talk 'sync
+                          (list "About to sync with expander:"
+                                e2)))]
+        [#:rename ?form e2 'sync]
         )]
     [#f
      (R [#:seek-check]
@@ -323,12 +327,13 @@
         [#:do (learn-definites rs)]
         [#:pass1]
         [#:let old-state (current-state-with (% ?form) (list (% ?form)))]
-        [#:rename/mark ?form e1 me1] ;; MARK
-        [LocalActions ?form locals]
-        [! ?2]
-        [#:pass2]
-        [#:set-syntax me2]
-        [#:rename/unmark ?form me2 etx] ;; UNMARK
+        [#:with-marking
+         [#:rename/mark ?form me1]
+         [LocalActions ?form locals]
+         [! ?2]
+         [#:pass2]
+         [#:set-syntax me2]
+         [#:rename/unmark ?form etx]]
         [#:walk etx 'macro #:from-state old-state]
         [Expr ?form next])]
 
@@ -423,9 +428,10 @@
      (R [#:parameterize ((the-phase (if for-stx? (add1 (the-phase)) (the-phase))))
          [#:set-syntax e1]
          [#:pattern ?form]
-         [#:rename/mark ?form e1 me1]
-         [Expr ?form inner]
-         [#:rename/mark ?form me2 e2]
+         [#:rename/unmark ?form me1]
+         [#:with-marking
+          [Expr ?form inner]]
+         [#:rename/mark ?form e2]
          [#:do (when opaque
                  (hash-set! opaque-table (syntax-e opaque) e2))]])]
 
@@ -433,13 +439,14 @@
      (R [#:parameterize ((the-phase (if for-stx? (add1 (the-phase)) (the-phase))))
          [#:set-syntax e1]
          [#:pattern ?form]
-         [#:rename/unmark ?form e1 me1]
+         [#:rename/unmark ?form me1]
          [#:pass1]
-         [Expr ?form inner]
+         [#:with-marking
+          [Expr ?form inner]]
          ;; FIXME: catch lifts
          [#:pass2]
          [#:set-syntax lifted]
-         [#:rename/mark ?form me2 e2]
+         [#:rename/mark ?form e2]
          [#:do (when opaque
                  (hash-set! opaque-table (syntax-e opaque) e2))]])]
 
@@ -473,7 +480,7 @@
                                 req)))]
         [#:set-syntax expr]
         [#:pattern ?form]
-        [#:rename/mark ?form expr mexpr])]
+        [#:rename/mark ?form mexpr])]
     [(local-lift-provide prov)
      ;; lift provide
      (R [#:do (add-step
@@ -489,6 +496,7 @@
         [#:when bindrhs
          [#:set-syntax (node-z1 bindrhs)] ;; FIXME: use renames?
          [#:pattern ?form]
+         ;; FIXME: use #:with-marking?
          [BindSyntaxes ?form bindrhs]]]]
     [(track-syntax operation new-stx old-stx)
      (R [#:set-syntax old-stx]

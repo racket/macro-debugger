@@ -69,6 +69,8 @@
 (define step-type-meanings
   '((macro            . "Macro transformation")
 
+    (sync             . "Sync with expander")
+
     (rename-lambda    . "Rename formal parameters")
     (rename-letX      . "Rename formal parameters")
     (rename-block     . "Introduce scope for internal definition context")
