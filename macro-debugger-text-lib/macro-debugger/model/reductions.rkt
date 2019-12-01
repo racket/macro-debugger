@@ -72,6 +72,7 @@
            [#:rename ?form (base-de1 d) #;'disarm]]]
          [#:seek-check]
          [Expr* ?form d]]
+        #;
         [#:do (add-step
                (walk/talk 'sync
                           (list "About to sync with expander:"
