@@ -444,9 +444,13 @@
   ;; renaming preserves honesty
   (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
   ;; ----
+  ;; FIXME: renames might have more structure than pre-renames! Especially if arming!
   (define renames-mapping (make-renames-mapping pre-renames renames))
   (define v2
-    (cond [(or (eq? mode #f) (honest?)) ;; FIXME: honest? or more complicated?
+    (cond [(honest?) (pattern-replace p f ren-p renames #:resyntax? #t)]
+          [(or (eq? mode #f) (honest?)) ;; FIXME: honest? or more complicated?
+           ;; PROBLEM: v might have artificial syntax that prevents sync!
+           ;; What if we don't resyntax v, keep in sync with f?
            (apply-renames-mapping renames-mapping v)]
           [(eq? mode 'mark)
            (when (marking-table) ;; FIXME: marking-table presence should be predictable...
@@ -638,20 +642,17 @@
   (lambda (self x) (hash-ref (renames-mapping-h self) x #f)))
 
 (define (make-renames-mapping pre post)
-  (define rm (renames-mapping (make-hasheq)))
+  (define rm (renames-mapping (make-hash)))
   (begin (add-to-renames-mapping! rm pre post) rm))
 
 (define (add-to-renames-mapping! rm from0 to0)
   (define table (renames-mapping-h rm))
+  (define (stx-e x) (if (syntax? x) (syntax-e x) x))
   (let loop ([from from0] [to to0])
-    (cond [(and (syntax? from) (syntax? to))
+    ;; Some "renames" (sync) add structure---ie, map Stxish -> Syntax
+    (cond [(or (syntax? from) (syntax? to))
            (hash-set! table from to)
-           (loop (syntax-e from) (syntax-e to))]
-          [(syntax? from)
-           (hash-set! table from to)
-           (loop (syntax-e from) to)]
-          [(syntax? to)
-           (loop from (syntax-e to))]
+           (loop (stx-e from) (stx-e to))]
           [(and (pair? from) (pair? to))
            (loop (car from) (car to))
            (loop (cdr from) (cdr to))]
@@ -668,7 +669,7 @@
 ;; apply-renames-mapping : (Syntax -> Stx/#f) Stx -> Stx
 (define (apply-renames-mapping rm stx #:resyntax? [resyntax? #f])
   (let loop ([stx stx])
-    (cond [(and (syntax? stx) (rm stx)) => values]
+    (cond [(rm stx) => values]
           [(syntax? stx)
            (let* ([inner (syntax-e stx)] ;; FIXME: disarm stx?
                   [rinner (loop inner)])
