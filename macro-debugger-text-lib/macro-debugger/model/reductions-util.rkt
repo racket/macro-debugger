@@ -450,13 +450,18 @@
            (values (pattern-replace p f ren-p renames #:resyntax? #t)
                    pre-renames renames)]
           [(eq? mode 'mark)
+           ;; FIXME: if honesty = (T . F), then what about mark visibility?
+           ;; FIXME: if mode is mark or unmark, should honesty be strictly 'T or 'F ??
            (values v null null)]
           [else
            (define-values (v2 foci1 foci2)
              (do-rename-v v (the-vt) (the-vt-mask) (honesty) pre-renames renames))
-           (values (honesty-composite (honesty) f2 v2) foci1 foci2)]))
+           (values (honesty-composite (honesty) f2 v2)
+                   ;; Must include pre-renames,renames for true part (FIXME: need narrowing?)
+                   (cons foci1 pre-renames) (cons foci2 renames))]))
   (eprintf "  renamed: ~s\n" (stx-eq-diff v2 v))
-  (when (and description #; (not-complete-fiction?))
+  (when (and (not (memq description '(#f sync)))
+             (not-complete-fiction?))
     ;; FIXME: better condition/heuristic for when to add rename step?
     (do-add-step (walk v v2 description #:foci1 foci1 #:foci2 foci2)))
   (RSunit f2 v2 p s))
@@ -469,7 +474,7 @@
       [(cons hma hmb)
        (define c (cons (loop hma (stx-car f) (stx-car v))
                        (loop hmb (stx-cdr f) (stx-cdr v))))
-       (if resyntax? (resyntax c v) c)])))
+       (if resyntax? (restx c v) c)])))
 
 (define (do-rename-v v vt vt-mask hm pre post)
   ;; fictional-subvs is a hash (set) containing all fictional subterms of v
