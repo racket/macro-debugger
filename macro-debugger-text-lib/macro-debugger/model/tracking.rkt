@@ -1,5 +1,6 @@
 #lang racket/base
 (require racket/match
+         racket/struct
          racket/list
          syntax/stx
          "context.rkt"
@@ -72,7 +73,7 @@
 
 (define (vt? x) (or (vt:base? x) (vt:track? x) (vt:patch? x)))
 
-(require racket/struct)
+
 ;; A VT is one of
 ;; - (vt:base Stx Hash)             -- the term itself
 ;; - (vt:track Stx Stx VT Hash)     -- scope/arm/etc FROM, producing TO, within IN
