@@ -63,16 +63,22 @@
   (match/count d
     [(deriv e1 e2)
      (R [#:pattern ?form]
-        [#:do (DEBUG (eprintf ">> ~.s\n" (stx->datum e1)))]
-        [#:do (STRICT-CHECKS (check-same-stx 'Expr e1 (list d)))]
+        [#:do (DEBUG (eprintf "\n>> ~.s\n" (stx->datum e1)))]
+        [#:do (unless (eq? (% ?form) e1)
+                (eprintf "MISMATCH: not eq\n  actual = ~.s\n  expect = ~.s\n"
+                         (stx->datum (% ?form)) (stx->datum e1))
+                (eprintf "  deriv = ~e\n" d))]
+        [#:when (not (eq? (% ?form) e1))
+         [#:rename ?form e1 'sync]] ;; FIXME, neither sync nor #:set-syntax
         [#:parameterize ((the-context (add-rearm-frame e1 (the-context))))
          [#:when (base? d)
           [#:do (learn-definites (or (base-resolves d) null))]
           [#:when (base-de1 d)
            [#:rename ?form (base-de1 d) #;'disarm]]]
          [#:seek-check]
-         [Expr* ?form d]]
-        [#:rename ?form e2 'sync])]
+         => (Expr* d)]
+        [#:when (not (eq? (% ?form) e2))
+         [#:rename ?form e2 'sync]])]
     [#f
      (R [#:seek-check]
         => (Expr* d))]))
@@ -309,7 +315,8 @@
         [#:let old-state (current-state-with (% ?form) (list (% ?form)))]
         [#:with-marking
          [#:rename/mark ?form me1]
-         [LocalActions ?form locals]
+         [#:when (pair? locals)
+          [LocalActions ?form locals]]
          [! ?2]
          [#:set-syntax me2]
          [#:rename/unmark ?form etx]]
