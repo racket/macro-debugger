@@ -110,7 +110,6 @@
         [PrepareEnv ?form prep]
         [#:pattern (?module ?name ?language . ?body-parts)]
         [#:rename ?body-parts rename 'rename-module]
-        [#:pass1]
         [#:when check
          [#:pattern (?module ?name ?language ?body)]
          [Expr ?body check]]
@@ -121,7 +120,6 @@
         [#:pattern (?module ?name ?language ?body)]
         [#:when check2
          [Expr ?body check2]]
-        [#:pass2]
         [! ?3]
         [Expr ?body body]
         [#:pattern ?form]
@@ -131,14 +129,10 @@
         [#:pattern ?form]
         [#:rename ?form me 'rename-modbeg]
         [#:pattern (?module-begin . ?forms)]
-        [#:pass1]
         [ModPass1And2 ?forms pass12]
         [! ?2]
-        [#:pass2]
-        [#:pass1]
         [ModulePass3 ?forms pass3]
         [! ?3]
-        [#:pass2]
         [ModulePass4 ?forms pass4])]
     [(p:define-syntaxes e1 e2 rs de1 ?1 prep rhs locals)
      (R [! ?1]
@@ -161,10 +155,8 @@
     [(p:#%expression e1 e2 rs de1 ?1 inner untag)
      (R [! ?1]
         [#:pattern (?expr-kw ?inner)]
-        [#:pass1]
         [Expr ?inner inner]
         ;; FIXME: untag
-        [#:pass2]
         [#:when untag
          [#:rename ?inner untag 'track-origin]
          [#:pattern ?form]
@@ -223,7 +215,6 @@
      (R [! ?1]
         [#:pattern ?form]
         [PrepareEnv ?form prep]
-        [#:pass1]
         [#:pattern (?lsv ([?svars ?srhs] ...) ([?vvars ?vrhs] ...) . ?body)]
         [#:rename (((?svars ?srhs) ...) ((?vvars ?vrhs) ...) . ?body)
                    srenames
@@ -232,7 +223,6 @@
         [BindSyntaxes (?srhs ...) srhss]
         [Expr (?vrhs ...) vrhss]
         [Block ?body body]
-        [#:pass2]
         [#:pattern ?form]
         [#:walk e2 'lsv-remove-syntax])]
     [(p:#%datum e1 e2 rs de1 ?1)
@@ -252,11 +242,9 @@
      (let ([wrapped-inners (map expr->local-action inners)])
        (R [! ?1]
           [#:pattern ?form]
-          [#:pass1]
           [#:let old-form (% ?form)]
           [LocalActions ?form wrapped-inners]
           [! ?2]
-          [#:pass2]
           [#:walk e2 'provide #:from old-form]
           ))]
 
@@ -267,10 +255,8 @@
 
     [(p:#%stratified-body e1 e2 rs de1 ?1 bderiv)
      (R [! ?1]
-        [#:pass1]
         [#:pattern (?sb . ?body)]
         [Block ?body bderiv]
-        [#:pass2]
         [#:hide-check rs]
         [#:pattern ?form]
         [#:walk e2 'macro])]
@@ -326,13 +312,11 @@
         [#:pattern ?form]
         [#:hide-check rs]
         [#:do (learn-definites rs)]
-        [#:pass1]
         [#:let old-state (current-state-with (% ?form) (list (% ?form)))]
         [#:with-marking
          [#:rename/mark ?form me1]
          [LocalActions ?form locals]
          [! ?2]
-         [#:pass2]
          [#:set-syntax me2]
          [#:rename/unmark ?form etx]]
         [#:walk etx 'macro #:from-state old-state]
@@ -354,10 +338,8 @@
 
     [(ecte e1 e2 locals first second locals2)
      (R [#:pattern ?form]
-        [#:pass1]
         [LocalActions ?form locals]
         [Expr ?form first]
-        [#:pass2]
         [Expr ?form second]
         [LocalActions ?form locals2])]
 
@@ -365,17 +347,13 @@
 
     [(lift-deriv e1 e2 first lifted-stx second)
      (R [#:pattern ?form]
-        [#:pass1]
         [Expr ?form first]
-        [#:pass2]
         [#:walk lifted-stx 'capture-lifts]
         [Expr ?form second])]
 
     [(lift/let-deriv e1 e2 first lifted-stx second)
      (R [#:pattern ?form]
-        [#:pass1]
         [Expr ?form first]
-        [#:pass2]
         [#:walk lifted-stx 'capture-lifts]
         [Expr ?form second])]
 
@@ -441,11 +419,9 @@
          [#:set-syntax e1]
          [#:pattern ?form]
          [#:rename/unmark ?form me1]
-         [#:pass1]
          [#:with-marking
           [Expr ?form inner]]
          ;; FIXME: catch lifts
-         [#:pass2]
          [#:set-syntax lifted]
          [#:rename/mark ?form e2]
          [#:do (when opaque
@@ -541,13 +517,9 @@
     [(bderiv es1 es2 renames pass1 pass2)
      (R [#:pattern ?block]
         [#:rename ?block (cdr renames) 'rename-block]
-        [#:pass1]
         [BlockPass ?block pass1]
-        [#:pass2]
         [#:if (block:letrec? pass2)
-              ([#:pass1]
-               [BlockLetrec ?block pass2]
-               [#:pass2]
+              ([BlockLetrec ?block pass2]
                [#:walk es2 'finish-letrec])
               ([#:rename ?block (wlderiv-es1 pass2)]
                [List ?block pass2])])]
@@ -579,12 +551,10 @@
     [(cons (b:splice head da ?1 tail ?2) rest)
      (R [#:pattern ?forms]
         [#:pattern (?first . ?rest)]
-        [#:pass1]
         [Expr ?first head]
         [#:when da
          [#:rename ?first da #;'disarm]]
         [! ?1]
-        [#:pass2]
         [#:let begin-form (% ?first)]
         [#:let rest-forms (% ?rest)]
         [#:pattern ?forms]
@@ -599,7 +569,6 @@
 
     [(cons (b:defvals head da ?1 rename ?2) rest)
      (R [#:pattern (?first . ?rest)]
-        [#:pass1]
         [Expr ?first head]
         [! ?1]
         [#:when da
@@ -608,12 +577,10 @@
         [#:rename (?vars . ?body) rename]
         [#:do (learn-binders (% ?vars))]
         [! ?2]
-        [#:pass2]
         [#:pattern (?first . ?rest)]
         [BlockPass ?rest rest])]
     [(cons (b:defstx head da ?1 rename ?2 prep bindrhs) rest)
      (R [#:pattern (?first . ?rest)]
-        [#:pass1]
         [Expr ?first head]
         [! ?1]
         [#:when da
@@ -622,7 +589,6 @@
         [#:rename (?vars . ?body) rename]
         [#:do (learn-binders (% ?vars))]
         [! ?2]
-        [#:pass2]
         [#:pattern ?form]
         [PrepareEnv ?form prep]
         [#:pattern ((?define-syntaxes ?vars ?rhs) . ?rest)]
@@ -651,9 +617,7 @@
         [List ?forms lderiv])]
     [(cons (bfs:lift lderiv stxs) rest)
      (R [#:pattern ?forms]
-        [#:pass1]
         [List ?forms lderiv]
-        [#:pass2]
         ;; FIXME...
         [#:walk (append stxs (% ?forms)) 'splice-lifts
          #:foci stxs #:from-foci null]
@@ -662,10 +626,8 @@
 (define (ModPass1And2 pass12)
   (match/count pass12
     [(mod:pass-1-and-2 pass1 pass2)
-     (R [#:pass1]
-        [#:pattern ?forms]
+     (R [#:pattern ?forms]
         [ModulePass1 ?forms pass1]
-        [#:pass2]
         [ModulePass2 ?forms pass2])]))
 
 ;; Synthetic fine-grained pass1 steps
@@ -759,10 +721,8 @@
               ,(modp2:skip)
               ,@rest)])
        (R [#:pattern (?first . ?rest)]
-          [#:pass1]
           [Expr ?first deriv]
           [LocalActions ?first locals]
-          [#:pass2]
           [#:pattern ?forms]
           [#:walk (append lifted-reqs lifted-mods lifted-defs (stx->list (% ?forms))) 'splice-lifts
            #:foci (append lifted-reqs lifted-mods lifted-defs) #:from-foci null]
