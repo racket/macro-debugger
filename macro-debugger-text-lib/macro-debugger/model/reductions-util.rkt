@@ -827,7 +827,7 @@
                            ;; Case: sub-hm < T, end-vt extends sub-vt
                            [sub-vt end-vt]
                            ;; Case: sub-hm = T but honesty decreased during subreduction
-                           [end-vt (vt-merge-at-path f path end-vt)]
+                           [end-vt (vt-merge-at-path (or (the-vt) f) path end-vt)]
                            ;; Case: sub-hm = end-hm = T
                            [else (the-vt)]))
                  (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s)))
