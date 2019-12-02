@@ -73,7 +73,7 @@
 ;; Invariant: (honesty) = 'T  iff  (the-vt) = #f
 (define (set-honesty hm f)
   (DEBUG (unless (eq? (honesty) hm) (eprintf "set-honesty : ~s => ~s\n" (honesty) hm)))
-  (when (eq? (honesty) 'T) (the-vt f))
+  (when (eq? (honesty) 'T) (the-vt (vt-base f)))
   (honesty hm))
 
 ;; honest? : -> Boolean
@@ -482,9 +482,8 @@
 
 (define (do-rename-v v vt vt-mask hm pre post)
   (DEBUG
-   (eprintf " do-rename-v, mask=~s, vt = \n" vt-mask)
-   (pretty-print vt)
-   (eprintf "\n"))
+   (eprintf " do-rename-v, mask=~s, vt depth = ~s\n" vt-mask (vt-depth vt))
+   #;(begin (eprintf "   vt = " vt-mask) (pretty-print vt) (eprintf "\n")))
   ;; fictional-subvs is a hash (set) containing all fictional subterms of v
   (define fictional-subvs (make-hash))
   (let loop ([hm hm] [v (stx->datum v)])
@@ -499,7 +498,8 @@
   (define (init-k v accren) (values v (map car accren) (map cdr accren)))
   (let loop ([pre pre] [post post] [pre-d (stx->datum pre)] [v v] [accren null] [k init-k])
     (define (try-rename)
-      (cond [(hash-ref fictional-subvs pre-d #f)
+      (cond [(null? pre) #f] ;; FIXME: generalize
+            [(hash-ref fictional-subvs pre-d #f)
              (match (vt-seek/no-cut pre vt vt-mask)
                [(cons path _)
                 (DEBUG

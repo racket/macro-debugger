@@ -70,11 +70,17 @@
 
 ;; ----------------------------------------
 
+(define (vt? x) (or (vt:base? x) (vt:track? x) (vt:patch? x)))
+
 (require racket/struct)
 ;; A VT is one of
-;; - Stx                            -- the term itself
+;; - (vt:base Stx Hash)             -- the term itself
 ;; - (vt:track Stx Stx VT Hash)     -- scope/arm/etc FROM, producing TO, within IN
 ;; - (vt:patch Path VT VT)          -- replace subterm at AT with TO, within IN
+(struct vt:base (stx h) #;#:prefab
+  #:property prop:custom-write
+  (make-constructor-style-printer (lambda (self) 'vt:base)
+                                  (match-lambda [(vt:base stx _) (list stx)])))
 (struct vt:track (from to in h) #;#:prefab
   #:property prop:custom-write
   (make-constructor-style-printer (lambda (self) 'vt:track)
@@ -122,11 +128,27 @@
           [else (void)]))
   (begin (loop to from null) h))
 
-;; vt-merge-at-path : VT Path VT -> VT
+;; vt-base : Stx -> Vt
+(define (vt-base stx)
+  (define h (make-hash))
+  (let loop ([stx stx] [acc null])
+    (cond [(syntax? stx)
+           (hash-set! h stx (reverse acc))
+           (unless (syntax-armed/tainted? stx)
+             (loop (syntax-e stx) acc))]
+          [(pair? stx)
+           (hash-set! h stx (reverse acc)) ;; FIXME: store pairs too?
+           (loop (car stx) (path-add-car acc))
+           (loop (cdr stx) (path-add-cdr acc))]
+          [else (void)]))
+  (vt:base stx h))
+
+;; vt-merge-at-path : Stx/VT Path VT -> VT
 (define (vt-merge-at-path vt path sub-vt)
-  (if (equal? path null)
-      sub-vt
-      (vt:patch path sub-vt vt)))
+  (let ([sub-vt (if (stx? sub-vt) (vt-base sub-vt) sub-vt)])
+    (cond [(equal? path null) sub-vt]
+          [else (let ([vt (if (stx? vt) (vt-base vt) vt)])
+                  (vt:patch path sub-vt vt))])))
 
 ;; ----------------------------------------
 
@@ -158,13 +180,14 @@
 (define (seek* ss vt)
   (define unique-ss (remove-duplicates ss))
   (match vt
-    [(? stx? stx)
+    [(vt:base _ h)
      #;(eprintf "  ---- seek* on stx, ~s seekings, ~s unique\n" (length ss) (length unique-ss))
      ;; I think narrow could be non-empty here, if stx already had armed terms
      ;; and vt only tracked their disarming. (FIXME: test)
-     (do ([(seeking want narrow) <- unique-ss]
-          [path1 <- (stx-seek want stx)])
-         (return (path-append path1 narrow)))]
+     (do ([(seeking want narrow) <- unique-ss])
+         (cond [(hash-ref h want #f)
+                => (lambda (path) (return (path-append path narrow)))]
+               [else (fail)]))]
     [(vt:track from to in (? hash? h))
      ;; Possibilities:
      ;; - WANT is in TO (and corresponding subterm of FROM is in IN)
