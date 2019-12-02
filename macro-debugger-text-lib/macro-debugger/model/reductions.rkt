@@ -554,7 +554,7 @@
         [#:pattern ?forms]
         [#:walk (append (stx->list (stx-cdr begin-form)) rest-forms) 'splice-block
          #:foci (stx->list (stx-cdr begin-form)) #:from-foci (list begin-form)]
-        ;; [#:rename ?forms tail]
+        [#:rename ?forms tail #;'track-origin]
         [! ?2]
         [#:pattern ?forms]
         [BlockPass ?forms rest])]
@@ -672,8 +672,9 @@
         [#:let begin-form (% ?first)]
         [#:let rest-forms (% ?rest)]
         [#:pattern ?forms]
-        [#:walk tail 'splice-module
+        [#:walk (append (stx->list (stx-cdr begin-form)) (stx->list rest-forms)) 'splice-module
          #:foci (stx->list (stx-cdr begin-form)) #:from-foci (list begin-form)]
+        [#:rename ?forms tail #;'track-origin]
         [ModulePass1 ?forms rest])]
     [(cons (modp1*:case (? prule? prim)) rest)
      (R [#:pattern (?firstP . ?rest)]
