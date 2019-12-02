@@ -441,9 +441,10 @@
 (define (do-rename f v p s ren-p renames description mode)
   (DEBUG
    (eprintf "do-rename(~s): ~.s at ~s\n" (or mode description) (stx->datum renames) ren-p)
-   (eprintf " v = ~.s\n" v))
+   (eprintf "  v = ~.s\n" v))
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
+  #;(DEBUG (eprintf "  renamed: f-diff = ~s / ~s\n" (stx-eq-diff f f2) (stx-eq-diff f2 f)))
   ;; renaming preserves honesty
   (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
   ;; ----
