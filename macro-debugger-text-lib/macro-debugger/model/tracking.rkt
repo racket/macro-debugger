@@ -120,7 +120,9 @@
 
 ;; vt-merge-at-path : VT Path VT -> VT
 (define (vt-merge-at-path vt path sub-vt)
-  (vt:patch path sub-vt vt))
+  (if (equal? path null)
+      sub-vt
+      (vt:patch path sub-vt vt)))
 
 ;; ----------------------------------------
 
