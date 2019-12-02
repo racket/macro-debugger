@@ -72,11 +72,15 @@
 
 ;; ----------------------------------------
 
+(require racket/struct)
 ;; A VT is one of
 ;; - Stx                            -- the term itself
 ;; - (vt:track Stx Stx VT Hash)     -- scope/arm/etc FROM, producing TO, within IN
 ;; - (vt:patch Path VT VT)          -- replace subterm at AT with TO, within IN
-(struct vt:track (from to in h) #:prefab)
+(struct vt:track (from to in h) #;#:prefab
+  #:property prop:custom-write
+  (make-constructor-style-printer (lambda (self) 'vt:track)
+                                  (match-lambda [(vt:track from to in _) (list from to in)])))
 (struct vt:patch (at to in) #:prefab)
 
 ;; If vt ends in [e1->e2], and we want to search for e, then the naive approach
