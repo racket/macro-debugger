@@ -529,7 +529,12 @@
                 (if or-part or-part 'b)))))])
   ;; FIXME: hidden steps for above, tricky
 
-  (test "module with define-struct"
+  (test "module (base) with define-struct"
+        (module m racket/base
+          (#%plain-module-begin
+           (define-struct P (x y))
+           (P? (make-P P-x P-y)))))
+  (test "module (mz) with define-struct"
         (module m mzscheme
           (define-struct P (x y))
           (P? (make-P P-x P-y))))
