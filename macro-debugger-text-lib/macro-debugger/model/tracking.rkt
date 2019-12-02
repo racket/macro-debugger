@@ -152,6 +152,23 @@
 
 ;; ----------------------------------------
 
+;; vt->stx : VT Path -> Stx
+(define (vt->stx vt mask)
+  (let loop ([vt vt] [mask mask])
+    (match vt
+      [(vt:base stx _)
+       (path-get stx mask)]
+      [(vt:track _ _ in _)
+       (loop in mask)]
+      [(vt:patch at to in)
+       (cond [(path-cut-prefix at mask)
+              => (lambda (mask*) (loop to mask*))]
+             [else
+              (define full (path-replace (loop in null) at (loop to null) #:resyntax? #f))
+              (path-get full mask)])])))
+
+;; ----------------------------------------
+
 ;; vt-seek : Stx VT Path -> (Listof Path)
 ;; The mask is removed from the prefix of each result; results that do not
 ;; extend the mask are discarded.
