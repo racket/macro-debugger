@@ -72,13 +72,7 @@
            [#:rename ?form (base-de1 d) #;'disarm]]]
          [#:seek-check]
          [Expr* ?form d]]
-        #;
-        [#:do (add-step
-               (walk/talk 'sync
-                          (list "About to sync with expander:"
-                                e2)))]
-        [#:rename ?form e2 'sync]
-        )]
+        [#:rename ?form e2 'sync])]
     [#f
      (R [#:seek-check]
         => (Expr* d))]))
