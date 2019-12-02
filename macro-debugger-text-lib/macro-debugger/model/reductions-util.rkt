@@ -327,7 +327,7 @@
          (c.macro f v p s c (R . more)))]))
 
 (define (trim-quoted-clause c)
-  (match c [(cons (and kw (or '#:parameterize #:when #:if #:with-marking)) _) `(,kw _)] [_ c]))
+  (match c [(cons (and kw (or '#:parameterize #:when #:if #:with-marking #:do)) _) `(,kw _)] [_ c]))
 
 ;; A R/<Clause> macro has the form
 ;;   (R/<Clause> f v p s <Clause> kexpr)
@@ -441,7 +441,7 @@
 (define (do-rename f v p s ren-p renames description mode)
   (DEBUG
    (eprintf "do-rename(~s): ~.s at ~s\n" (or mode description) (stx->datum renames) ren-p)
-   (eprintf "  v = ~.s\n" v))
+   (eprintf "  v = ~.s\n" (stx->datum v)))
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
   #;(DEBUG (eprintf "  renamed: f-diff = ~s / ~s\n" (stx-eq-diff f f2) (stx-eq-diff f2 f)))
@@ -484,6 +484,7 @@
 (define (do-rename-v v vt vt-mask hm pre post)
   (DEBUG
    (eprintf " do-rename-v, mask=~s, vt depth = ~s\n" vt-mask (vt-depth vt))
+   (eprintf "  vt-stx = ~.s\n" (stx->datum (vt->stx vt vt-mask)))
    #;(begin (eprintf "   vt = " vt-mask) (pretty-print vt) (eprintf "\n")))
   ;; fictional-subvs is a hash (set) containing all fictional subterms of v
   (define fictional-subvs (make-hash))
@@ -501,11 +502,18 @@
     (define (try-rename)
       (cond [(null? pre) #f] ;; FIXME: generalize
             [(hash-ref fictional-subvs pre-d #f)
-             (match (vt-seek/no-cut pre vt vt-mask)
+             (match (vt-seek pre vt vt-mask)
                [(cons path _)
                 (DEBUG
-                 (eprintf "  found at ~s, pre = ~.s, actually = ~.s\n"
-                          path (stx->datum pre) (stx->datum (path-get v path)))
+                 (eprintf "  found at ~s, pre = ~.s\n" path (stx->datum pre))
+                 (with-handlers ([exn?
+                                  (lambda (e)
+                                    (eprintf "** vt-mask = ~s, vt = \n" vt-mask)
+                                    (parameterize ((pretty-print-columns 160))
+                                      (pretty-print vt))
+                                    (eprintf "\n")
+                                    (raise e))])
+                   (eprintf "    actually = ~.s\n" (stx->datum (path-get v path))))
                  (eprintf "  do-rename-v : replace at ~s : ~.s => ~.s\n"
                           path (stx->datum v) (stx->datum (path-replace v path post))))
                 (cons (path-replace v path post #:resyntax? #t)
@@ -828,17 +836,25 @@
                (lambda ()
                  ;; outside of parameterize
                  (define merged-hm (honesty-merge-at-path (honesty) path end-hm))
-                 (DEBUG (eprintf "run/path merge old ~s and sub ~s => ~s\n" (honesty) end-hm merged-hm)
-                        (eprintf "  v => ~.s\n" (vctx v2)))
+                 (DEBUG
+                  (eprintf "\n<< run/path merge old ~s and sub ~s => ~s\n"
+                           (honesty) end-hm merged-hm)
+                  (eprintf "  v => ~.s\n" (stx->datum (vctx v2))))
                  (honesty merged-hm)
                  (the-vt (cond
                            ;; Case: sub-hm < T, end-vt extends sub-vt
                            [sub-vt end-vt]
                            ;; Case: sub-hm = T but honesty decreased during subreduction
-                           [end-vt (vt-merge-at-path (or (the-vt) f) path end-vt)]
+                           [end-vt
+                            (if (the-vt)
+                                (vt-merge-at-path (the-vt) (append (the-vt-mask) path) end-vt)
+                                (vt-merge-at-path f path end-vt))]
                            ;; Case: sub-hm = end-hm = T
                            [else (the-vt)]))
-                 (DEBUG (eprintf "  vt => ~e\n" (the-vt)))
+                 (DEBUG
+                  (eprintf "  vt => ~e\n" (the-vt))
+                  (when (the-vt)
+                    (eprintf "  vt-stx => ~.s\n" (stx->datum (vt->stx (the-vt) (the-vt-mask))))))
                  (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s)))
              (lambda (exn)
                (lambda () (RSfail exn)))))))
