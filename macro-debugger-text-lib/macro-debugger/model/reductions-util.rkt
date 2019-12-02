@@ -321,7 +321,8 @@
          (DEBUG
           (let ([cstx (quote-syntax c)])
             (define where (format "[~s:~s]" (syntax-line cstx) (syntax-column cstx)))
-            (eprintf "doing ~a ~e, honesty = ~s\n" where (trim-quoted-clause (quote c)) (honesty))))
+            (eprintf "doing ~a ~e, honesty = ~s, v = ~.s\n"
+                     where (trim-quoted-clause (quote c)) (honesty) (stx->datum v))))
          (c.macro f v p s c (R . more)))]))
 
 (define (trim-quoted-clause c)
@@ -439,6 +440,7 @@
 
 (define (do-rename f v p s ren-p renames description mode)
   (eprintf "do-rename(~s): ~e at ~s\n" (or mode description) (stx->datum renames) ren-p)
+  (eprintf " v = ~.s\n" v)
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
   ;; renaming preserves honesty
@@ -459,7 +461,7 @@
            (values (honesty-composite (honesty) f2 v2)
                    ;; Must include pre-renames,renames for true part (FIXME: need narrowing?)
                    (cons foci1 pre-renames) (cons foci2 renames))]))
-  (eprintf "  renamed: ~s\n" (stx-eq-diff v2 v))
+  (eprintf "  renamed: ~s : ~.s \n" (stx-eq-diff v2 v) (stx->datum v2))
   (when (and (not (memq description '(#f sync)))
              (not-complete-fiction?))
     ;; FIXME: better condition/heuristic for when to add rename step?
@@ -467,6 +469,7 @@
   (RSunit f2 v2 p s))
 
 (define (honesty-composite hm f v #:resyntax? [resyntax? #t])
+  (eprintf "honesty-composite: ~s\n f = ~.s\n v = ~.s\n" hm f v)
   (let loop ([hm hm] [f f] [v v])
     (match hm
       ['T f]
@@ -494,6 +497,10 @@
       (cond [(hash-ref fictional-subvs pre-d #f)
              (match (vt-seek/no-cut pre vt vt-mask)
                [(cons path _)
+                (eprintf "  found at ~s, pre = ~.s, actually = ~.s\n"
+                         path (stx->datum pre) (stx->datum (path-get v path)))
+                (eprintf "  do-rename-v : replace at ~s : ~.s => ~.s\n"
+                         path (stx->datum v) (stx->datum (path-replace v path post)))
                 (cons (path-replace v path post #:resyntax? #t)
                       (cons (cons pre post) accren))]
                [else #f])]
@@ -813,7 +820,8 @@
                (lambda ()
                  ;; outside of parameterize
                  (define merged-hm (honesty-merge-at-path (honesty) path end-hm))
-                 (DEBUG (eprintf "run/path merge old ~s and sub ~s => ~s\n" (honesty) end-hm merged-hm))
+                 (DEBUG (eprintf "run/path merge old ~s and sub ~s => ~s\n" (honesty) end-hm merged-hm)
+                        (eprintf "  v => ~.s\n" (vctx v2)))
                  (honesty merged-hm)
                  (the-vt (cond
                            ;; Case: sub-hm < T, end-vt extends sub-vt
