@@ -249,7 +249,7 @@
   (PrimModule
    #:args (e1 e2 rs)
    [(?ExpandModule)
-    ($1 e2 e2 rs)])
+    ($1 e1 e2 rs)])
 
   (ExpandModule
    #:args (e1 e2 rs)
