@@ -6,6 +6,7 @@
          racket/list
          syntax/stx
          racket/match
+         racket/pretty
          "deriv-util.rkt"
          "stx-util.rkt"
          "pattern.rkt"
@@ -321,12 +322,12 @@
          (DEBUG
           (let ([cstx (quote-syntax c)])
             (define where (format "[~s:~s]" (syntax-line cstx) (syntax-column cstx)))
-            (eprintf "doing ~a ~e, honesty = ~s, v = ~.s\n"
+            (eprintf "doing ~a ~.s, honesty = ~s, v = ~.s\n"
                      where (trim-quoted-clause (quote c)) (honesty) (stx->datum v))))
          (c.macro f v p s c (R . more)))]))
 
 (define (trim-quoted-clause c)
-  (match c [(cons (and kw (or '#:parameterize #:when #:if)) _) `(,kw _)] [_ c]))
+  (match c [(cons (and kw (or '#:parameterize #:when #:if #:with-marking)) _) `(,kw _)] [_ c]))
 
 ;; A R/<Clause> macro has the form
 ;;   (R/<Clause> f v p s <Clause> kexpr)
@@ -408,7 +409,6 @@
   (syntax-parser
     [(_ f v p s w:walk-clause ke)
      #'(let ()
-         ;; (eprintf "\nWALK\n v = ~e\n\n" (stx->datum v))
          (define-values (state1 f1 f2 type)
            (with-pattern-match [f p]
              (values (~? w.state1.c #f) (~? w.form1.c v) w.form2.c w.type)))
@@ -439,8 +439,9 @@
     (do-rename f v p s (quote-pattern pattern) renames-var description-var mark-flag)))
 
 (define (do-rename f v p s ren-p renames description mode)
-  (eprintf "do-rename(~s): ~e at ~s\n" (or mode description) (stx->datum renames) ren-p)
-  (eprintf " v = ~.s\n" v)
+  (DEBUG
+   (eprintf "do-rename(~s): ~.s at ~s\n" (or mode description) (stx->datum renames) ren-p)
+   (eprintf " v = ~.s\n" v))
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
   ;; renaming preserves honesty
@@ -461,7 +462,7 @@
            (values (honesty-composite (honesty) f2 v2)
                    ;; Must include pre-renames,renames for true part (FIXME: need narrowing?)
                    (cons foci1 pre-renames) (cons foci2 renames))]))
-  (eprintf "  renamed: ~s : ~.s \n" (stx-eq-diff v2 v) (stx->datum v2))
+  (DEBUG (eprintf "  renamed: diff=~s, v2 = ~.s \n" (stx-eq-diff v2 v) (stx->datum v2)))
   (when (and (not (memq description '(#f sync)))
              (not-complete-fiction?))
     ;; FIXME: better condition/heuristic for when to add rename step?
@@ -469,7 +470,7 @@
   (RSunit f2 v2 p s))
 
 (define (honesty-composite hm f v #:resyntax? [resyntax? #t])
-  (eprintf "honesty-composite: ~s\n f = ~.s\n v = ~.s\n" hm f v)
+  (DEBUG (eprintf "honesty-composite: ~s\n f = ~.s\n v = ~.s\n" hm f v))
   (let loop ([hm hm] [f f] [v v])
     (match hm
       ['T f]
@@ -480,6 +481,10 @@
        (if resyntax? (restx c v) c)])))
 
 (define (do-rename-v v vt vt-mask hm pre post)
+  (DEBUG
+   (eprintf " do-rename-v, mask=~s, vt = \n" vt-mask)
+   (pretty-print vt)
+   (eprintf "\n"))
   ;; fictional-subvs is a hash (set) containing all fictional subterms of v
   (define fictional-subvs (make-hash))
   (let loop ([hm hm] [v (stx->datum v)])
@@ -497,10 +502,11 @@
       (cond [(hash-ref fictional-subvs pre-d #f)
              (match (vt-seek/no-cut pre vt vt-mask)
                [(cons path _)
-                (eprintf "  found at ~s, pre = ~.s, actually = ~.s\n"
-                         path (stx->datum pre) (stx->datum (path-get v path)))
-                (eprintf "  do-rename-v : replace at ~s : ~.s => ~.s\n"
-                         path (stx->datum v) (stx->datum (path-replace v path post)))
+                (DEBUG
+                 (eprintf "  found at ~s, pre = ~.s, actually = ~.s\n"
+                          path (stx->datum pre) (stx->datum (path-get v path)))
+                 (eprintf "  do-rename-v : replace at ~s : ~.s => ~.s\n"
+                          path (stx->datum v) (stx->datum (path-replace v path post))))
                 (cons (path-replace v path post #:resyntax? #t)
                       (cons (cons pre post) accren))]
                [else #f])]
@@ -624,7 +630,7 @@
 (define (do-hide-check f v p s ids k)
   (unless (or (eq? (honesty) 'F) (andmap (macro-policy) ids))
     (DEBUG
-     (eprintf "hide-check: hiding with f=~e, v=~e\n" (stx->datum f) (stx->datum v)))
+     (eprintf "hide-check: hiding with f=~.s, v=~.s\n" (stx->datum f) (stx->datum v)))
     ;; FIXME: marking-table ???
     ;; FIXME: set-honesty needs to rebuild table if honesty strictly *decreases*
     (set-honesty 'F f))
@@ -638,15 +644,16 @@
         [else
          (match (vt-seek f (the-vt) (the-vt-mask))
            ['()
-            (DEBUG (eprintf "seek-check: no paths found for ~e\n" (stx->datum f))
+            (DEBUG (eprintf "seek-check: no paths found for ~.s\n" (stx->datum f))
                    #;(eprintf "  the-vt = ~v\n" (the-vt))
                    #;(eprintf "  the-vt-mask = ~v\n" (the-vt-mask)))
             (k f v p s)]
            [(cons path more-paths)
-            (DEBUG (eprintf "seek-check: found path ~e for ~e\n" path (stx->datum f))
+            (DEBUG (eprintf "seek-check: found path ~s for ~.s within ~.s\n"
+                            path (stx->datum f) (stx->datum v))
                    (let ([unique-paths (remove-duplicates (cons path more-paths))])
                      (when (> (length unique-paths) 1)
-                       (eprintf "seek-check: multiple paths found for ~e\n paths = ~v\n"
+                       (eprintf "seek-check: multiple paths found for ~.s\n paths = ~v\n"
                                 (stx->datum f) unique-paths))))
             (define vctx (path-replacer v path))
             ((parameterize ((the-context (cons vctx (the-context)))
@@ -788,7 +795,7 @@
   (define fctx (path-replacer f path))
   (define sub-f (path-get f path))
   (define sub-hm (honesty-at-path (honesty) path))
-  (DEBUG (eprintf "run/path: honesty ~e at path ~s => ~e\n" (honesty) path sub-hm))
+  (DEBUG (eprintf "run/path: honesty ~s at path ~s => ~s\n" (honesty) path sub-hm))
   (define-values (vctx sub-v sub-vt sub-vt-mask)
     (cond [(eq? sub-hm 'F)
            ;; path might be out of bounds for v => can't take vctx => sub-v is meaningless
@@ -807,7 +814,7 @@
            (define sub-vt (if (eq? sub-hm 'T) #f (the-vt)))
            (define sub-vt-mask (if sub-vt (append (the-vt-mask) path) null))
            (values vctx sub-v sub-vt sub-vt-mask)]))
-  (DEBUG (eprintf "run/path: run ~s on f=~e; v=~e\n" reducer (stx->datum sub-f) (stx->datum sub-v)))
+  (DEBUG (eprintf "run/path: run ~s on f=~.s; v=~.s\n" reducer (stx->datum sub-f) (stx->datum sub-v)))
   ((parameterize ((the-context (cons vctx (the-context)))
                   (honesty sub-hm)
                   (the-vt sub-vt)
@@ -830,6 +837,7 @@
                            [end-vt (vt-merge-at-path (or (the-vt) f) path end-vt)]
                            ;; Case: sub-hm = end-hm = T
                            [else (the-vt)]))
+                 (DEBUG (eprintf "  vt => ~e\n" (the-vt)))
                  (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s)))
              (lambda (exn)
                (lambda () (RSfail exn)))))))
@@ -869,7 +877,7 @@
                  (loop (stx-cdr a) (stx-cdr b)))]
           [else
            (unless (equal? (stx->datum a) (stx->datum b))
-             (error 'stx-eq-diff "different shapes: ~e, ~e" a b))
+             (error 'stx-eq-diff "different shapes: ~.s, ~.s" a b))
            (stx->datum a)])))
 
 (define (wrongness a b)
