@@ -1,52 +1,50 @@
 #lang racket/base
 (require racket/match
+         racket/list
          syntax/stx
          "context.rkt"
          "stx-util.rkt")
 (provide (all-defined-out))
 
-#;
-(module util racket/base
+(module base racket/base
   (provide (all-defined-out))
   ;; List monad
   ;; type (M X) = (Listof X)
-  (define-syntax do
-    (syntax-rules (<- =)
-      [(_ ([var <- rhs] . rest) . body)
-       (bind rhs (lambda (var) (do rest . body)))]
-      [(_ ([(var ...) = rhs] . rest) . body)
-       (let-values ([(var ...) rhs]) (do rest . body))]
-      [(_ () . body) (let () . body)]))
   (define (disj a b) (if (null? b) a (append a b)))
   (define return list)
   (define (bind1 c f) (for*/list ([x (in-list c)]) (f x)))
   (define (bind c f) (for*/list ([x (in-list c)] [y (in-list (f x))]) y))
   (define (fail) null)
-  (define (to-list c) c)
-  ;; Misc
-  (define (stx? x) (or (syntax? x) (pair? x) (null? x))))
+  (define (to-list c) c))
 
-(module util racket/base
+#; ;; FIXME: this probably won't work with the new code structure...
+(module base racket/base
   (provide (all-defined-out))
   ;; Maybe monad
   ;; type (M X) = X | #f -- X must not overlap with #f
-  (define-syntax do
-    (syntax-rules (<- =)
-      [(_ ([var <- rhs] . rest) . body)
-       (bind rhs (lambda (var) (do rest . body)))]
-      [(_ ([(var ...) = rhs] . rest) . body)
-       (let-values ([(var ...) rhs]) (do rest . body))]
-      [(_ () . body) (let () . body)]))
   (define-syntax-rule (disj a b) (or a b))
   (define (return x) x)
   (define (bind1 c f) (if c (f c) #f))
   (define (bind c f) (if c (f c) #f))
   (define (fail) #f)
-  (define (to-list c) (if c (list c) null))
+  (define (to-list c) (if c (list c) null)))
+
+(module util racket/base
+  (require racket/match)
+  (require (submod ".." base))
+  (provide (all-defined-out))
+  ;; Monad syntax
+  (define-syntax do
+    (syntax-rules (<- =)
+      [(_ ([p <- rhs] . rest) . body)
+       (bind rhs (match-lambda [p (do rest . body)]))]
+      [(_ ([p = rhs] . rest) . body)
+       (match rhs [p (do rest . body)])]
+      [(_ () . body) (let () . body)]))
   ;; Misc
   (define (stx? x) (or (syntax? x) (pair? x) (null? x))))
 
-(require 'util)
+(require 'base 'util)
 
 ;; ----------------------------------------
 
@@ -82,6 +80,12 @@
   (make-constructor-style-printer (lambda (self) 'vt:track)
                                   (match-lambda [(vt:track from to in _) (list from to in)])))
 (struct vt:patch (at to in) #:prefab)
+
+(define (vt-depth vt)
+  (match vt
+    [(vt:track _ _ in _) (add1 (vt-depth in))]
+    [(vt:patch p to in) (add1 (max (vt-depth to) (vt-depth in)))]
+    [else 1]))
 
 ;; If vt ends in [e1->e2], and we want to search for e, then the naive approach
 ;; is to search for e in e2, fetch the corresponding (ie, same path) subterm of
@@ -130,49 +134,66 @@
 ;; The mask is removed from the prefix of each result; results that do not
 ;; extend the mask are discarded.
 (define (vt-seek want vt mask)
-  (filter list? (map (lambda (p) (path-cut-prefix mask p)) (to-list (seek want vt null)))))
+  (filter list? (map (lambda (p) (path-cut-prefix mask p)) (to-list (seek1 want vt null)))))
 (define (vt-seek/no-cut want vt mask)
-  (filter (lambda (p) (path-prefix? mask p)) (to-list (seek want vt null))))
+  (filter (lambda (p) (path-prefix? mask p)) (to-list (seek1 want vt null))))
 
-;; seek : Stx VT Path -> (M Path)
-;; Find the path(s) of the NARROW subterm of WANT in VT. This function
-;; discharges as much of the delayed narrowing as possible, then calls seek*.
-(define (seek want vt [narrow null])
+;; A Seeking is (seeking Stx Path) -- represents an intermediate search point.
+(struct seeking (want narrow) #:prefab)
+
+;; make-seeking : Stx Path -> Seeking
+;; Discharges as much of the delayed narrowing as possible, then wraps in seeking.
+(define (make-seeking want narrow)
   (define-values (want* narrow*)
     (path-get-until want narrow (lambda (x) (and (syntax? x) (syntax-armed/tainted? x)))))
-  (seek* want* vt narrow*))
+  (seeking want* narrow*))
+
+;; seek1 : Stx VT Path -> (M Path)
+;; Find the path(s) of the NARROW subterm of WANT in VT. , then calls seek*.
+(define (seek1 want vt [narrow null])
+  (seek* (list (make-seeking want narrow)) vt))
 
 ;; seek* : Stx VT Path -> (M Path)
 ;; PRE: narrow is null or want is armed (or tainted)
-(define (seek* want vt narrow)
+(define (seek* ss vt)
+  (define unique-ss (remove-duplicates ss))
   (match vt
     [(? stx? stx)
+     #;(eprintf "  ---- seek* on stx, ~s seekings, ~s unique\n" (length ss) (length unique-ss))
      ;; I think narrow could be non-empty here, if stx already had armed terms
      ;; and vt only tracked their disarming. (FIXME: test)
-     (do ([path1 <- (stx-seek want stx)])
+     (do ([(seeking want narrow) <- unique-ss]
+          [path1 <- (stx-seek want stx)])
          (return (path-append path1 narrow)))]
     [(vt:track from to in (? hash? h))
      ;; Possibilities:
      ;; - WANT is in TO (and corresponding subterm of FROM is in IN)
      ;; - WANT is in IN -- FIXME: add strict replacement flag?
-     (disj (cond [(hash-ref h want #f)
-                  => (match-lambda
-                       [(cons want* narrow*)
-                        (seek want* in (append narrow* narrow))])]
-                 [else (fail)])
-           (seek want in narrow))]
+     (define next-ss
+       (disj (do ([(seeking want narrow) <- unique-ss])
+                 (cond [(hash-ref h want #f)
+                        => (match-lambda
+                             [(cons want* narrow*)
+                              (return (make-seeking want* (append narrow* narrow)))])]
+                       [else (fail)]))
+             unique-ss))
+     (seek* next-ss in)]
     [(vt:track from to in _)
      ;; NOTE: unreachable case, left for comparison, history, etc
-     (disj (do ([path1 <- (seek want to)]
-                [path2 <- (seek from in (path-append path1 narrow))])
-               (return path2))
-           (seek want in narrow))]
+     ;; FIXME: untested...
+     (define next-ss
+       (disj (do ([(seeking want narrow) <- unique-ss]
+                  [path1 <- (seek1 want to narrow)])
+                 (return (make-seeking from (path-append path1 narrow))))
+             unique-ss))
+     (seek* next-ss in)]
     [(vt:patch at to in)
      ;; Possibilities:
      ;; - WANT is in TO
      ;; - WANT is in IN and no part of it is replaced
      ;; - WANT is in IN[AT:=TO] (but not IN) -- I think this is impossible in practice (???)
-     (disj (do ([p <- (seek want in narrow)]
-                [p <- (if (path-prefix? at p) (fail) (return p))])
-               (return p))
-           (bind1 (seek want to narrow) (lambda (path) (path-append at path))))]))
+     ;;   or at least, we won't act on it unless that subterm has T honesty
+     (disj (do ([p <- (seek* unique-ss in)])
+               (if (path-prefix? at p) (fail) (return p)))
+           (do ([p <- (seek* unique-ss to)])
+               (return (path-append at p))))]))
