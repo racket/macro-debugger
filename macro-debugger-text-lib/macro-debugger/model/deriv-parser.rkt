@@ -254,23 +254,21 @@
   (ExpandModule
    #:args (e1 e2 rs)
    [(prim-module ! ?PrepareEnv rename-one ?EnsureModuleBegin next ?EE rename-one)
-    (match $5
-      [(list check1 ?2 tag2 check2 ?3)
-       (make p:module e1 e2 rs $1 $2 $3 $4 check1 ?2 tag2 check2 ?3 $7 $8)])])
+    (make p:module e1 e2 rs $1 $2 $3 $4 $5 $7 $8)])
 
   (EnsureModuleBegin
-   #:skipped '(#f #f #f #f #f)
-   [()
-    (cons #f '(#f #f #f #f))]
-   [(?EE)
-    (cons $1 '(#f #f #f #f))]
-   [(EE ?AddModuleBegin)
-    (cons $1 $2)]
-   [(?AddModuleBegin)
-    (cons #f $1)])
+   [(track-syntax)
+    (mod:ensure-mb #f #f  #f  $1)]
+   [(track-syntax ?EE track-syntax)
+    (mod:ensure-mb $1 $2  #f  $3)]
+   [(track-syntax EE ?AddModuleBegin track-syntax)
+    (mod:ensure-mb $1 $2 $3 $4)]
+   [(?AddModuleBegin track-syntax)
+    (mod:ensure-mb #f #f $1 $2)])
+
   (AddModuleBegin
-   [(! tag ?EE !)
-    (list $1 $2 $3 $4)])
+   [(! tag track-syntax ?EE !)
+    (mod:add-mb $1 $2 $3 $4 $5)])
 
   ;; --------------------
 

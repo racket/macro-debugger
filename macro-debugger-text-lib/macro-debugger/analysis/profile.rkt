@@ -217,8 +217,12 @@
        (void)]
       [(p:variable z1 z2 rs de1 ?1)
        (void)]
-      [(p:module z1 z2 rs de1 ?1 prep rename check1 ?2 tag2 check2 ?3 body shift)
-       (recur prep check1 check2 body)]
+      [(p:module z1 z2 rs de1 ?1 prep rename ensure-mb body shift)
+       (recur prep ensure-mb body)]
+      [(mod:ensure-mb track1 check add-mb track2)
+       (recur check add-mb)]
+      [(mod:add-mb ?1 tag track check ?2)
+       (recur check)]
       [(p:#%module-begin z1 z2 rs de1 ?1 me pass12 ?2 pass3 ?3 pass4)
        (recur pass12 pass3 pass4)]
       [(p:define-syntaxes z1 z2 rs de1 ?1 prep rhs locals)

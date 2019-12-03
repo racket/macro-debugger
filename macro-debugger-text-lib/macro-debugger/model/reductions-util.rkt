@@ -18,7 +18,7 @@
          DEBUG)
 
 (define-syntax-rule (STRICT-CHECKS form ...)
-  (when #f form ... (void)))
+  (when #t form ... (void)))
 
 (define-syntax-rule (DEBUG form ...)
   (when #f form ... (void)))

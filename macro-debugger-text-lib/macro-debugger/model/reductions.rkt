@@ -101,24 +101,15 @@
         [#:when (or (not (identifier? e1))
                     (not (bound-identifier=? e1 e2)))
                 [#:walk e2 'resolve-variable]])]
-    [(p:module e1 e2 rs de1 ?1 prep rename check ?2 tag2 check2 ?3 body shift)
+    [(p:module e1 e2 rs de1 ?1 prep rename ensure-mb body shift)
      (R [#:hide-check rs]
         [! ?1]
         [#:pattern ?form]
         [PrepareEnv ?form prep]
-        [#:pattern (?module ?name ?language . ?body-parts)]
-        [#:rename ?body-parts rename 'rename-module]
-        [#:when check
-         [#:pattern (?module ?name ?language ?body)]
-         [Expr ?body check]]
-        [! ?2]
-        [#:when tag2
-         [#:in-hole ?body-parts
-          [#:walk (list tag2) 'tag-module-begin]]]
-        [#:pattern (?module ?name ?language ?body)]
-        [#:when check2
-         [Expr ?body check2]]
-        [! ?3]
+        [#:pattern (?module ?name ?lang . ?bodys)]
+        [#:rename ?bodys rename 'rename-module]
+        => (ModEnsureMB ensure-mb)
+        [#:pattern (?module ?name ?lang ?body)]
         [Expr ?body body]
         [#:pattern ?form]
         [#:rename ?form shift 'rename-mod-shift])]
@@ -518,7 +509,7 @@
         [#:do (STRICT-CHECKS
                (unless (equal? (% ?block) (stx->list es1))
                  (eprintf "MISMATCH (BLOCK): not equal\n  actual = ~.s\n  deriv  = ~.s\n"
-                          (values (% ?form)) (values es1))))]
+                          (values (% ?block)) (values es1))))]
         [#:rename ?block (car renames) 'rename-block]
         [BlockPass ?block pass1]
         [#:if (block:letrec? pass2)
@@ -611,6 +602,30 @@
      (R [#:pattern ?form]
         [Expr/PhaseUp ?form rhs]
         [LocalActions ?form locals])]))
+
+;; ModEnsureMB : (U ModEnsureMB ModAddMB) -> RST
+(define (ModEnsureMB emb)
+  (match emb
+    [(mod:ensure-mb track1 check add-mb track2)
+     (R [#:pattern (?module ?name ?lang . ?bodys)]
+        [#:when track1
+         [#:pattern (?module ?name ?lang ?body)]
+         [#:rename ?body (cadr track1) #;'property]
+         [#:when check
+          [Expr ?body check]]]
+        => (ModEnsureMB add-mb)
+        [#:pattern (?module ?name ?lang ?body)]
+        [#:rename ?body (cadr track2) #;'property])]
+    [(mod:add-mb ?1 tag track check ?2)
+     (R [#:pattern (?module ?name ?lang . ?bodys)]
+        [! ?1]
+        [#:in-hole ?bodys
+         [#:walk (list tag) 'tag-module-begin]]
+        [#:pattern (?module ?name ?lang ?body)]
+        [#:rename ?body (cadr track) #;'property]
+        [Expr ?body check]
+        [! ?2])]
+    [#f (R)]))
 
 (define (BeginForSyntax passes)
   ;; Note: an lderiv doesn't necessarily cover all stxs, due to lifting.

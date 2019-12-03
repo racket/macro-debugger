@@ -84,8 +84,8 @@
 ;; - p:variable is (p:variable <Base>)
 (struct p:variable prule () #:transparent)
 
-;; - (p:module <Base> PrepareEnv Stx Deriv ?Exn Stx Deriv ?Exn Deriv Stx)
-(struct p:module prule (prep rename check1 ?2 tag2 check2 ?3 body shift) #:transparent)
+;; - (p:module <Base> PrepareEnv Stx ModEnsureMB Deriv Stx)
+(struct p:module prule (prep rename ensure-mb body shift) #:transparent)
 
 ;; - (p:#%module-begin <Base> Stx ModPass1And2 ?Exn ModPass3 ?Exn ModPass4)
 (struct p:#%module-begin prule (me pass12 ?2 pass3 ?3 pass4) #:transparent)
@@ -202,6 +202,12 @@
 
 ;; ============================================================
 ;; Modules
+
+;; A ModEnsureMB is (mod:ensure-mb Track/#f Deriv/#f ModAddMB Track)
+;; A ModAddMB is (mod:add-mb ?Exn Stx Track Deriv ?Exn)
+;; where Track = (list* 'property Stx Stx)
+(struct mod:ensure-mb (track1 check add-mb track2) #:transparent)
+(struct mod:add-mb (?1 tag track check ?2) #:transparent)
 
 ;; A ModuleBegin/Phase is (module-begin/phase ModulePass1 ModulePass2 ModulePass3)
 ;;X (struct module-begin/phase (pass1 pass2 pass3) #:transparent)
