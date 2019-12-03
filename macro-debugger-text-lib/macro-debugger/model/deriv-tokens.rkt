@@ -81,7 +81,7 @@
    rename-list          ; (listof syntax)
    lambda-renames       ; (list* Syntax Syntaxes)   -- (list* renamed-formals renamed-body)
    letX-renames         ; (list* Syntaxes Syntaxes Syntaxes Syntaxes Syntaxes)
-   block-renames        ; (list* Syntaxes Syntaxes) -- (list* init-stxs renamed-stxs)
+   block-renames        ; (list* Syntaxes Syntaxes) -- (list* renamed-stxs orig-stxs)
 
    top-begin            ; identifier
 

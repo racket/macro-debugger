@@ -180,7 +180,7 @@
 (struct lderiv node (?1 derivs) #:transparent)
 
 ;; A BDeriv is (bderiv Stxs Stxs BlockRenames BRules (U LDeriv BlockLetrec))
-;; where BlockRenames = (list* Stxs Stxs) -- (list* init-stxs renamed-stxs)
+;; where BlockRenames = (list* Stxs Stxs) -- (list* renamed-stxs orig-stxs)
 (struct bderiv node (renames pass1 pass2) #:transparent)
 
 ;; A BlockLetrec is (block:letrec Stx Derivs LDeriv)

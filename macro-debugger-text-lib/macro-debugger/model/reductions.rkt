@@ -63,8 +63,8 @@
         [#:do (DEBUG (eprintf "\n>> ~.s\n" (stx->datum e1)))]
         [#:do (STRICT-CHECKS
                (when (and e1 (not (eq? (% ?form) e1)))
-                 (eprintf "MISMATCH: not eq\n  actual = ~.s\n  expect = ~.s\n"
-                          (stx->datum (% ?form)) (stx->datum e1))
+                 (eprintf "MISMATCH: not eq\n  actual = ~.s\n  deriv  = ~.s\n"
+                          (values #;stx->datum (% ?form)) (values #;stx->datum e1))
                  (eprintf "  deriv = ~e\n" d)))]
         [#:when (and e1 (not (eq? (% ?form) e1)))
          [#:rename ?form e1 'sync]] ;; FIXME, neither sync nor #:set-syntax
@@ -515,7 +515,11 @@
   (match/count bd
     [(bderiv es1 es2 renames pass1 pass2)
      (R [#:pattern ?block]
-        [#:rename ?block (cdr renames) 'rename-block]
+        [#:do (STRICT-CHECKS
+               (unless (equal? (% ?block) (stx->list es1))
+                 (eprintf "MISMATCH (BLOCK): not equal\n  actual = ~.s\n  deriv  = ~.s\n"
+                          (values (% ?form)) (values es1))))]
+        [#:rename ?block (car renames) 'rename-block]
         [BlockPass ?block pass1]
         [#:if (block:letrec? pass2)
               ([BlockLetrec ?block pass2]
