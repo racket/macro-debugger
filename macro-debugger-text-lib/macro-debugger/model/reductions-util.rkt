@@ -55,7 +55,6 @@
 (define the-big-context (make-parameter null))
 
 (define the-vt (make-parameter #f))         ;; (Parameterof VT)
-(define the-vt-mask (make-parameter null))  ;; (Parameterof Path)
 (define honesty (make-parameter 'T))        ;; (Parameterof HonestyMask)
 
 (define (call-with-initial-context proc #:xstate xst)
@@ -64,7 +63,6 @@
                  (the-context null)
                  (the-big-context null)
                  (the-vt #f)
-                 (the-vt-mask null)
                  (honesty 'T))
     (proc)))
 
@@ -459,7 +457,7 @@
            (values v null null)]
           [else
            (define-values (v2 foci1 foci2)
-             (do-rename-v v (the-vt) (the-vt-mask) (honesty) pre-renames renames))
+             (do-rename-v v (the-vt) (honesty) pre-renames renames))
            (values (honesty-composite (honesty) f2 v2)
                    ;; Must include pre-renames,renames for true part (FIXME: need narrowing?)
                    (cons foci1 pre-renames) (cons foci2 renames))]))
@@ -481,11 +479,10 @@
                        (loop hmb (stx-cdr f) (stx-cdr v))))
        (if resyntax? (restx c v) c)])))
 
-(define (do-rename-v v vt vt-mask hm pre post)
+(define (do-rename-v v vt hm pre post)
   (DEBUG
-   (eprintf " do-rename-v, mask=~s, vt depth = ~s\n" vt-mask (vt-depth vt))
-   (eprintf "  vt-stx = ~.s\n" (stx->datum (vt->stx vt vt-mask)))
-   #;(begin (eprintf "   vt = " vt-mask) (pretty-print vt) (eprintf "\n")))
+   (eprintf " do-rename-v, vt depth = ~s\n" (vt-depth vt))
+   (eprintf "  vt-stx = ~.s\n" (stx->datum (vt->stx vt))))
   ;; fictional-subvs is a hash (set) containing all fictional subterms of v
   (define fictional-subvs (make-hash))
   (let loop ([hm hm] [v (stx->datum v)])
@@ -502,13 +499,13 @@
     (define (try-rename)
       (cond [(null? pre) #f] ;; FIXME: generalize
             [(hash-ref fictional-subvs pre-d #f)
-             (match (vt-seek pre vt vt-mask)
+             (match (vt-seek pre vt)
                [(cons path _)
                 (DEBUG
                  (eprintf "  found at ~s, pre = ~.s\n" path (stx->datum pre))
                  (with-handlers ([exn?
                                   (lambda (e)
-                                    (eprintf "** vt-mask = ~s, vt = \n" vt-mask)
+                                    (eprintf "** vt = \n")
                                     (parameterize ((pretty-print-columns 160))
                                       (pretty-print vt))
                                     (eprintf "\n")
@@ -651,11 +648,10 @@
 (define (do-seek-check f v p s k)
   (cond [(honest?) (k f v p s)]
         [else
-         (match (vt-seek f (the-vt) (the-vt-mask))
+         (match (vt-seek f (the-vt))
            ['()
             (DEBUG (eprintf "seek-check: no paths found for ~.s\n" (stx->datum f))
-                   #;(eprintf "  the-vt = ~v\n" (the-vt))
-                   #;(eprintf "  the-vt-mask = ~v\n" (the-vt-mask)))
+                   #;(eprintf "  the-vt = ~v\n" (the-vt)))
             (k f v p s)]
            [(cons path more-paths)
             (DEBUG (eprintf "seek-check: found path ~s for ~.s within ~.s\n"
@@ -668,7 +664,6 @@
             ((parameterize ((the-context (cons vctx (the-context)))
                             (honesty 'T)
                             (the-vt #f)
-                            (the-vt-mask null)
                             (marking-table (or (marking-table) (make-renames-mapping null null))))
                (RScase (k f f p s)
                        (lambda (f2 v2 p2 s2)
@@ -805,7 +800,7 @@
   (define sub-f (path-get f path))
   (define sub-hm (honesty-at-path (honesty) path))
   (DEBUG (eprintf "run/path: honesty ~s at path ~s => ~s\n" (honesty) path sub-hm))
-  (define-values (vctx sub-v sub-vt sub-vt-mask)
+  (define-values (vctx sub-v sub-vt)
     (cond [(eq? sub-hm 'F)
            ;; path might be out of bounds for v => can't take vctx => sub-v is meaningless
            ;; probably not much point in narrowing VT (and nontrivial to do right)
@@ -814,20 +809,17 @@
            (define (identity-vctx x) x)
            (define sub-v v)
            (define sub-vt (the-vt))
-           (define sub-vt-mask (the-vt-mask))
-           (values identity-vctx sub-v sub-vt sub-vt-mask)]
+           (values identity-vctx sub-v sub-vt)]
           [else
            ;; can take vctx, but must also take narrowed VT (when sub-hm != 'T)
            (define vctx (path-replacer v path))
            (define sub-v (path-get v path))
-           (define sub-vt (if (eq? sub-hm 'T) #f (the-vt)))
-           (define sub-vt-mask (if sub-vt (append (the-vt-mask) path) null))
-           (values vctx sub-v sub-vt sub-vt-mask)]))
+           (define sub-vt (if (eq? sub-hm 'T) #f (vt-zoom (the-vt) path)))
+           (values vctx sub-v sub-vt)]))
   (DEBUG (eprintf "run/path: run ~s on f=~.s; v=~.s\n" reducer (stx->datum sub-f) (stx->datum sub-v)))
   ((parameterize ((the-context (cons vctx (the-context)))
                   (honesty sub-hm)
-                  (the-vt sub-vt)
-                  (the-vt-mask sub-vt-mask))
+                  (the-vt sub-vt))
      (RScase ((reducer fill) sub-f sub-v (quote-pattern _) s)
              (lambda (f2 v2 _p2 _s2)
                ;; inside parameterize
@@ -842,19 +834,23 @@
                   (eprintf "  v => ~.s\n" (stx->datum (vctx v2))))
                  (honesty merged-hm)
                  (the-vt (cond
-                           ;; Case: sub-hm < T, end-vt extends sub-vt
-                           [sub-vt end-vt]
-                           ;; Case: sub-hm = T but honesty decreased during subreduction
+                           ;; Case: sub-hm = F
+                           ;; - then sub-vt was not zoomed, end-vt extends sub-vt, return as is
+                           [(eq? sub-hm 'F) end-vt]
+                           ;; Case: sub-hm > F and sub-vt != #f
+                           ;; - then sub-vt was zoomed, end-vt extends it, so unzoom end-vt
+                           [sub-vt (vt-unzoom end-vt path)]
+                           ;; Case: sub-hm = T and end-vt != #f -- honesty decreased during reducer
                            [end-vt
                             (if (the-vt)
-                                (vt-merge-at-path (the-vt) (append (the-vt-mask) path) end-vt)
+                                (vt-merge-at-path (the-vt) path end-vt)
                                 (vt-merge-at-path f path end-vt))]
                            ;; Case: sub-hm = end-hm = T
                            [else (the-vt)]))
                  (DEBUG
                   (eprintf "  vt => ~e\n" (the-vt))
                   (when (the-vt)
-                    (eprintf "  vt-stx => ~.s\n" (stx->datum (vt->stx (the-vt) (the-vt-mask))))))
+                    (eprintf "  vt-stx => ~.s\n" (stx->datum (vt->stx (the-vt))))))
                  (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s)))
              (lambda (exn)
                (lambda () (RSfail exn)))))))

@@ -71,8 +71,23 @@
 
 ;; ----------------------------------------
 
-(define (vt? x) (or (vt:base? x) (vt:track? x) (vt:patch? x)))
+;; An WVT is one of
+;; - VT
+;; - (vt:zoom (NEListof Path) VT)       -- represents zoomed-in VT
+(struct vt:zoom (paths vt) #:prefab)
 
+(define (vt-zoom wvt path)
+  (match wvt
+    [(vt:zoom ps vt) (vt:zoom (cons path ps) vt)]
+    [vt (vt:zoom (list path) vt)]))
+
+(define (vt-unzoom wvt p)
+  (match wvt
+    [(vt:zoom (cons (== p) ps) vt)
+     (if (null? ps) vt (vt:zoom ps vt))]
+    [_ (error 'vt-unzoom "failed: ~e, ~e" p wvt)]))
+
+;; ----------------------------------------
 
 ;; A VT is one of
 ;; - (vt:base Stx Hash)             -- the term itself
@@ -105,8 +120,12 @@
 
 ;; vt-track : Stx Stx VT [Any] -> VT
 (define (vt-track from to in [type #f])
+  (define (do-track in)
+    (vt:track from to in (make-track-hash from to)))
   (cond [(eq? from to) in]
-        [else (vt:track from to in (make-track-hash from to))]))
+        [else (match in
+                [(vt:zoom ps in) (vt:zoom ps (do-track in))]
+                [in (do-track in)])]))
 
 ;; hash maps Syntax => (cons Stx Path)
 (define (make-track-hash from to)
@@ -129,7 +148,7 @@
           [else (void)]))
   (begin (loop to from null) h))
 
-;; vt-base : Stx -> Vt
+;; vt-base : Stx -> VT
 (define (vt-base stx)
   (define h (make-hash))
   (let loop ([stx stx] [acc null])
@@ -147,36 +166,42 @@
 ;; vt-merge-at-path : Stx/VT Path VT -> VT
 (define (vt-merge-at-path vt path sub-vt)
   (let ([sub-vt (if (stx? sub-vt) (vt-base sub-vt) sub-vt)])
-    (cond [(equal? path null) sub-vt]
-          [else (let ([vt (if (stx? vt) (vt-base vt) vt)])
-                  (vt:patch path sub-vt vt))])))
+    (match vt
+      [(vt:zoom zoom-ps vt)
+       (let ([path (foldl append path zoom-ps)])
+         (vt:zoom zoom-ps (vt:patch path sub-vt vt)))]
+      [(? stx? stx) (vt:patch path sub-vt (vt-base stx))]
+      [vt (cond [(equal? path null) sub-vt]
+                [else (vt:patch path sub-vt vt)])])))
 
 ;; ----------------------------------------
 
 ;; vt->stx : VT Path -> Stx
-(define (vt->stx vt mask)
-  (let loop ([vt vt] [mask mask])
+(define (vt->stx vt)
+  (let loop ([vt vt])
     (match vt
+      [(vt:zoom paths vt)
+       (foldr (lambda (p stx) (path-get stx p)) (loop vt) paths)]
       [(vt:base stx _)
-       (path-get stx mask)]
+       stx]
       [(vt:track _ _ in _)
-       (loop in mask)]
+       (loop in)]
       [(vt:patch at to in)
-       (cond [(path-cut-prefix at mask)
-              => (lambda (mask*) (loop to mask*))]
-             [else
-              (define full (path-replace (loop in null) at (loop to null) #:resyntax? #f))
-              (path-get full mask)])])))
+       (path-replace (loop in) at (loop to) #:resyntax? #f)])))
 
 ;; ----------------------------------------
 
-;; vt-seek : Stx VT Path -> (Listof Path)
-;; The mask is removed from the prefix of each result; results that do not
-;; extend the mask are discarded.
-(define (vt-seek want vt mask)
-  (filter list? (map (lambda (p) (path-cut-prefix mask p)) (to-list (seek1 want vt null)))))
-(define (vt-seek/no-cut want vt mask)
-  (filter (lambda (p) (path-prefix? mask p)) (to-list (seek1 want vt null))))
+;; vt-seek : Stx VT -> (Listof Path)
+;; Handles zoomed VTs. The zoom-paths are removed from the prefix of each result
+;; (top = most-recent zoom is removed last). Results that do not extend the
+;; prefixes are discarded.
+(define (vt-seek want vt)
+  (match vt
+    [(vt:zoom zoom-ps vt)
+     (filter list?
+             (map (lambda (result-p) (foldr path-cut-prefix result-p zoom-ps))
+                  (to-list (seek1 want vt null))))]
+    [_ (seek1 want vt null)]))
 
 ;; A Seeking is (seeking Stx Path) -- represents an intermediate search point.
 (struct seeking (want narrow) #:prefab)
@@ -190,7 +215,7 @@
 
 ;; seek1 : Stx VT Path -> (M Path)
 ;; Find the path(s) of the NARROW subterm of WANT in VT. , then calls seek*.
-(define (seek1 want vt [narrow null])
+(define (seek1 want vt narrow)
   (seek* (list (make-seeking want narrow)) vt))
 
 ;; seek* : Stx VT Path -> (M Path)
