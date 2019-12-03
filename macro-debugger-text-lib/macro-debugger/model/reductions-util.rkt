@@ -706,7 +706,7 @@
            ;; probably not much point in narrowing VT (and nontrivial to do right)
            ;; FIXME: it would be slightly better to know whether we were *inside* an F,
            ;;   because we care about whether the context is honest, not the term
-           (define (identity-vctx x) x)
+           (define (identity-vctx x #:resyntax? [resyntax? #f]) x)
            (define sub-v v)
            (define sub-vt (the-vt))
            (values identity-vctx sub-v sub-vt)]
