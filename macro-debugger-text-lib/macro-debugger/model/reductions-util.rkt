@@ -132,9 +132,11 @@
 ;; add-lift : Lift -> Void
 ;; add-endlift : Syntax -> Void
 (define (add-lift lift #:xstate [xst (the-xstate)])
-  (set-xstate-lifts! xst (cons lift (xstate-lifts xst))))
+  (let ([li (liftinfo lift (honesty) (the-vt))])
+    (set-xstate-lifts! xst (cons li (xstate-lifts xst)))))
 (define (add-endlift lift #:xstate [xst (the-xstate)])
-  (set-xstate-endlifts! xst (cons lift (xstate-endlifts xst))))
+  (let ([li (liftinfo lift (honesty) (the-vt))])
+    (set-xstate-endlifts! xst (cons li (xstate-endlifts xst)))))
 
 ;; get/clear-lifts : -> (Listof Lift)
 ;; get/clear-endlifts : -> (Listof Syntax)
@@ -147,6 +149,11 @@
 (define (add-step step) (when (honest?) (do-add-step step)))
 (define (do-add-step step #:xstate [xst (the-xstate)])
   (set-xstate-steps! xst (cons step (xstate-steps xst))))
+
+;; ----------------------------------------
+;; Lifts
+
+(struct liftinfo (lift hm vt) #:prefab)
 
 ;; ============================================================
 ;; Creating steps

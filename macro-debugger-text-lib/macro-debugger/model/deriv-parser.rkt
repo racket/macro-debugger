@@ -165,13 +165,17 @@
      OptOpaqueExpr exit-local)
     (make local-expansion $1 $8 $2 $3 $4 $5 $6 $7)]
    [(lift-expr)
-    (make local-lift (cdr $1) (car $1))]
-   [(lift-statement)
-    (make local-lift-end $1)]
+    (match $1 [(list* ids orig-expr ren-expr) (make local-lift-expr orig-expr ren-expr ids)])]
+   [(lift-end-decl)
+    (match $1 [(list* orig renamed wrapped) (make local-lift-end orig renamed wrapped)])]
    [(lift-require)
-    (make local-lift-require (car $1) (cadr $1) (cddr $1))]
+    (match $1
+      [(list* wrapped-req orig-use renamed-use)
+       (make local-lift-require wrapped-req orig-use renamed-use)])]
    [(lift-provide)
     (make local-lift-provide $1)]
+   [(lift-module)
+    (match $1 [(list* orig renamed) (make local-lift-module orig renamed)])]
    [(local-bind ! rename-list exit-local-bind)
     (make local-bind $1 $2 $3 #f)]
    [(local-bind rename-list ?BindSyntaxes exit-local-bind)

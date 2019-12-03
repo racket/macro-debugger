@@ -51,10 +51,11 @@
 ;; A LocalAction is one of:
 ;; - (local-exn Exn)
 ;; - (local-expansion Stx Stx Bool Stx Deriv ??? Stx Opaque/#f)
-;; - (local-lift Stxs Ids)
-;; - (local-lift-end Stx)
-;; - (local-lift-require Stx Stx Stx)
+;; - (local-lift-expr Stx Stx Ids)      -- orig, w/ scopes, ids
+;; - (local-lift-end Stx Stx Stx)       -- orig, w/ scopes, wrapped
+;; - (local-lift-require Stx Stx Stx)   -- wrapped-req, orig-use-s, renamed-use-s
 ;; - (local-lift-provide Stx)
+;; - (local-lift-module Stx Stx)        -- orig, renamed
 ;; - (local-bind Ids ?Exn Stx Stx) -- FIXME: renames structure?
 ;; - (local-value Id ?Exn Ids Bool IdentifierBinding)
 ;; - (track-syntax (U 'track-origin 'arm 'disarm 'rearm) Stx Stx)
@@ -62,10 +63,11 @@
 ;; - (local-mess (Listof Event))
 (struct local-exn (exn) #:transparent)
 (struct local-expansion node (for-stx? me1 inner lifted me2 opaque) #:transparent)
-(struct local-lift (expr ids) #:transparent)
-(struct local-lift-end (decl) #:transparent)
+(struct local-lift-expr (orig-expr renamed-expr ids) #:transparent)
+(struct local-lift-end (orig renamed wrapped) #:transparent)
 (struct local-lift-require (req expr mexpr) #:transparent)
 (struct local-lift-provide (prov) #:transparent)
+(struct local-lift-module (orig renamed) #:transparent)
 (struct local-bind (names ?1 renames bindrhs) #:transparent)
 (struct local-value (name ?1 resolves bound? binding) #:transparent)
 ;;   binding is saved (identifier-binding name) at time of lookup, since it may change

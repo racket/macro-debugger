@@ -98,13 +98,15 @@
        (void)]
       [(local-expansion z1 z2 for-stx? me1 inner lifted me2 opaque)
        ((if for-stx? recur/phase-up recur) inner)]
-      [(local-lift expr ids)
+      [(local-lift-expr ids orig renamed)
        (void)]
-      [(local-lift-end decl)
+      [(local-lift-end orig renamed wrapped)
        (void)]
       [(local-lift-require req expr mexpr)
        (void)]
       [(local-lift-provide prov)
+       (void)]
+      [(local-lift-module orig renamed)
        (void)]
       [(local-bind names ?1 renames bindrhs)
        (recur bindrhs)]

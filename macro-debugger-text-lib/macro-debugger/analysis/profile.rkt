@@ -199,13 +199,15 @@
        (void)]
       [(local-expansion z1 z2 for-stx? me1 inner lifted me2 opaque)
        (if for-stx? (recur/phase-up inner) (recur inner))]
-      [(local-lift expr ids)
+      [(local-lift-expr ids orig renamed)
        (void)]
-      [(local-lift-end decl)
+      [(local-lift-end orig renamed wrapped)
        (void)]
       [(local-lift-require req expr mexpr)
        (void)]
       [(local-lift-provide prov)
+       (void)]
+      [(local-lift-module orig renamed)
        (void)]
       [(local-bind names ?1 renames bindrhs)
        (recur bindrhs)]
@@ -349,10 +351,10 @@
        ;; Then macro is not responsible for the difference, so *subtract*
        ;; the delta z2-z1; equivalently, add z1-z2.
        (- (term-size z1) (term-size z2))]
-      [(local-lift expr ids) ;; (define-values [] []) : 5 nodes
-       (+ (term-size expr) (term-size ids))]
-      [(local-lift-end decl)
-       (term-size decl)]
+      [(local-lift-expr ids orig renamed) ;; (define-values [] []) : 5 nodes
+       (+ (term-size orig) (term-size ids))]
+      [(local-lift-end orig renamed wrapped)
+       (term-size orig)]
       [(local-lift-require req expr mexpr) ;; (require []) : 4 nodes
        (+ 4 (term-size req))]
       [(local-lift-provide prov) ;; (provide []) : 4 nodes

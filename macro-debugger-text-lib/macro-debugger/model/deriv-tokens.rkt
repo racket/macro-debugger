@@ -53,10 +53,11 @@
    letlift-loop         ; syntax = new let form
    module-lift-loop     ; syntaxes = def-lifts, in reverse order lifted (???)
    module-lift-end-loop ; syntaxes = statement-lifts ++ provide-lifts, in order lifted
-   lift-expr            ; (cons (listof id) syntax)
-   lift-statement       ; syntax
-   lift-require         ; (cons syntax (cons syntax syntax))
-   lift-provide         ; syntax
+   lift-expr            ; (list* Ids Syntax Syntax)    -- (list* gen-ids orig-s renamed-s)
+   lift-end-decl        ; (list* Syntax Syntax Syntax) -- (list* orig-s renamed-s wrapped-s)
+   lift-require         ; (list* Syntax Syntax Syntax) -- (list* wrapped-req orig-use-s end-use-s)
+   lift-provide         ; Syntax
+   lift-module          ; (list* Syntax Syntax)        -- (list* orig renamed)
    rename-transformer   ; Syntax
 
    module-end-lifts     ; Syntaxes
@@ -227,7 +228,7 @@
    'exit-local              token-exit-local
    'local-pre               token-local-pre
    'local-post              token-local-post
-   'lift-statement          token-lift-statement
+   'lift-end-decl           token-lift-end-decl
    'module-lift-end-loop    token-module-lift-end-loop
    'letlift-loop            token-letlift-loop
    'module-lift-loop        token-module-lift-loop
@@ -241,6 +242,7 @@
    'rename-one              token-rename-one
    'lift-require            token-lift-require
    'lift-provide            token-lift-provide
+   'lift-module             token-lift-module
    'track-syntax            token-track-syntax
    'local-value             token-local-value
    'local-value-result      token-local-value-result

@@ -417,31 +417,45 @@
          [#:do (when opaque
                  (hash-set! opaque-table (syntax-e opaque) e2))]])]
 
-    [(local-lift expr ids)
-     ;; FIXME: add action
+    [(local-lift-expr orig renamed ids)
      (R [#:do (learn-binders ids)]
+        [#:do (add-lift local)]
         [#:do (add-step
                (walk/talk 'local-lift
-                          (list "The macro lifted an expression"
+                          (list "The macro lifted an expression."
                                 ""
                                 "Expression:"
-                                expr
+                                renamed
                                 "Identifiers:"
                                 (datum->artificial-syntax ids))))])]
-
-    [(local-lift-end decl)
-     ;; (walk/mono decl 'module-lift)
-     (R [#:do (add-step
+    [(local-lift-end orig renamed wrapped)
+     (R [#:pattern ?form]
+        [#:set-syntax orig]
+        [#:rename ?form renamed]
+        [#:do (add-lift local)] ;; captured vt includes [orig->renamed]
+        [#:do (add-step
                (walk/talk 'local-lift
-                          (list "The macro lifted a declaration to the end of the module"
+                          (list "The macro lifted a declaration to the end of the module."
                                 ""
                                 "Declaration:"
-                                decl)))])]
+                                wrapped)))])]
+    [(local-lift-module orig renamed)
+     (R [#:pattern ?form]
+        [#:set-syntax orig]
+        [#:rename ?form renamed]
+        [#:do (add-lift local)] ;; captured vt includes [orig->renamed]
+        [#:do (add-step
+               (walk/talk 'local-lift
+                          (list "The macro lifted a submodule."
+                                ""
+                                "Declaration:"
+                                renamed)))])]
     [(local-lift-require req expr mexpr)
      ;; lift require
-     (R [#:do (add-step
+     (R [#:do (add-lift local)]
+        [#:do (add-step
                (walk/talk 'local-lift
-                          (list "The macro lifted a require"
+                          (list "The macro lifted a require."
                                 ""
                                 "Require:"
                                 req)))]
@@ -450,12 +464,14 @@
         [#:rename/mark ?form mexpr])]
     [(local-lift-provide prov)
      ;; lift provide
-     (R [#:do (add-step
+     (R [#:do (add-lift local)]
+        [#:do (add-step
                (walk/talk 'local-lift
-                          (list "The macro lifted a provide"
+                          (list "The macro lifted a provide."
                                 ""
                                 "Provide:"
                                 prov)))])]
+
     [(local-bind names ?1 renames bindrhs)
      [R [! ?1]
         ;; FIXME: use renames
