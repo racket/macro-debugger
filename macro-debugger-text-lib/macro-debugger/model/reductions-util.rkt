@@ -537,13 +537,8 @@
      #'(RSbind (Rename f v p s pvar to.c #f 'unmark) ke)]))
 
 ;; - corresponds to the dynamic extent of a syntax-local-introduce bindings
-;; - used to delay mark, to keep visible syntax unmarked
 (define-syntax-rule (R/with-marking f v p s [#:with-marking c ...] ke)
-  (RSbind (do-marking f v p s (R c ...)) ke))
-
-(define (do-marking f v p s rst)
-  (parameterize ((marking-table (if (honest?) #f (make-renames-mapping null null))))
-    (rst f v p s)))
+  (RSbind ((R c ...) f v p s) ke))
 
 ;; What if honesty is all we need?
 ;; hide = (set-honesty 'F _)
@@ -637,7 +632,6 @@
   (unless (or (eq? (honesty) 'F) (andmap (macro-policy) ids))
     (DEBUG
      (eprintf "hide-check: hiding with f=~.s, v=~.s\n" (stx->datum f) (stx->datum v)))
-    ;; FIXME: marking-table ???
     ;; FIXME: set-honesty needs to rebuild table if honesty strictly *decreases*
     (set-honesty 'F f))
   (k f v p s))
@@ -663,8 +657,7 @@
             (define vctx (path-replacer v path))
             ((parameterize ((the-context (cons vctx (the-context)))
                             (honesty 'T)
-                            (the-vt #f)
-                            (marking-table (or (marking-table) (make-renames-mapping null null))))
+                            (the-vt #f))
                (RScase (k f f p s)
                        (lambda (f2 v2 p2 s2)
                          ;; inside parameterize
@@ -756,11 +749,6 @@
 
 (define ((compose-renames-mappings rm1 rm2) x)
   (cond [(rm1 x) => rm2] [else #f]))
-
-;; ============================================================
-;; Marking table
-
-(define marking-table (make-parameter #f)) ;; (Parameterof RenamesMapping/#f)
 
 ;; ============================================================
 
