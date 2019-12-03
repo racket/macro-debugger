@@ -538,6 +538,11 @@
         (module m mzscheme
           (define-struct P (x y))
           (P? (make-P P-x P-y))))
+  (test "module (racket) with match"
+        (module m racket/base
+          (#%plain-module-begin
+           (require racket/match)
+           (match '4 [n (add1 n)]))))
   (test "module with match"
         (module m mzscheme
           (require (lib "match.rkt"))
