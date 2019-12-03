@@ -348,7 +348,7 @@
 ;; A R/<Clause> macro has the form
 ;;   (R/<Clause> f v p s <Clause> kexpr)
 ;; where f,v,p,w,ws are *variables* and kexpr is *expression*
-;; - f is the "real" form
+;; - f is the "real" form -- it should never contain artificial syntax
 ;; - v is the "virtual/visible" form (used for steps)
 ;; - p is the current pattern
 ;; - s is the last marked state, or #f
@@ -662,19 +662,20 @@
                            (RSfail exn))))))])]))
 
 ;; ============================================================
+;; Running reducers in a sub-context
 
-;; (Run reducer f v p s hole fill)
-;; - let pctx be the context where hole occurs in p; need Pattern PVar -> Path / Paths fun
-;; - let fctx be pctx wrt f; let vctx be pctx wrt v
-;; - let init-e be the term s.t. f = fctx[init-e]
-;; - let init-ev (vsub) be the term s.t. v = vctx[init-ev]
-;; - recur on (reducer fill) with [init-e init-ev _ _] with context extended with ???
+;; Within a context created by run/path:
 
-;; honesty never decreases on entry to context, only on hide, hidden step, and exit from context
-;; honesty, not "visibility", determines visibility of most operations (FIXME: rename visibility)
+;; - Honesty (with respect to the context) never increases; the local honesty on
+;;   exit from the context is <= the local honesty when the context is entered.
 
-(struct complete-fiction ())
-(define the-fictional-term (complete-fiction))
+;; - Global honesty does not change on entry to a context. It only changes on
+;;   hide decisions, steps (if local honesty is < T, then a step immediately
+;;   sets it to F), and exit from a context.
+
+;; - A successful seek creates a locally honest context, but the honesty is lost
+;;   on exit from the context. Honesty is measured from the root of the current
+;;   term, so an honest term gets "lost" when returned into dishonest context.
 
 ;; run : (X -> RST) Stx Stx Pattern State Hole (U X (Listof X)) -> RS
 ;; where Hole = Symbol | (list Symbol '...) -- NOT a pattern value
@@ -715,7 +716,8 @@
            (define sub-v (path-get v path))
            (define sub-vt (if (eq? sub-hm 'T) #f (vt-zoom (the-vt) path)))
            (values vctx sub-v sub-vt)]))
-  (DEBUG (eprintf "run/path: run ~s on f=~.s; v=~.s\n" reducer (stx->datum sub-f) (stx->datum sub-v)))
+  (DEBUG (eprintf "run/path: run ~s on f=~.s; v=~.s\n"
+                  reducer (stx->datum sub-f) (stx->datum sub-v)))
   ((parameterize ((the-context (cons vctx (the-context)))
                   (honesty sub-hm)
                   (the-vt sub-vt))
@@ -750,7 +752,7 @@
                   (eprintf "  vt => ~e\n" (the-vt))
                   (when (the-vt)
                     (eprintf "  vt-stx => ~.s\n" (stx->datum (vt->stx (the-vt))))))
-                 (RSunit (fctx f2 #:resyntax? #f) (vctx v2) p s)))
+                 (RSunit (fctx f2 #:resyntax? #f) (vctx v2 #:resyntax? #t) p s)))
              (lambda (exn)
                (lambda () (RSfail exn)))))))
 
@@ -786,66 +788,98 @@
 ;; ============================================================
 ;; Macro hiding
 
-;; There are two aspects of the state of the reductions generator:
-
-;; - visibility: Are we showing or hiding steps on the current *actual* local
-;;   term? This is controlled by the hiding policy.
-
+;; The behavior of the reductions generator is determined by the current
+;; *honesty* level.
+;;
 ;; - honesty: Does the current *visible* local term correspond to the current
-;;   *actual* local term? This depends on the history of visibility within the
-;;   current context and the (partly) on the honesty of the parent context.
+;;   *actual* local term? This depends on the history of macro hiding within the
+;;   current context and (partly) on the honesty of the parent context.
 
-;; There are three modes (combinations of visibility and honesty):
+;; Honesty forms a lattice with top 'T and bottom 'F:
+;;
+;; - 'T = honest: The current local *actual* and *visible* terms correspond
+;;   exactly, although the actual term (f) may have plain pairs in some places
+;;   where the visible term has artificial syntax pairs.
+;;
+;; - 'F = fictional: The current visible term is (potentially) completely
+;;   fictional. It may originate from an outer context. For example:
+;;
+;;     (define x (let () 1)) -> (define-values (x) (let () 1))
+;;
+;;     Suppose that define is hidden. Then when we recur into its right-hand
+;;     side, we will have f = (let () 1) and v = (define x (let () 1)). Then we
+;;     seek for (let () 1) and find it at vctx = (define x [ ]), and we create a
+;;     context for the (initially honest) reduction of (let () 1), but we put
+;;     that reduction sequence in the synthetic context vctx. (Note: see also
+;;     Visible Term Tracking.)
+;;
+;; - (cons hm1 hm2) = an honest pair with contents whose honesty is described by
+;;   hm1 and hm2, respectively. We consider (cons 'T 'T) = 'T.
 
-;; - truth   = visible and honest
-;; - gossip  = visible and not honest
-;; - fiction = not visible and not honest
+;; The honesty level has the following consequences:
+;;
+;; On *steps*:
+;; - 'T: the step can be shown, and it updates the visible term
+;; - 'F: the step is not shown, and the visible term is not updated
+;; - cons: the step cannot be shown, or it must be simulated
+;;   Consider the actual expansion (#%expression A) -> (#%expression A*) -> A*.
+;;   If hiding produces (#%expression A) -> (#%expression A**), then we cannot
+;;   apply the step (#%expression A*) -> A*. There are two options:
+;;   - drop the step (this is the current behavior)
+;;   - simulation: rewrite the step to (#%expression A**) -> A**; this
+;;     requires custom code for each step (?)
+;;
+;; On entering a new context for reduction:
+;; - 'T: the mode of the new context is still 'T
+;; - 'F: the mode of the new context is still 'F
+;;
+;; - cons: the honesty level of the new context is the subtree of the old level
+;;   at the path corresponding to the context. For example, if the old honesty
+;;   level is (cons 'F 'T), then if the new context is ([ ] e), then the new
+;;   local honesty level is 'F, but if the context is (e [ ]), then the new
+;;   local level is 'T. (See Honesty Masks.)
+;;
+;; On returning from a context:
+;; - 'T: the parent context's mode is unchanged
+;; - otherwise, we merge the final local honesty level into the parent's level
+;;   at the context's path
 
-;; The mode (not visible but honest) exists only briefly on entry to macro
-;; hiding; it is reasonable to merge it with (not visible and not honest).
-
-;; The mode has the following consequences:
-;; - on *steps*
-;;   - truth: the step can be shown, and it updates the visible term
-;;   - gossip: the step cannot be shown, or it must be simulated
-;;     Consider the actual expansion (#%expression A) -> (#%expression A*) -> A*.
-;;     If hiding produces (#%expression A) -> (#%expression A**), then we cannot
-;;     apply the step (#%expression A*) -> A*. There are two options:
-;;     - drop the step
-;;     - simulation: rewrite the step to (#%expression A**) -> A**; this
-;;       requires custom code for each step (?)
-;;   - fiction: the step is not shown, and the visible term is not updated
-;;     (FIXME: need to separate rewrite from tracking in such steps, apply tracking!)
-;; - on entering a new context for reduction:
-;;   - truth: the mode of the new context is still truth
-;;   - gossip: if we know the context refers to a true subterm of the visible
-;;     term, we can enter truth mode (see Honesty Masks); otherwise we must stay
-;;     in gossip mode
-;;   - fiction: the mode of the new context is still fiction
-;; - on returning from a context:
-;;   - truth: the parent context's mode is unchanged
-;;   - gossip/fiction: the parent context's mode changes:
-;;     - parent mode was truth or gossip -> becomes gossip
-;;     - parent mode was fiction -> stays fiction
-
-;; Once we enter gossip (or fiction) mode, the visible term is not Stx, but a
-;; special data structure for tracking visible subterms. See Tracking.
-
-;; Why not unify gossip and fiction modes?
-;; - PRO: They're nearly the same in practice, which argues for unifying.
-;; - CON: Consider (λ () (define x A) (begin 1 2)), and suppose define is hidden.
-;;   In gossip mode with honesty mask, we have a hope of showing begin splicing.
-;; - CON: In (#%app e1 ... ek), we create known independent contexts for subexprs.
-;;   Fiction in e1 should not affect e2. But maybe this is just a special case of
-;;   (HOLE ...) contexts?
+;; Why not simplify the lattice to just 'T and 'F?
+;;
+;; - It means there is no need to explicitly specify dependent vs independent
+;;   contexts. For example, the if form has three independent subexpressions,
+;;   and macro hiding in the first subexpression should not affect the second
+;;   subexpression. But in a block, hiding that occurs in pass1 should inhibit
+;;   the letrec transformation, and pass2 should start with the visible results
+;;   of pass1. That is, pass2's context depends on pass1. The old macro stepper
+;;   implementation addressed this with #:pass1/#:pass2 annotations that had to
+;;   be sprinkled everywhere, and there always seemed to be one missing
+;;   somewhere. Honesty masks subsume those annotations.
+;;
+;; - The current lattice also allow greater precision. For example, in the
+;;   expansion of (λ () (define x 1) (begin 2 3)), the honesty lattice allows us
+;;   to hide the define form but show the begin splicing.
 
 ;; ----------------------------------------
-;; Tracking
+;; Visible Term Tracking
 
-;; Forward mode: representation of visible term is Stx. Adjustments
-;; are applied as they occur.
+;; The difficult half of macro hiding is *seeking* visible subterms so their
+;; expansions can be shown in synthetic contexts. The "visible term" (v) is not
+;; sufficient for determining whether a term should be shown or for determining
+;; in what context to show it, due to scopes-renames, syntax-arm/disarm, etc.
 
-;; Backward mode: representation is VT; see tracking.rkt.
+;; Instead, when the honesty level drops below 'T, a VT (visible terms tracker)
+;; is created from the last visible honest term. The VT records scope-renames
+;; and other syntax adjustements. When a term is searched in the VT, it applies
+;; the history in reverse to see if the adjusted term existed in the last
+;; visible honest term, and if so at what path. The synthetic context (vctx) is
+;; created from the path and the current visible term.
+
+;; Invariants:
+;; - if (honesty) = 'T, then (the-vt) = #f
+;; - if (honesty) < 'T, then
+;;   - (the-vt) is a VT, and
+;;   - (stx->datum (vt->stx (the-vt))) = (stx->datum v)
 
 ;; ----------------------------------------
 ;; Honesty Masks
