@@ -14,9 +14,6 @@
          reductions+)
 
 ;; ============================================================
-;; Dummy definitions
-
-;; ============================================================
 ;; Reductions
 
 ;; reductions : WDeriv -> ReductionSequence
