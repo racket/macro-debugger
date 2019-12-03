@@ -523,7 +523,7 @@
     [(bderiv es1 es2 renames pass1 pass2)
      (R [#:pattern ?block]
         [#:do (STRICT-CHECKS
-               (unless (equal? (% ?block) (stx->list es1))
+               (unless (equal? (stx->list (% ?block)) (stx->list es1))
                  (eprintf "MISMATCH (BLOCK): not equal\n  actual = ~.s\n  deriv  = ~.s\n"
                           (values (% ?block)) (values es1))))]
         [#:rename ?block (car renames) 'rename-block]
