@@ -193,7 +193,14 @@
 
 
 ;; ============================================================
-;; RS: the reduction state monad
+;; RS: the reduction monad
+
+;; This monad acts like an Exception monad whose success type is always
+;; specialized to a 4-tuple containing the *local* reduction state: real term,
+;; visible term, pattern, and state (cf step.rkt).
+
+;; Contextual state and threaded state are handled by parameters and a
+;; parameter-held "xstate" mutable object (see later sections).
 
 (provide
  RS/c
@@ -247,6 +254,14 @@
 ;; ============================================================
 ;; Implicit match from #:pattern
 
+;; In a subexpression of an R-clause (see below), the % and %e macros have
+;; access to the pattern variables bound by matching the current term (f)
+;; against the current pattern (p).
+
+;; Unlike with-syntax and #', pattern-match and % never create syntax
+;; objects. Also, patterns here are first-class values, which simplifies
+;; continuation management.
+
 (provide % %e)
 
 (define-syntax-parameter the-match-result
@@ -265,6 +280,7 @@
 
 
 ;; ============================================================
+;; The Reduction Language
 
 (provide R !)
 
@@ -319,15 +335,17 @@
                (R . more))]
     [(R** f v p s c:RClause . more)
      #'(begin
-         (DEBUG
-          (let ([cstx (quote-syntax c)])
-            (define where (format "[~s:~s]" (syntax-line cstx) (syntax-column cstx)))
-            (eprintf "doing ~a ~.s, honesty = ~s, v = ~.s\n"
-                     where (trim-quoted-clause (quote c)) (honesty) (stx->datum v))))
+         (DEBUG (do-debug-clause (quote c) (quote-syntax c) v))
          (c.macro f v p s c (R . more)))]))
 
+(define (do-debug-clause c cstx v)
+  (define where (format "[~s:~s]" (syntax-line cstx) (syntax-column cstx)))
+  (eprintf "doing ~a ~.s, honesty = ~s, v = ~.s\n"
+           where (trim-quoted-clause c) (honesty) (stx->datum v)))
+
 (define (trim-quoted-clause c)
-  (match c [(cons (and kw (or '#:parameterize #:when #:if #:with-marking #:do)) _) `(,kw _)] [_ c]))
+  (define (abbrev-kw? x) (memq x '(#:parameterize #:when #:if #:with-marking #:do)))
+  (match c [(cons (? abbrev-kw? kw) _) `(,kw _)] [_ c]))
 
 ;; A R/<Clause> macro has the form
 ;;   (R/<Clause> f v p s <Clause> kexpr)
@@ -444,7 +462,6 @@
    (eprintf "  v = ~.s\n" (stx->datum v)))
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
   (define f2 (pattern-replace p f ren-p renames))
-  #;(DEBUG (eprintf "  renamed: f-diff = ~s / ~s\n" (stx-eq-diff f f2) (stx-eq-diff f2 f)))
   ;; renaming preserves honesty
   (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
   ;; ----
@@ -541,11 +558,6 @@
 ;; - corresponds to the dynamic extent of a syntax-local-introduce bindings
 (define-syntax-rule (R/with-marking f v p s [#:with-marking c ...] ke)
   (RSbind ((R c ...) f v p s) ke))
-
-;; What if honesty is all we need?
-;; hide = (set-honesty 'F _)
-;; seek = ...
-
 
 (define-syntax R/if
   (syntax-parser
