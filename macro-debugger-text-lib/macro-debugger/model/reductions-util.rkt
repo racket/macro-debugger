@@ -767,29 +767,9 @@
 
 ;; ------------------------------------
 
-(provide check-same-stx)
-
 (define (revappend a b)
   (cond [(pair? a) (revappend (cdr a) (cons (car a) b))]
         [(null? a) b]))
-
-(define (check-same-stx function actual expected [derivs null])
-  (unless (eq? actual expected)
-    (let* ([actual-datum (stx->datum actual)]
-           [expected-datum (stx->datum expected)]
-           [same-form? (equal? actual-datum expected-datum)])
-      (if same-form?
-          (eprintf "same form but wrong wrappings:\n~.s\nwrongness:\n~.s\n"
-                   actual-datum
-                   (wrongness actual expected))
-          (eprintf "got:\n~.s\n\nexpected:\n~.s\n"
-                   actual-datum
-                   expected-datum))
-      (for ([d derivs]) (eprintf "\n~.s\n" d))
-      (error function
-             (if same-form?
-                 "wrong starting point (wraps)!"
-                 "wrong starting point (form)!")))))
 
 (define (stx-eq-diff a b)
   (let loop ([a a] [b b])
@@ -802,16 +782,6 @@
            (unless (equal? (stx->datum a) (stx->datum b))
              (error 'stx-eq-diff "different shapes: ~.s, ~.s" a b))
            (stx->datum a)])))
-
-(define (wrongness a b)
-  (cond [(eq? a b)
-         '---]
-        [(stx-list? a)
-         (map wrongness (stx->list a) (stx->list b))]
-        [(stx-pair? a)
-         (cons (wrongness (stx-car a) (stx-car b))
-               (wrongness (stx-cdr a) (stx-cdr b)))]
-        [else (stx->datum a)]))
 
 ;; flatten-identifiers : syntaxlike -> (list-of identifier)
 (define (flatten-identifiers stx)
