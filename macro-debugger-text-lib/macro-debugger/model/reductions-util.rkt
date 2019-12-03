@@ -302,8 +302,6 @@
           '#:new-local-context #'R/new-local-context
           '#:if #'R/if
           '#:when #'R/when
-          '#:pass1 #'R/pass1
-          '#:pass2 #'R/pass2
           '#:in-hole #'R/in-hole
           '#:hide-check #'R/hide-check
           '#:seek-check #'R/seek-check
@@ -574,29 +572,6 @@
     ;; Conditional (pattern changes lost afterwards ...) ;; FIXME???
     [(_ f v p s [#:when test consequent ...] ke)
      #'(R/if f v p s [#:if test [consequent ...] []] ke)]))
-
-
-;; ** Multi-pass reductions **
-
-;; Pass1 does expansion.
-;; If something should happen regardless of whether hiding occurred
-;; in pass1 (eg, lifting), put it before the Pass2 marker.
-
-;; Use #:unsafe-bind-visible to access 'v'
-;; Warning: don't do anything that relies on real 'f' before pass2
-
-;; If something should be hidden if any hiding occurred in pass1,
-;; put it after the Pass2 marker (eg, splice, block->letrec).
-
-(define-syntax R/pass1
-  (syntax-parser
-    [(_ f v p s [#:pass1] ke)
-     #'(ke f v p s)]))
-
-(define-syntax R/pass2
-  (syntax-parser
-    [(_ f v p s [#:pass2 clause ...] ke)
-     #'(ke f v p s)]))
 
 (define-syntax R/new-local-context
   (syntax-parser
