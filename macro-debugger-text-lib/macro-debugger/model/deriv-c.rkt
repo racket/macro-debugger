@@ -18,6 +18,8 @@
 
 ;; type Deriv = (deriv Stx Stx) <: Node(Stx)
 ;; type Base = (base Stx Stx Ids Stx/#f ?Exn) <: Deriv
+;; Sometimes, deriv's z1/z2 (aka e1/e2) may be #f because deriv is fake; eg,
+;; p:define-values in module pass2.
 (struct deriv node () #:transparent)
 (struct base deriv (resolves de1 ?1) #:transparent)
 

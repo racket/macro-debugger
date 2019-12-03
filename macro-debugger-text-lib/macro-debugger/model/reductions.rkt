@@ -62,11 +62,11 @@
      (R [#:pattern ?form]
         [#:do (DEBUG (eprintf "\n>> ~.s\n" (stx->datum e1)))]
         [#:do (STRICT-CHECKS
-               (unless (eq? (% ?form) e1)
+               (when (and e1 (not (eq? (% ?form) e1)))
                  (eprintf "MISMATCH: not eq\n  actual = ~.s\n  expect = ~.s\n"
                           (stx->datum (% ?form)) (stx->datum e1))
                  (eprintf "  deriv = ~e\n" d)))]
-        [#:when (not (eq? (% ?form) e1))
+        [#:when (and e1 (not (eq? (% ?form) e1)))
          [#:rename ?form e1 'sync]] ;; FIXME, neither sync nor #:set-syntax
         [#:parameterize ((the-context (add-rearm-frame e1 (the-context))))
          [#:when (base? d)
@@ -75,7 +75,7 @@
            [#:rename ?form (base-de1 d) #;'disarm]]]
          [#:seek-check]
          => (Expr* d)]
-        [#:when (not (eq? (% ?form) e2))
+        [#:when (and e2 (not (eq? (% ?form) e2)))
          [#:rename ?form e2 'sync]])]
     [#f
      (R [#:seek-check]
