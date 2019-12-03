@@ -21,7 +21,7 @@
   (when #f form ... (void)))
 
 (define-syntax-rule (DEBUG form ...)
-  (when #t form ... (void)))
+  (when #f form ... (void)))
 
 (define (hash-set-list h ks v)
   (for/fold ([h h]) ([k (in-list ks)]) (hash-set h k v)))
