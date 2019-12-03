@@ -70,9 +70,11 @@
 ;; PRE: hm <= (honesty) -- that is, honesty is only decreased or left unchanged
 ;; Invariant: (honesty) = 'T  iff  (the-vt) = #f
 (define (set-honesty hm f)
+  (define current-hm (honesty))
   (DEBUG (unless (eq? (honesty) hm) (eprintf "set-honesty : ~s => ~s\n" (honesty) hm)))
-  (when (eq? (honesty) 'T) (the-vt (vt-base f)))
-  (honesty hm))
+  (unless (equal? current-hm hm)
+    (when (eq? current-hm 'T) (the-vt (vt-base f)))
+    (honesty hm)))
 
 ;; honest? : -> Boolean
 (define (honest?) (eq? (honesty) 'T))
