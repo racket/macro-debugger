@@ -18,18 +18,6 @@
   (define (fail) null)
   (define (to-list c) c))
 
-#; ;; FIXME: this probably won't work with the new code structure...
-(module base racket/base
-  (provide (all-defined-out))
-  ;; Maybe monad
-  ;; type (M X) = X | #f -- X must not overlap with #f
-  (define-syntax-rule (disj a b) (or a b))
-  (define (return x) x)
-  (define (bind1 c f) (if c (f c) #f))
-  (define (bind c f) (if c (f c) #f))
-  (define (fail) #f)
-  (define (to-list c) (if c (list c) null)))
-
 (module util racket/base
   (require racket/match)
   (require (submod ".." base))
