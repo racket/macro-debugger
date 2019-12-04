@@ -77,6 +77,9 @@
 
 ;; ----------------------------------------
 
+;; An EagerVT is (vt:eager Stx Hash[Stx => ReversedPath])   -- eager composition of VT
+(struct vt:eager (stx h) #:prefab)
+
 ;; A VT is one of
 ;; - (vt:base Stx Hash)             -- the term itself
 ;; - (vt:track Stx Stx VT Hash)     -- scope/arm/etc FROM, producing TO, within IN
@@ -93,6 +96,7 @@
 
 (define (vt-depth vt)
   (match vt
+    [(vt:eager _ _) 1]
     [(vt:track _ _ in _) (add1 (vt-depth in))]
     [(vt:patch p to in) (add1 (max (vt-depth to) (vt-depth in)))]
     [else 1]))
@@ -108,12 +112,13 @@
 
 ;; vt-track : Stx Stx VT [Any] -> VT
 (define (vt-track from to in [type #f])
-  (define (do-track in)
-    (vt:track from to in (make-track-hash from to)))
   (cond [(eq? from to) in]
         [else (match in
-                [(vt:zoom ps in) (vt:zoom ps (do-track in))]
-                [in (do-track in)])]))
+                [(vt:zoom ps in)
+                 (vt:zoom ps (vt-track from to in))]
+                [(vt:eager stx h)
+                 (vt:eager stx (extend-eager-hash from to h))]
+                [_ (vt:track from to in (make-track-hash from to))])]))
 
 ;; hash maps Syntax => (cons Stx Path)
 (define (make-track-hash from to)
@@ -121,7 +126,8 @@
   (define (loop to from rpath)
     (cond [(syntax? to)
            (hash-set! h to (cons from (reverse rpath)))
-           (loop (syntax-e to) from rpath)]
+           (unless (syntax-armed/tainted? to)
+             (loop (syntax-e to) from rpath))]
           [(pair? to)
            (cond [(pair? from) ;; rpath = null
                   (loop (car to) (car from) rpath)
@@ -136,8 +142,110 @@
           [else (void)]))
   (begin (loop to from null) h))
 
+(define (extend-eager-hash from to old-h)
+  (define (loop from to h)
+    (cond [(syntax? to)
+           (let ([h (cond [(hash-ref old-h from #f)
+                           => (lambda (from-rpath) (hash-set h to from-rpath))]
+                          [else h])])
+             (cond [(syntax-armed/tainted? to) h]
+                   [else (loop (syntax-e to) from h)]))]
+          [(pair? to)
+           (cond [(pair? from)
+                  (loop (car to) (car from)
+                        (loop (cdr to) (cdr from) h))]
+                 [(and (syntax? from) (syntax-armed/tainted? from))
+                  (cond [(hash-ref old-h from #f)
+                         => (lambda (from-rpath)
+                              (let floop ([to to] [rpath from-rpath])
+                                (cond [(syntax? to)
+                                       (let ([h (hash-set h to rpath)])
+                                         (cond [(syntax-armed/tainted? to) h]
+                                               [else (floop (syntax-e to) rpath h)]))]
+                                      [(pair? to)
+                                       (floop (car to) (path-add-car rpath)
+                                              (floop (cdr to) (path-add-cdr rpath) h))]
+                                      [else h])))]
+                        [else h])]
+                 [(syntax? from)
+                  (loop to (syntax-e from) h)]
+                 [else (error 'extend-eager-hash "mismatch: ~e, ~e" from to)])]
+          ;; FIXME: vector, box, prefab
+          [else h]))
+  (loop from to old-h))
+
 ;; vt-base : Stx -> VT
 (define (vt-base stx)
+  (vt:eager stx
+            (let loop ([stx stx] [rpath null] [h '#hash()])
+              (cond [(syntax? stx)
+                     (let ([h (hash-set h stx rpath)])
+                       (cond [(syntax-armed/tainted? stx) h]
+                             [else (loop (syntax-e stx) rpath h)]))]
+                    [(pair? stx)
+                     (loop (car stx) (path-add-car rpath)
+                           (loop (cdr stx) (path-add-cdr rpath) h))]
+                    ;; FIXME: vector, box, prefab
+                    [else h]))))
+
+;; vt-merge-at-path : Stx/VT Path VT -> VT
+(define (vt-merge-at-path vt path sub-vt)
+  (let ([sub-vt (if (stx? sub-vt) (vt-base sub-vt) sub-vt)])
+    (match vt
+      [(vt:zoom zoom-ps vt)
+       (let ([path (foldl append path zoom-ps)])
+         (vt:zoom zoom-ps (vt-merge-at-path vt path sub-vt)))]
+      [(? stx? stx) (vt-merge-at-path (vt-base stx) path sub-vt)]
+      [vt (cond [(equal? path null) sub-vt]
+                [else
+                 (match-define (vt:eager stx h) vt)
+                 (match-define (vt:eager sub-stx sub-h) sub-vt)
+                 (vt:eager (path-replace stx path sub-stx)
+                           (hash-add-at-path
+                            (hash-remove-with-prefix h path)
+                            path sub-h))])])))
+
+(define (hash-remove-with-prefix h prefix)
+  (for/fold ([h h]) ([(k rpath) (in-hash h)])
+    (if (rpath-prefix? prefix rpath) (hash-remove h k) h)))
+
+;; equivalent to (path-prefix? prefix (reverse rpath), but much less allocation
+(define (rpath-prefix? prefix rpath)
+  (path-prefix? prefix (reverse rpath))
+  #;
+  (null?
+   (let loop ([rpath rpath]) ;; returns #f (not a prefix) or tail of prefix not satisfied by rpath
+     (match rpath
+       ['() prefix]
+       [(cons 'car rpath)
+        (match (loop rpath)
+          ['() '()]
+          [(cons 'car prefix) prefix]
+          [_ #f])]
+       [(cons (? exact-positive-integer? n) rpath)
+        (let tailloop ([n n] [rpath rpath])
+          (match rpath
+            [(cons (? exact-positive-integer? n2) rpath)
+             (tailloop (+ n n2) rpath)]
+            [_ (match (loop rpath)
+                 ['() '()]
+                 [(cons (? exact-positive-integer? prefix-n) prefix)
+                  (let ptailloop ([prefix-n prefix-n] [prefix prefix])
+                    (match prefix
+                      [(cons (? exact-positive-integer? prefix-n2) prefix)
+                       (ptailloop (+ prefix-n prefix-n2) prefix)]
+                      [_ (cond [(< n prefix-n) #;(cons prefix-n prefix) #f]
+                               [(= n prefix-n) prefix]
+                               [(> n prefix-n) (if (null? prefix) null #f)])]))]
+                 [_ #f])]))]))))
+
+(define (hash-add-at-path h prefix sub-h)
+  (define rprefix (reverse prefix))
+  (for/fold ([h h]) ([(k sub-rpath) (in-hash h)])
+    (hash-set h k (append sub-rpath rprefix))))
+
+#|
+(define (vt-base* stx)
   (define h (make-hash))
   (let loop ([stx stx] [acc null])
     (cond [(syntax? stx)
@@ -161,15 +269,19 @@
       [(? stx? stx) (vt:patch path sub-vt (vt-base stx))]
       [vt (cond [(equal? path null) sub-vt]
                 [else (vt:patch path sub-vt vt)])])))
+|#
 
 ;; ----------------------------------------
 
 ;; vt->stx : VT Path -> Stx
+;; Note: ignores tracking, only uses base, patches, and zoom.
 (define (vt->stx vt)
   (let loop ([vt vt])
     (match vt
       [(vt:zoom paths vt)
        (foldr (lambda (p stx) (path-get stx p)) (loop vt) paths)]
+      [(vt:eager stx _)
+       stx]
       [(vt:base stx _)
        stx]
       [(vt:track _ _ in _)
@@ -188,8 +300,13 @@
     [(vt:zoom zoom-ps vt)
      (filter list?
              (map (lambda (result-p) (foldr path-cut-prefix result-p zoom-ps))
-                  (to-list (seek1 want vt null))))]
-    [_ (seek1 want vt null)]))
+                  (vt-seek want vt)))]
+    [(vt:eager _ h)
+     (cond [(hash-ref h want #f) => (lambda (rpath) (list (reverse rpath)))]
+           [else null])]
+    [_ (to-list (seek1 want vt null))]))
+
+;; ----------------------------------------
 
 ;; A Seeking is (seeking Stx Path) -- represents an intermediate search point.
 (struct seeking (want narrow) #:prefab)
