@@ -130,16 +130,17 @@
   (define h
     (let loop ([stx stx] [rpath null] [h '#hash()])
       (cond [(syntax? stx)
-             (eprintf "adding ~e at ~s\n" stx rpath)
+             #;(eprintf "adding ~e at ~s\n" stx rpath)
              (let ([h (hash-set h stx rpath)])
                (cond [(syntax-armed/tainted? stx) h]
                      [else (loop (syntax-e stx) rpath h)]))]
             [(pair? stx)
-             (loop (car stx) (path-add-car rpath)
-                   (loop (cdr stx) (path-add-cdr rpath) h))]
+             (let ([h (hash-set h stx rpath)])
+               (loop (car stx) (path-add-car rpath)
+                     (loop (cdr stx) (path-add-cdr rpath) h)))]
             ;; FIXME: vector, box, prefab
             [else h])))
-  (eprintf "----------------------------------------\n")
+  #;(eprintf "----------------------------------------\n")
   (vt:eager stx h))
 
 ;; evt-track : Stx Stx EagerVT -> EagerVT
@@ -303,13 +304,13 @@
   (match-define (vt:eager sub-stx sub-h) sub-evt)
   (vt:eager (path-replace stx path sub-stx)
             (let ()
-              (eprintf "MERGE: at path = ~s\n" path)
-              (eprintf "nh =\n") (pretty-print h)
-              (eprintf "sub-h =\n") (pretty-print sub-h)
+              ;;(eprintf "MERGE: at path = ~s\n" path)
+              ;;(begin (eprintf "nh =\n") (pretty-print h))
+              ;;(begin (eprintf "sub-h =\n") (pretty-print sub-h))
               (define h-without-prefix (hash-remove-with-prefix h path))
-              (eprintf "h-w/o-prefix =\n") (pretty-print h-without-prefix)
+              ;;(eprintf "h-w/o-prefix =\n") (pretty-print h-without-prefix)
               (define h-with-sub (hash-add-at-path h-without-prefix path sub-h))
-              (eprintf "h-w/-sub-h =\n") (pretty-print h-with-sub)
+              ;;(eprintf "h-w/-sub-h =\n") (pretty-print h-with-sub)
               h-with-sub)))
 
 (define (hash-remove-with-prefix h prefix)
