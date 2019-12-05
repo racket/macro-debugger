@@ -7,6 +7,16 @@
          "stx-util.rkt")
 (provide (all-defined-out))
 
+#;
+(provide vt-zoom
+         vt-unzoom
+         vt-depth
+         vt-base
+         vt-track
+         vt-merge-at-base
+         vt-seek
+         vt->stx)
+
 (module base racket/base
   (provide (all-defined-out))
   ;; List monad
@@ -35,112 +45,88 @@
 
 (require 'base 'util)
 
-;; ----------------------------------------
-
 ;; In general, this file assumes that we only care about finding non-tainted
 ;; syntax. So it stops searching after seeing armed/tainted term.
 
-;; path-append : Path Path -> Path
-(define (path-append a b) (append a b))
+;; ============================================================
 
-;; stx-ref : Stx Path -> Syntaxish
-(define (stx-ref stx path) (path-get stx path))
+;; A VT is (vt:zoom (Listof Path) EagerVT LazyVT)
+(struct vt:zoom (paths evt lvt) #:prefab)
 
-;; stx-seek : Stx Stx -> (M Path)
-;; FIXME: vectors, structs, etc...
-;; FIXME: assume at most one match, avoid general disj?
-(define (stx-seek want in)
-  (cond [(equal? want in) (return null)]
-        [(and (syntax? in) (syntax-armed/tainted? in)) (fail)] ;; shortcut
-        [(stx-pair? in)
-         (disj (bind1 (stx-seek want (stx-car in)) path-add-car)
-               (bind1 (stx-seek want (stx-cdr in)) path-add-cdr))]
-        [else (fail)]))
+;; vt-zoom : VT Path -> VT
+(define (vt-zoom vt path)
+  (match vt [(vt:zoom ps evt lvt) (vt:zoom (cons path ps) evt lvt)]))
 
-;; ----------------------------------------
+;; vt-unzoom : VT Path
+(define (vt-unzoom vt p)
+  (match vt
+    [(vt:zoom (cons (== p) ps) evt lvt) (vt:zoom ps evt lvt)]
+    [_ (error 'vt-unzoom "failed: ~e, ~e" p vt)]))
 
-;; An WVT is one of
-;; - VT
-;; - (vt:zoom (NEListof Path) VT)       -- represents zoomed-in VT
-(struct vt:zoom (paths vt) #:prefab)
+;; vt-depth : VT -> Nat
+(define (vt-depth vt) 1) ;; FIXME
 
-(define (vt-zoom wvt path)
-  (match wvt
-    [(vt:zoom ps vt) (vt:zoom (cons path ps) vt)]
-    [vt (vt:zoom (list path) vt)]))
+;; vt-track : Stx Stx VT [Any] -> VT
+(define (vt-track from to in [type #f])
+  (cond [(eq? from to) in]
+        [else (match in
+                [(vt:zoom ps evt lvt)
+                 (vt:zoom ps (evt-track from to evt) (lvt-track from to lvt))])]))
 
-(define (vt-unzoom wvt p)
-  (match wvt
-    [(vt:zoom (cons (== p) ps) vt)
-     (if (null? ps) vt (vt:zoom ps vt))]
-    [_ (error 'vt-unzoom "failed: ~e, ~e" p wvt)]))
+;; vt-base : Stx -> VT
+(define (vt-base stx)
+  (vt:zoom null (evt-base stx) (lvt-base stx)))
+
+;; vt-merge-at-path : Stx/VT Path VT -> VT
+(define (vt-merge-at-path vt path sub-vt)
+  (let ([sub-vt (if (stx? sub-vt) (vt-base sub-vt) sub-vt)])
+    (if (equal? path null)
+        sub-vt
+        (match vt
+          [(vt:zoom zoom-ps evt lvt)
+           (match-define (vt:zoom '() sub-evt sub-lvt) sub-vt)
+           (let ([path (foldl append path zoom-ps)])
+             (vt:zoom zoom-ps
+                      (evt-merge-at-path evt path sub-evt)
+                      (lvt-merge-at-path lvt path sub-lvt)))]
+          [(? stx? stx) (vt-merge-at-path (vt-base stx) path sub-vt)]))))
+
+;; vt-seek : Stx VT -> (Listof Path)
+;; Handles zoomed VTs. The zoom-paths are removed from the prefix of each result
+;; (top = most-recent zoom is removed last). Results that do not extend the
+;; prefixes are discarded.
+(define (vt-seek want vt)
+  (match vt
+    [(vt:zoom zoom-ps evt lvt)
+     (define e-results (evt-seek want evt))
+     (define l-results (lvt-seek want lvt))
+     (unless (equal? e-results l-results)
+       (error 'vt-seek "mismatch in results: e=> ~e, l=> ~e" e-results l-results))
+     (define (cut-prefix p) (foldr path-cut-prefix p zoom-ps))
+     (filter list? (map cut-prefix e-results))]))
+
+;; vt->stx : VT Path -> Stx
+;; Note: ignores tracking, only uses base, patches, and zoom.
+(define (vt->stx vt)
+  (match vt
+    [(vt:zoom zoom-ps evt lvt)
+     (define e-stx (evt->stx evt))
+     (define l-stx (lvt->stx lvt))
+     (unless (equal? (stx->datum e-stx) (stx->datum l-stx))
+       (error 'vt->stx "mismatch in results: e=> ~e, l=> ~e" e-stx l-stx))
+     (foldr (lambda (p stx) (path-get stx p)) e-stx zoom-ps)]))
+
 
 ;; ----------------------------------------
 
 ;; An EagerVT is (vt:eager Stx Hash[Stx => ReversedPath])   -- eager composition of VT
 (struct vt:eager (stx h) #:prefab)
 
-;; A VT is one of
-;; - (vt:base Stx Hash)             -- the term itself
-;; - (vt:track Stx Stx VT Hash)     -- scope/arm/etc FROM, producing TO, within IN
-;; - (vt:patch Path VT VT)          -- replace subterm at AT with TO, within IN
-(struct vt:base (stx h) #;#:prefab
-  #:property prop:custom-write
-  (make-constructor-style-printer (lambda (self) 'vt:base)
-                                  (match-lambda [(vt:base stx _) (list stx)])))
-(struct vt:track (from to in h) #;#:prefab
-  #:property prop:custom-write
-  (make-constructor-style-printer (lambda (self) 'vt:track)
-                                  (match-lambda [(vt:track from to in _) (list from to in)])))
-(struct vt:patch (at to in) #:prefab)
-
-(define (vt-depth vt)
-  (match vt
-    [(vt:eager _ _) 1]
-    [(vt:track _ _ in _) (add1 (vt-depth in))]
-    [(vt:patch p to in) (add1 (max (vt-depth to) (vt-depth in)))]
-    [else 1]))
-
-;; If vt ends in [e1->e2], and we want to search for e, then the naive approach
-;; is to search for e in e2, fetch the corresponding (ie, same path) subterm of
-;; e1, and continue searching for *that* term in the rest of vt. That is in fact
-;; how we handle *rename* (ie, scope) changes. But if [e1->e2] is a disarm step,
-;; then we cannot fetch a subterm from within the (armed) term e1. So we add the
-;; path to a delayed *narrowing* and search for e1; once we find the pre-armed
-;; version of e1, we apply the narrowing. Note that the search for e1 might
-;; itself evolve through adjustments---that's fine.
-
-;; vt-track : Stx Stx VT [Any] -> VT
-(define (vt-track from to in [type #f])
-  (cond [(eq? from to) in]
-        [else (match in
-                [(vt:zoom ps in)
-                 (vt:zoom ps (vt-track from to in))]
-                [(vt:eager stx h)
-                 (vt:eager stx (extend-eager-hash from to h))]
-                [_ (vt:track from to in (make-track-hash from to))])]))
-
-;; hash maps Syntax => (cons Stx Path)
-(define (make-track-hash from to)
-  (define h (make-hasheq))
-  (define (loop to from rpath)
-    (cond [(syntax? to)
-           (hash-set! h to (cons from (reverse rpath)))
-           (unless (syntax-armed/tainted? to)
-             (loop (syntax-e to) from rpath))]
-          [(pair? to)
-           (cond [(pair? from) ;; rpath = null
-                  (loop (car to) (car from) rpath)
-                  (loop (cdr to) (cdr from) rpath)]
-                 [(and (syntax? from) (syntax-armed/tainted? from))
-                  (loop (car to) from (path-add-car rpath))
-                  (loop (cdr to) from (path-add-cdr rpath))]
-                 [(syntax? from)
-                  (loop to (syntax-e from) rpath)]
-                 [else (error 'make-track-hash "mismatch: ~e, ~e" from to)])]
-          ;; FIXME: vector, box, prefab
-          [else (void)]))
-  (begin (loop to from null) h))
+;; evt-track : Stx Stx EagerVT -> EagerVT
+(define (evt-track from to in)
+  (match in
+    [(vt:eager stx h)
+     (vt:eager stx (extend-eager-hash from to h))]))
 
 (define (extend-eager-hash from to old-h)
   (define (loop from to h)
@@ -174,8 +160,8 @@
           [else h]))
   (loop from to old-h))
 
-;; vt-base : Stx -> VT
-(define (vt-base stx)
+;; evt-base : Stx -> EagerVT
+(define (evt-base stx)
   (vt:eager stx
             (let loop ([stx stx] [rpath null] [h '#hash()])
               (cond [(syntax? stx)
@@ -188,22 +174,12 @@
                     ;; FIXME: vector, box, prefab
                     [else h]))))
 
-;; vt-merge-at-path : Stx/VT Path VT -> VT
-(define (vt-merge-at-path vt path sub-vt)
-  (let ([sub-vt (if (stx? sub-vt) (vt-base sub-vt) sub-vt)])
-    (match vt
-      [(vt:zoom zoom-ps vt)
-       (let ([path (foldl append path zoom-ps)])
-         (vt:zoom zoom-ps (vt-merge-at-path vt path sub-vt)))]
-      [(? stx? stx) (vt-merge-at-path (vt-base stx) path sub-vt)]
-      [vt (cond [(equal? path null) sub-vt]
-                [else
-                 (match-define (vt:eager stx h) vt)
-                 (match-define (vt:eager sub-stx sub-h) sub-vt)
-                 (vt:eager (path-replace stx path sub-stx)
-                           (hash-add-at-path
-                            (hash-remove-with-prefix h path)
-                            path sub-h))])])))
+;; evt-merge-at-path : EagerVT Path EagerVT -> EagerVT
+(define (evt-merge-at-path evt path sub-evt)
+  (match-define (vt:eager stx h) evt)
+  (match-define (vt:eager sub-stx sub-h) sub-evt)
+  (vt:eager (path-replace stx path sub-stx)
+            (hash-add-at-path (hash-remove-with-prefix h path) path sub-h)))
 
 (define (hash-remove-with-prefix h prefix)
   (for/fold ([h h]) ([(k rpath) (in-hash h)])
@@ -244,8 +220,45 @@
   (for/fold ([h h]) ([(k sub-rpath) (in-hash h)])
     (hash-set h k (append sub-rpath rprefix))))
 
-#|
-(define (vt-base* stx)
+;; evt->stx : EagerVT Path -> Stx
+(define (evt->stx evt)
+  (match evt [(vt:eager stx _) stx]))
+
+;; evt-seek : EagerVT : Stx EagerVT -> (Listof Path)
+(define (evt-seek want evt)
+  (match evt
+    [(vt:eager _ h)
+     (cond [(hash-ref h want #f) => (lambda (rpath) (list (reverse rpath)))]
+           [else null])]))
+
+
+;; ------------------------------------------------------------
+
+;; A LazyVT is one of
+;; - (vt:base Stx Hash)             -- the term itself
+;; - (vt:track Stx Stx LazyVT Hash) -- scope/arm/etc FROM, producing TO, within IN
+;; - (vt:patch Path LazyVT LazyVT)  -- replace subterm at AT with TO, within IN
+(struct vt:base (stx h) #;#:prefab
+  #:property prop:custom-write
+  (make-constructor-style-printer (lambda (self) 'vt:base)
+                                  (match-lambda [(vt:base stx _) (list stx)])))
+(struct vt:track (from to in h) #;#:prefab
+  #:property prop:custom-write
+  (make-constructor-style-printer (lambda (self) 'vt:track)
+                                  (match-lambda [(vt:track from to in _) (list from to in)])))
+(struct vt:patch (at to in) #:prefab)
+
+;; If vt ends in [e1->e2], and we want to search for e, then the naive approach
+;; is to search for e in e2, fetch the corresponding (ie, same path) subterm of
+;; e1, and continue searching for *that* term in the rest of vt. That is in fact
+;; how we handle *rename* (ie, scope) changes. But if [e1->e2] is a disarm step,
+;; then we cannot fetch a subterm from within the (armed) term e1. So we add the
+;; path to a delayed *narrowing* and search for e1; once we find the pre-armed
+;; version of e1, we apply the narrowing. Note that the search for e1 might
+;; itself evolve through adjustments---that's fine.
+
+;; lvt-base : Stx -> LazyVT
+(define (lvt-base stx)
   (define h (make-hash))
   (let loop ([stx stx] [acc null])
     (cond [(syntax? stx)
@@ -259,29 +272,40 @@
           [else (void)]))
   (vt:base stx h))
 
-;; vt-merge-at-path : Stx/VT Path VT -> VT
-(define (vt-merge-at-path vt path sub-vt)
-  (let ([sub-vt (if (stx? sub-vt) (vt-base sub-vt) sub-vt)])
-    (match vt
-      [(vt:zoom zoom-ps vt)
-       (let ([path (foldl append path zoom-ps)])
-         (vt:zoom zoom-ps (vt:patch path sub-vt vt)))]
-      [(? stx? stx) (vt:patch path sub-vt (vt-base stx))]
-      [vt (cond [(equal? path null) sub-vt]
-                [else (vt:patch path sub-vt vt)])])))
-|#
+;; lvt-track : Stx Stx LazyVT -> LazyVT
+(define (lvt-track from to in)
+  (vt:track from to in (make-track-hash from to)))
 
-;; ----------------------------------------
+;; hash maps Syntax => (cons Stx Path)
+(define (make-track-hash from to)
+  (define h (make-hasheq))
+  (define (loop to from rpath)
+    (cond [(syntax? to)
+           (hash-set! h to (cons from (reverse rpath)))
+           (unless (syntax-armed/tainted? to)
+             (loop (syntax-e to) from rpath))]
+          [(pair? to)
+           (cond [(pair? from) ;; rpath = null
+                  (loop (car to) (car from) rpath)
+                  (loop (cdr to) (cdr from) rpath)]
+                 [(and (syntax? from) (syntax-armed/tainted? from))
+                  (loop (car to) from (path-add-car rpath))
+                  (loop (cdr to) from (path-add-cdr rpath))]
+                 [(syntax? from)
+                  (loop to (syntax-e from) rpath)]
+                 [else (error 'make-track-hash "mismatch: ~e, ~e" from to)])]
+          ;; FIXME: vector, box, prefab
+          [else (void)]))
+  (begin (loop to from null) h))
 
-;; vt->stx : VT Path -> Stx
-;; Note: ignores tracking, only uses base, patches, and zoom.
-(define (vt->stx vt)
+;; lvt-merge-at-path : LazyVT Path LazyVT -> LazyVT
+(define (lvt-merge-at-path vt path sub-vt)
+  (vt:patch path sub-vt vt))
+
+;; lvt->stx : LazyVT Path -> Stx
+(define (lvt->stx vt)
   (let loop ([vt vt])
     (match vt
-      [(vt:zoom paths vt)
-       (foldr (lambda (p stx) (path-get stx p)) (loop vt) paths)]
-      [(vt:eager stx _)
-       stx]
       [(vt:base stx _)
        stx]
       [(vt:track _ _ in _)
@@ -289,24 +313,9 @@
       [(vt:patch at to in)
        (path-replace (loop in) at (loop to) #:resyntax? #f)])))
 
-;; ----------------------------------------
-
-;; vt-seek : Stx VT -> (Listof Path)
-;; Handles zoomed VTs. The zoom-paths are removed from the prefix of each result
-;; (top = most-recent zoom is removed last). Results that do not extend the
-;; prefixes are discarded.
-(define (vt-seek want vt)
-  (match vt
-    [(vt:zoom zoom-ps vt)
-     (filter list?
-             (map (lambda (result-p) (foldr path-cut-prefix result-p zoom-ps))
-                  (vt-seek want vt)))]
-    [(vt:eager _ h)
-     (cond [(hash-ref h want #f) => (lambda (rpath) (list (reverse rpath)))]
-           [else null])]
-    [_ (to-list (seek1 want vt null))]))
-
-;; ----------------------------------------
+;; lvt-seek : Stx LazyVT -> (Listof Path)
+(define (lvt-seek want lvt)
+  (to-list (seek1 want lvt null)))
 
 ;; A Seeking is (seeking Stx Path) -- represents an intermediate search point.
 (struct seeking (want narrow) #:prefab)
@@ -318,12 +327,12 @@
     (path-get-until want narrow (lambda (x) (and (syntax? x) (syntax-armed/tainted? x)))))
   (seeking want* narrow*))
 
-;; seek1 : Stx VT Path -> (M Path)
-;; Find the path(s) of the NARROW subterm of WANT in VT. , then calls seek*.
+;; seek1 : Stx LazyVT Path -> (M Path)
+;; Find the path(s) of the NARROW subterm of WANT in VT.
 (define (seek1 want vt narrow)
   (seek* (list (make-seeking want narrow)) vt))
 
-;; seek* : Stx VT Path -> (M Path)
+;; seek* : Stx LazyVT Path -> (M Path)
 ;; PRE: narrow is null or want is armed (or tainted)
 (define (seek* ss vt)
   (define unique-ss (remove-duplicates ss))
@@ -368,3 +377,6 @@
                (if (path-prefix? at p) (fail) (return p)))
            (do ([p <- (seek* unique-ss to)])
                (return (path-append at p))))]))
+
+;; path-append : Path Path -> Path
+(define (path-append a b) (append a b))
