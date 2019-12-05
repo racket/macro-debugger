@@ -148,6 +148,73 @@
     [(vt:eager stx h)
      (vt:eager stx (extend-eager-hash from to h))]))
 
+;; Case: FROM ---arm--> TO
+;; - if FROM was previously visible at P, then map TO to P
+;; - if FROM was not previously visible, then map TO to (delayed FROM)
+;; Case: FROM -disarm-> TO
+;; - if FROM was previously visible at P,
+;;   then map TO to P and map subterms of TO to extensions of P
+;; - if FROM was mapped to (delayed FROM'), then recur on (FROM' -> TO)
+;; - if FROM was not previously visible, stop
+;; Case: FROM --> TO (neither arm nor disarm)
+;; - if FROM is visible at P, then map TO to P and recur
+;; - if FROM is mapped to (delayed FROM') --- cannot happen!
+;; - if FROM is not visible, then do not map TO but just recur
+
+(struct delayed (stx) #:prefab)
+
+(define (extend-eager-hash from to old-h)
+  (define (stx-armed? x) (and (syntax? x) (syntax-armed? x)))
+  (define (stx-tainted? x) (and (syntax? x) (syntax-tainted? x)))
+  (define (stx-e x) (if (syntax? x) (syntax-e x) x))
+
+  (define (hash-forward h from to)
+    (match (hash-ref old-h from #f)
+      [(? list? rpath) (hash-set h to rpath)]
+      [(delayed from*) (hash-set h to (delayed from*))]
+      ['#f h]))
+
+  (define (loop from to h)
+    (cond [(or (stx-tainted? from) (stx-tainted? to)) h]
+          [(stx-armed? to)
+           (cond [(stx-armed? from) ;; no arm/disarm
+                  (hash-forward h from to)]
+                 [else ;; arm
+                  (match (hash-ref old-h from #f)
+                    [(? list? rpath) (hash-set h to rpath)]
+                    ;;[(delayed from*) (hash-set h to (delayed from*))]
+                    ['#f (hash-set h to (delayed from))])])]
+          [else
+           (cond [(stx-armed? from) ;; disarm
+                  (match (hash-ref old-h from #f)
+                    [(? list? rpath) (handle-disarm from to rpath h)]
+                    [(delayed from*) (loop from* to h)]
+                    ['#f h])]
+                 [else ;; no arm/disarm
+                  (let ([h (hash-forward h from to)])
+                    (datumloop (stx-e from) (stx-e to) h))])]))
+
+  (define (datumloop from to h)
+    (cond [(and (pair? from) (pair? to))
+           (loop (car from) (car to)
+                 (loop (cdr from) (cdr to) h))]
+          [else h]))
+
+  (define (handle-disarm from to rpath h)
+    (let dloop ([to to] [rpath rpath] [h h])
+      (cond [(syntax? to)
+             (let ([h (hash-set h to rpath)])
+               (cond [(syntax-tainted? to) h]
+                     [(syntax-armed? to) h]
+                     [else (dloop (syntax-e to) rpath h)]))]
+            [(pair? to)
+             (let ([h (hash-set h to rpath)])
+               (dloop (car to) (path-add-car rpath)
+                      (dloop (cdr to) (path-add-cdr rpath) h)))]
+            [else h])))
+
+  (loop from to old-h))
+
 #;
 (define (extend-eager-hash from to old-h)
   (let loop ([from from] [to to] [h old-h])
@@ -168,6 +235,27 @@
                    (loop (cdr from) (cdr to) h))]
             [else h]))))
 
+#;
+(define (extend-eager-hash from to old-h)
+  (let loop ([from from] [to to] [h old-h])
+    (let ([h (cond [(or (null? from) (null? to)) h]
+                   [(hash-ref old-h from #f)
+                    => (lambda (from-rpath)
+                         (eprintf "adding ~e at ~s\n" to from-rpath)
+                         (hash-set h to from-rpath))]
+                   [else h])])
+      (cond [(and (syntax? from) (syntax? to))
+             (loop (syntax-e from) (syntax-e to) h)]
+            [(syntax? from)
+             (loop (syntax-e from) to h)]
+            [(syntax? to)
+             (loop from (syntax-e to) h)]
+            [(and (pair? from) (pair? to))
+             (loop (car from) (car to)
+                   (loop (cdr from) (cdr to) h))]
+            [else h]))))
+
+#;
 (define (extend-eager-hash from to old-h)
   (define (loop from to h)
     (eprintf "LOOP: ~e ==> ~e\n" from to)
@@ -207,12 +295,22 @@
   (begin0 (loop from to old-h)
     (eprintf "\n\n")))
 
+(require racket/pretty)
+
 ;; evt-merge-at-path : EagerVT Path EagerVT -> EagerVT
 (define (evt-merge-at-path evt path sub-evt)
   (match-define (vt:eager stx h) evt)
   (match-define (vt:eager sub-stx sub-h) sub-evt)
   (vt:eager (path-replace stx path sub-stx)
-            (hash-add-at-path (hash-remove-with-prefix h path) path sub-h)))
+            (let ()
+              (eprintf "MERGE: at path = ~s\n" path)
+              (eprintf "nh =\n") (pretty-print h)
+              (eprintf "sub-h =\n") (pretty-print sub-h)
+              (define h-without-prefix (hash-remove-with-prefix h path))
+              (eprintf "h-w/o-prefix =\n") (pretty-print h-without-prefix)
+              (define h-with-sub (hash-add-at-path h-without-prefix path sub-h))
+              (eprintf "h-w/-sub-h =\n") (pretty-print h-with-sub)
+              h-with-sub)))
 
 (define (hash-remove-with-prefix h prefix)
   (for/fold ([h h]) ([(k rpath) (in-hash h)])
@@ -249,7 +347,7 @@
 
 (define (hash-add-at-path h prefix sub-h)
   (define rprefix (reverse prefix))
-  (for/fold ([h h]) ([(k sub-rpath) (in-hash h)])
+  (for/fold ([h h]) ([(k sub-rpath) (in-hash sub-h)])
     (hash-set h k (append sub-rpath rprefix))))
 
 ;; evt->stx : EagerVT Path -> Stx
@@ -260,9 +358,9 @@
 (define (evt-seek want evt)
   (match evt
     [(vt:eager _ h)
-     (cond [(hash-ref h want #f) => (lambda (rpath) (list (reverse rpath)))]
-           [else null])]))
-
+     (match (hash-ref h want #f)
+       [(? list? rpath) (list (reverse rpath))]
+       [_ null])]))
 
 ;; ------------------------------------------------------------
 
@@ -289,6 +387,22 @@
 ;; version of e1, we apply the narrowing. Note that the search for e1 might
 ;; itself evolve through adjustments---that's fine.
 
+;; lvt-base : Stx -> LazyVT
+(define (lvt-base stx)
+  (define h
+    (let loop ([stx stx] [rpath null] [h '#hash()])
+      (cond [(syntax? stx)
+             (let ([h (hash-set h stx (reverse rpath))])
+               (cond [(syntax-armed/tainted? stx) h]
+                     [else (loop (syntax-e stx) rpath h)]))]
+            [(pair? stx)
+             (let ([h (hash-set h stx rpath)])
+               (loop (car stx) (path-add-car rpath)
+                     (loop (cdr stx) (path-add-cdr rpath) h)))]
+            [else h])))
+  (vt:base stx h))
+
+#;
 ;; lvt-base : Stx -> LazyVT
 (define (lvt-base stx)
   (define h (make-hash))
