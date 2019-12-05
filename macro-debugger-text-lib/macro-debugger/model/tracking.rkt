@@ -68,10 +68,11 @@
 
 ;; vt-track : Stx Stx VT [Any] -> VT
 (define (vt-track from to in [type #f])
+  (check-vt 'vt-track
   (cond [(eq? from to) in]
         [else (match in
                 [(vt:zoom ps evt lvt)
-                 (vt:zoom ps (evt-track from to evt) (lvt-track from to lvt))])]))
+                 (vt:zoom ps (evt-track from to evt) (lvt-track from to lvt))])])))
 
 ;; vt-base : Stx -> VT
 (define (vt-base stx)
@@ -79,6 +80,7 @@
 
 ;; vt-merge-at-path : Stx/VT Path VT -> VT
 (define (vt-merge-at-path vt path sub-vt)
+  (check-vt 'vt-merge-at-path
   (let ([sub-vt (if (stx? sub-vt) (vt-base sub-vt) sub-vt)])
     (if (equal? path null)
         sub-vt
@@ -89,7 +91,7 @@
              (vt:zoom zoom-ps
                       (evt-merge-at-path evt path sub-evt)
                       (lvt-merge-at-path lvt path sub-lvt)))]
-          [(? stx? stx) (vt-merge-at-path (vt-base stx) path sub-vt)]))))
+          [(? stx? stx) (vt-merge-at-path (vt-base stx) path sub-vt)])))))
 
 ;; vt-seek : Stx VT -> (Listof Path)
 ;; Handles zoomed VTs. The zoom-paths are removed from the prefix of each result
@@ -119,6 +121,21 @@
      (foldr (lambda (p stx) (path-get stx p)) e-stx zoom-ps)]))
 
 (define the-vt-error #f) ;; mutated
+
+;; ----------------------------------------
+
+(define (check-vt who vt)
+  (match vt
+    [(vt:zoom zoom-ps (vt:eager estx eh) lvt)
+     (unless (equal? (stx->datum estx) (stx->datum (lvt->stx lvt)))
+       (set! the-vt-error (list who vt))
+       (error who "stx mismatch: e=> ~e, l=> ~e" (stx->datum estx) (stx->datum (lvt->stx lvt))))
+     (for ([(stx rpath) (in-hash eh)] #:when (list? rpath))
+       (define lpaths (lvt-seek stx lvt))
+       (unless (member (reverse rpath) lpaths)
+         (set! the-vt-error (list who vt))
+         (error who "lookup mismatch on ~e, e=> ~e, l=> ~e" stx (reverse rpath) lpaths)))])
+  vt)
 
 ;; ----------------------------------------
 
@@ -397,7 +414,7 @@
                (cond [(syntax-armed/tainted? stx) h]
                      [else (loop (syntax-e stx) rpath h)]))]
             [(pair? stx)
-             (let ([h (hash-set h stx rpath)])
+             (let ([h (hash-set h stx (reverse rpath))])
                (loop (car stx) (path-add-car rpath)
                      (loop (cdr stx) (path-add-cdr rpath) h)))]
             [else h])))
@@ -432,6 +449,7 @@
            (unless (syntax-armed/tainted? to)
              (loop (syntax-e to) from rpath))]
           [(pair? to)
+           (hash-set! h to (cons from (reverse rpath))) ;; ???
            (cond [(pair? from) ;; rpath = null
                   (loop (car to) (car from) rpath)
                   (loop (cdr to) (cdr from) rpath)]
