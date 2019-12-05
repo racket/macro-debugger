@@ -152,7 +152,7 @@
                (cond [(syntax-armed/tainted? stx) h]
                      [else (loop (syntax-e stx) rpath h)]))]
             [(pair? stx)
-             (let ([h (hash-set h stx rpath)])
+             (let ([h h #;(hash-set h stx rpath)])
                (loop (car stx) (path-add-car rpath)
                      (loop (cdr stx) (path-add-cdr rpath) h)))]
             ;; FIXME: vector, box, prefab
@@ -187,10 +187,12 @@
   (define (stx-e x) (if (syntax? x) (syntax-e x) x))
 
   (define (hash-forward h from to)
-    (match (hash-ref old-h from #f)
-      [(? list? rpath) (hash-set h to rpath)]
-      [(delayed from*) (hash-set h to (delayed from*))]
-      ['#f h]))
+    (cond [(syntax? to)
+           (match (hash-ref old-h from #f)
+             [(? list? rpath) (hash-set h to rpath)]
+             [(delayed from*) (hash-set h to (delayed from*))]
+             ['#f h])]
+          [else h]))
 
   (define (loop from to h)
     (cond [(or (stx-tainted? from) (stx-tainted? to)) h]
@@ -226,7 +228,7 @@
                      [(syntax-armed? to) h]
                      [else (dloop (syntax-e to) rpath h)]))]
             [(pair? to)
-             (let ([h (hash-set h to rpath)])
+             (let ([h h #;(hash-set h to rpath)])
                (dloop (car to) (path-add-car rpath)
                       (dloop (cdr to) (path-add-cdr rpath) h)))]
             [else h])))
@@ -331,7 +333,7 @@
               h-with-sub)))
 
 (define (hash-remove-with-prefix h prefix)
-  (for/fold ([h h]) ([(k rpath) (in-hash h)])
+  (for/fold ([h h]) ([(k rpath) (in-hash h)] #:when (list? rpath))
     (if (rpath-prefix? prefix rpath) (hash-remove h k) h)))
 
 (define (rpath-prefix? prefix rpath)
@@ -366,7 +368,7 @@
 (define (hash-add-at-path h prefix sub-h)
   (define rprefix (reverse prefix))
   (for/fold ([h h]) ([(k sub-rpath) (in-hash sub-h)])
-    (hash-set h k (append sub-rpath rprefix))))
+    (hash-set h k (if (list? sub-rpath) (append sub-rpath rprefix) sub-rpath))))
 
 ;; evt->stx : EagerVT Path -> Stx
 (define (evt->stx evt)
@@ -414,7 +416,7 @@
                (cond [(syntax-armed/tainted? stx) h]
                      [else (loop (syntax-e stx) rpath h)]))]
             [(pair? stx)
-             (let ([h (hash-set h stx (reverse rpath))])
+             (let ([h h #;(hash-set h stx (reverse rpath))])
                (loop (car stx) (path-add-car rpath)
                      (loop (cdr stx) (path-add-cdr rpath) h)))]
             [else h])))
@@ -449,7 +451,7 @@
            (unless (syntax-armed/tainted? to)
              (loop (syntax-e to) from rpath))]
           [(pair? to)
-           (hash-set! h to (cons from (reverse rpath))) ;; ???
+           ;;(hash-set! h to (cons from (reverse rpath))) ;; ???
            (cond [(pair? from) ;; rpath = null
                   (loop (car to) (car from) rpath)
                   (loop (cdr to) (cdr from) rpath)]
