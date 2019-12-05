@@ -101,6 +101,7 @@
      (define e-results (evt-seek want evt))
      (define l-results (lvt-seek want lvt))
      (unless (equal? e-results l-results)
+       (set! the-vt-error (list 'seek want vt))
        (error 'vt-seek "mismatch in results: e=> ~e, l=> ~e" e-results l-results))
      (define (cut-prefix p) (foldr path-cut-prefix p zoom-ps))
      (filter list? (map cut-prefix e-results))]))
@@ -113,14 +114,33 @@
      (define e-stx (evt->stx evt))
      (define l-stx (lvt->stx lvt))
      (unless (equal? (stx->datum e-stx) (stx->datum l-stx))
+       (set! the-vt-error (list 'to-stx vt))
        (error 'vt->stx "mismatch in results: e=> ~e, l=> ~e" e-stx l-stx))
      (foldr (lambda (p stx) (path-get stx p)) e-stx zoom-ps)]))
 
+(define the-vt-error #f) ;; mutated
 
 ;; ----------------------------------------
 
 ;; An EagerVT is (vt:eager Stx Hash[Stx => ReversedPath])   -- eager composition of VT
 (struct vt:eager (stx h) #:prefab)
+
+;; evt-base : Stx -> EagerVT
+(define (evt-base stx)
+  (define h
+    (let loop ([stx stx] [rpath null] [h '#hash()])
+      (cond [(syntax? stx)
+             (eprintf "adding ~e at ~s\n" stx rpath)
+             (let ([h (hash-set h stx rpath)])
+               (cond [(syntax-armed/tainted? stx) h]
+                     [else (loop (syntax-e stx) rpath h)]))]
+            [(pair? stx)
+             (loop (car stx) (path-add-car rpath)
+                   (loop (cdr stx) (path-add-cdr rpath) h))]
+            ;; FIXME: vector, box, prefab
+            [else h])))
+  (eprintf "----------------------------------------\n")
+  (vt:eager stx h))
 
 ;; evt-track : Stx Stx EagerVT -> EagerVT
 (define (evt-track from to in)
@@ -128,12 +148,37 @@
     [(vt:eager stx h)
      (vt:eager stx (extend-eager-hash from to h))]))
 
+#;
+(define (extend-eager-hash from to old-h)
+  (let loop ([from from] [to to] [h old-h])
+    (let ([h (cond [(or (null? from) (null? to)) h]
+                   [(hash-ref old-h from #f)
+                    => (lambda (from-rpath)
+                         (eprintf "adding ~e at ~s\n" to from-rpath)
+                         (hash-set h to from-rpath))]
+                   [else h])])
+      (cond [(and (syntax? from) (syntax? to))
+             (loop (syntax-e from) (syntax-e to) h)]
+            [(syntax? from)
+             (loop (syntax-e from) to h)]
+            [(syntax? to)
+             (loop from (syntax-e to) h)]
+            [(and (pair? from) (pair? to))
+             (loop (car from) (car to)
+                   (loop (cdr from) (cdr to) h))]
+            [else h]))))
+
 (define (extend-eager-hash from to old-h)
   (define (loop from to h)
+    (eprintf "LOOP: ~e ==> ~e\n" from to)
     (cond [(syntax? to)
            (let ([h (cond [(hash-ref old-h from #f)
-                           => (lambda (from-rpath) (hash-set h to from-rpath))]
-                          [else h])])
+                           => (lambda (from-rpath)
+                                (eprintf "  adding ~e @ ~s\n" to from-rpath)
+                                (hash-set h to from-rpath))]
+                          [else
+                           (eprintf "  no entry for ~e\n" from)
+                           h])])
              (cond [(syntax-armed/tainted? to) h]
                    [else (loop (syntax-e to) from h)]))]
           [(pair? to)
@@ -141,6 +186,7 @@
                   (loop (car to) (car from)
                         (loop (cdr to) (cdr from) h))]
                  [(and (syntax? from) (syntax-armed/tainted? from))
+                  (eprintf "eeh: from is armed/tainted: ~e\n" from)
                   (cond [(hash-ref old-h from #f)
                          => (lambda (from-rpath)
                               (let floop ([to to] [rpath from-rpath])
@@ -158,21 +204,8 @@
                  [else (error 'extend-eager-hash "mismatch: ~e, ~e" from to)])]
           ;; FIXME: vector, box, prefab
           [else h]))
-  (loop from to old-h))
-
-;; evt-base : Stx -> EagerVT
-(define (evt-base stx)
-  (vt:eager stx
-            (let loop ([stx stx] [rpath null] [h '#hash()])
-              (cond [(syntax? stx)
-                     (let ([h (hash-set h stx rpath)])
-                       (cond [(syntax-armed/tainted? stx) h]
-                             [else (loop (syntax-e stx) rpath h)]))]
-                    [(pair? stx)
-                     (loop (car stx) (path-add-car rpath)
-                           (loop (cdr stx) (path-add-cdr rpath) h))]
-                    ;; FIXME: vector, box, prefab
-                    [else h]))))
+  (begin0 (loop from to old-h)
+    (eprintf "\n\n")))
 
 ;; evt-merge-at-path : EagerVT Path EagerVT -> EagerVT
 (define (evt-merge-at-path evt path sub-evt)
@@ -185,7 +218,6 @@
   (for/fold ([h h]) ([(k rpath) (in-hash h)])
     (if (rpath-prefix? prefix rpath) (hash-remove h k) h)))
 
-;; equivalent to (path-prefix? prefix (reverse rpath), but much less allocation
 (define (rpath-prefix? prefix rpath)
   (path-prefix? prefix (reverse rpath))
   #;
