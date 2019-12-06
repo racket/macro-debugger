@@ -18,33 +18,10 @@
 
 (define CHECK-WITH-LAZY? #f)
 
-(module base racket/base
-  (provide (all-defined-out))
-  ;; List monad
-  ;; type (M X) = (Listof X)
-  (define (disj a b) (if (null? b) a (append a b)))
-  (define return list)
-  (define (bind1 c f) (for*/list ([x (in-list c)]) (f x)))
-  (define (bind c f) (for*/list ([x (in-list c)] [y (in-list (f x))]) y))
-  (define (fail) null)
-  (define (to-list c) c))
-
 (module util racket/base
-  (require racket/match)
-  (require (submod ".." base))
   (provide (all-defined-out))
-  ;; Monad syntax
-  (define-syntax do
-    (syntax-rules (<- =)
-      [(_ ([p <- rhs] . rest) . body)
-       (bind rhs (match-lambda [p (do rest . body)]))]
-      [(_ ([p = rhs] . rest) . body)
-       (match rhs [p (do rest . body)])]
-      [(_ () . body) (let () . body)]))
-  ;; Misc
   (define (stx? x) (or (syntax? x) (pair? x) (null? x))))
-
-(require 'base 'util)
+(require 'util)
 
 ;; In general, this file assumes that we only care about finding non-tainted
 ;; syntax. So it stops searching after seeing armed/tainted term.
@@ -246,16 +223,7 @@
   (match-define (vt:eager stx h) evt)
   (match-define (vt:eager sub-stx sub-h) sub-evt)
   (vt:eager (path-replace stx path sub-stx)
-            (let ()
-              ;;(local-require racket/pretty)
-              ;;(eprintf "MERGE: at path = ~s\n" path)
-              ;;(begin (eprintf "nh =\n") (pretty-print h))
-              ;;(begin (eprintf "sub-h =\n") (pretty-print sub-h))
-              (define h-without-prefix (hash-remove-with-prefix h path))
-              ;;(eprintf "h-w/o-prefix =\n") (pretty-print h-without-prefix)
-              (define h-with-sub (hash-add-at-path h-without-prefix path sub-h))
-              ;;(eprintf "h-w/-sub-h =\n") (pretty-print h-with-sub)
-              h-with-sub)))
+            (hash-add-at-path (hash-remove-with-prefix h path) path sub-h)))
 
 (define (hash-remove-with-prefix h prefix)
   (for/fold ([h h]) ([(k rpath) (in-hash h)] #:when (list? rpath))
@@ -265,7 +233,9 @@
   (path-prefix? prefix (reverse rpath))
   #;
   (null?
-   (let loop ([rpath rpath]) ;; returns #f (not a prefix) or tail of prefix not satisfied by rpath
+   ;; loop : ReversedPath -> Path | #f
+   ;; Returns #f (not a prefix) or tail of prefix not satisfied by rpath
+   (let loop ([rpath rpath])
      (match rpath
        ['() prefix]
        [(cons 'car rpath)
@@ -331,6 +301,27 @@
 ;; path to a delayed *narrowing* and search for e1; once we find the pre-armed
 ;; version of e1, we apply the narrowing. Note that the search for e1 might
 ;; itself evolve through adjustments---that's fine.
+
+(module list-monad racket/base
+  (require racket/match)
+  (provide (all-defined-out))
+  ;; List monad
+  ;; type (M X) = (Listof X)
+  (define (disj a b) (if (null? b) a (append a b)))
+  (define return list)
+  (define (bind1 c f) (for*/list ([x (in-list c)]) (f x)))
+  (define (bind c f) (for*/list ([x (in-list c)] [y (in-list (f x))]) y))
+  (define (fail) null)
+  (define (to-list c) c)
+  ;; Monad syntax
+  (define-syntax do
+    (syntax-rules (<- =)
+      [(_ ([p <- rhs] . rest) . body)
+       (bind rhs (match-lambda [p (do rest . body)]))]
+      [(_ ([p = rhs] . rest) . body)
+       (match rhs [p (do rest . body)])]
+      [(_ () . body) (let () . body)])))
+(require 'list-monad)
 
 ;; lvt-base : Stx -> LazyVT
 (define (lvt-base stx)
@@ -414,7 +405,6 @@
   (define unique-ss (remove-duplicates ss))
   (match vt
     [(vt:base _ h)
-     #;(eprintf "  ---- seek* on stx, ~s seekings, ~s unique\n" (length ss) (length unique-ss))
      ;; I think narrow could be non-empty here, if stx already had armed terms
      ;; and vt only tracked their disarming. (FIXME: test)
      (do ([(seeking want narrow) <- unique-ss])
