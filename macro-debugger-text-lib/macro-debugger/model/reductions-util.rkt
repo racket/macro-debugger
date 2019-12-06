@@ -505,39 +505,26 @@
   (DEBUG
    (eprintf " do-rename-v\n")
    (eprintf "  vt-stx = ~.s\n" (stx->datum (vt->stx vt))))
-  ;; FIXME: this optimization is no longer necessary for eager VT impl
-  ;; fictional-subvs is a hash (set) containing all fictional subterms of v
-  (define fictional-subvs (make-hash))
-  (let loop ([hm hm] [v (stx->datum v)])
-    (match hm
-      ['F (let floop ([v v])
-            (hash-set! fictional-subvs v #t)
-            (when (pair? v) (floop (car v)) (floop (cdr v))))]
-      ['T (void)]
-      [(cons hma hmb) (loop hma (car v)) (loop hmb (cdr v))]))
   ;; Recur through pre,post to find the largest sub-renames that apply to v.
-  ;; Use fictional-subvs to prune the search (if pre-d not in fictional-subvs, can skip).
   (define (init-k v accren) (values v (map car accren) (map cdr accren)))
-  (let loop ([pre pre] [post post] [pre-d (stx->datum pre)] [v v] [accren null] [k init-k])
+  (let loop ([pre pre] [post post] [v v] [accren null] [k init-k])
     (define (try-rename)
-      (cond [(null? pre) #f] ;; FIXME: generalize
-            [(hash-ref fictional-subvs pre-d #f)
-             (match (vt-seek pre vt)
-               [(cons path _)
-                (DEBUG
-                 (eprintf "  found at ~s, pre = ~.s\n" path (stx->datum pre))
-                 (eprintf "    actually = ~.s\n" (stx->datum (path-get v path)))
-                 (eprintf "  do-rename-v : replace at ~s : ~.s => ~.s\n"
-                          path (stx->datum v) (stx->datum (path-replace v path post))))
-                (cons (path-replace v path post #:resyntax? #t)
-                      (cons (cons pre post) accren))]
-               [else #f])]
-            [else #f]))
-    (cond [(try-rename) => (match-lambda [(cons v accren) (k v accren)])]
-          [(pair? pre-d)
-           (loop (stx-car pre) (stx-car post) (car pre-d) v accren
+      (match (vt-seek pre vt)
+        [(cons path _)
+         (DEBUG
+          (eprintf "  found at ~s, pre = ~.s\n" path (stx->datum pre))
+          (eprintf "    actually = ~.s\n" (stx->datum (path-get v path)))
+          (eprintf "  do-rename-v : replace at ~s : ~.s => ~.s\n"
+                   path (stx->datum v) (stx->datum (path-replace v path post))))
+         (cons (path-replace v path post #:resyntax? #t)
+               (cons (cons pre post) accren))]
+        [else #f]))
+    (cond [(and (syntax? pre) (try-rename))
+           => (match-lambda [(cons v accren) (k v accren)])]
+          [(stx-pair? pre)
+           (loop (stx-car pre) (stx-car post) v accren
                  (lambda (v accren)
-                   (loop (stx-cdr pre) (stx-cdr post) (cdr pre-d) v accren k)))]
+                   (loop (stx-cdr pre) (stx-cdr post) v accren k)))]
           [else (k v accren)])))
 
 (define-syntax R/rename/mark
