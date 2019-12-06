@@ -1,20 +1,6 @@
 #lang racket/base
 (require (for-syntax racket/base))
-(provide id
-         pre-id
-         leid
-         lift
-         mklist
-         liftmod
-         liftend
-         wrong
-         Tid
-         Tlist
-         Tlet
-         Tleid
-         Tlift
-         myor
-         the-current-output-port)
+(provide (all-defined-out))
 
 (define-syntax (id stx)
   (syntax-case stx ()
@@ -102,3 +88,17 @@
      (syntax-case stx (set!)
        [(set! the-current-output-port op)
         #'(#%plain-app current-output-port op)]))))
+
+;; Macros that use syntax-arm
+
+(define-syntax-rule (pid0 e) e)
+(define-syntax-rule (pid1 e) (#%plain-app values e))
+(define-syntax-rule (pid2 e) (let-values () e))
+(define-syntax-rule (pid3 e) (let ([x e]) x))
+(define-syntax-rule (pid4 e) (let () (define x e) (#%plain-app values x)))
+(define-syntax (pid5 stx)
+  (syntax-case stx ()
+    [(_ e) #`(let () #,(syntax-protect #'(#%plain-app values e)))]))
+(define-syntax-rule (pidn e)
+  (pid5 (pid4 (pid3 (pid2 (pid1 (pid0 e)))))))
+(define-syntax-rule (pxid (_ e)) (let () e))

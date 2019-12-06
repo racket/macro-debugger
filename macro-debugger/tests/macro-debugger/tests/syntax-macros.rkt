@@ -112,6 +112,66 @@
                  (macro (begin (define-values (#rx"^lifted") 'a)
                                (#%expression #rx"^lifted")))])
 
+  (test "pid0 with Tid"
+        (pid0 (Tid 'a))
+        [#:steps
+         (macro (Tid 'a))
+         (macro 'a)]
+        [#:hidden-steps
+         (macro (pid0 'a))])
+
+  (test "pid1 with Tid"
+        (pid1 (Tid 'a))
+        [#:steps
+         (macro (#%plain-app values (Tid 'a)))
+         (macro (#%plain-app values 'a))]
+        [#:hidden-steps
+         (macro (pid1 'a))])
+
+  (test "pid2 with Tid"
+        (pid2 (Tid 'a))
+        [#:steps
+         (macro (let-values () (Tid 'a)))
+         (rename-letX _)
+         (macro (let-values () 'a))]
+        [#:hidden-steps
+         (macro (pid2 'a))])
+
+  (test "pid3 with Tid"
+        (pid3 (Tid 'a))
+        [#:steps
+         (macro (let ([x (Tid 'a)]) x))
+         (macro (let-values ([(x) (Tid 'a)]) x))
+         (rename-letX _)
+         (macro (let-values ([(x) 'a]) x))]
+        [#:hidden-steps
+         (macro (pid3 'a))])
+
+  (test "pid4 with Tid"
+        (pid4 (Tid 'a))
+        #;[#:steps ...] ;; complicated, skip it
+        [#:hidden-steps
+         (macro (pid4 'a))])
+
+  (test "pid5 with Tid"
+        (pid5 (Tid 'a))
+        #;[#:steps ...] ;; complicated, skip it
+        [#:hidden-steps
+         (macro (pid5 'a))])
+
+  (test "pidn with Tid"
+        (pidn (Tid 'a))
+        #;[#:steps ...] ;; complicated, skip it
+        [#:hidden-steps
+         (macro (pidn 'a))])
+
+  (test "pidn with Tid x2"
+        (pidn (Tid (pidn (Tid 'a))))
+        #;[#:steps ...] ;; complicated, skip it
+        [#:hidden-steps
+         (macro (pidn (pidn (Tid 'a))))
+         (macro (pidn (pidn 'a)))])
+
   [#:suite "set! macros"
            (test "set! (macro)"
                  (set! the-current-output-port 'a)
