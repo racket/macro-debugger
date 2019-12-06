@@ -505,7 +505,7 @@
 
 (define (do-rename-v v vt hm pre post)
   (DEBUG
-   (eprintf " do-rename-v, vt depth = ~s\n" (vt-depth vt))
+   (eprintf " do-rename-v\n")
    (eprintf "  vt-stx = ~.s\n" (stx->datum (vt->stx vt))))
   ;; fictional-subvs is a hash (set) containing all fictional subterms of v
   (define fictional-subvs (make-hash))

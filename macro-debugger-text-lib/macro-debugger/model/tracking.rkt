@@ -41,9 +41,6 @@
     [(vt:zoom (cons (== p) ps) evt lvt) (vt:zoom ps evt lvt)]
     [_ (error 'vt-unzoom "failed: ~e, ~e" p vt)]))
 
-;; vt-depth : VT -> Nat
-(define (vt-depth vt) 1) ;; FIXME
-
 ;; vt-track : Stx Stx VT [Any] -> VT
 (define (vt-track from to in [type #f])
   (cond [(eq? from to) in]
