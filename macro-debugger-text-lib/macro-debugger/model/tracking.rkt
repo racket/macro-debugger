@@ -12,7 +12,7 @@
 ;; each lookup, and an Eager version that maintains a single lookup table and
 ;; eagerly updates it on each adjustment.
 
-;; The Lazy version performs badly except for tiny examples, but the code is
+;; The Lazy version is quite slow except for tiny examples, but the code is
 ;; left (for now) for reference and (if CHECK-WITH-LAZY? is set to true) to
 ;; check the correctness of the Eager version.
 
