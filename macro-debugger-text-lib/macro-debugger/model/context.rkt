@@ -16,8 +16,7 @@
 ;; A Path is a (list-of PathSeg), where the PathSegs are listed outermost to innermost.
 ;; For example: (path-get #'((a b) (c d)) '(car 1)) = #'(b), not #'(c d).
 
-;; Paths are not reversible! (They cannot be build using accumulators.)
-;; Paths have non-canonical forms: for example '(1 2 car) = '(list 3 car).
+;; Paths have non-canonical forms: for example '(1 2 car) = '(3 car).
 
 ;; A PathSeg is one of
 ;; - 'car            -- represents nth car
@@ -78,7 +77,7 @@
                [(not (stx-pair? stx)) (bad)]
                [else (stx-replcdr stx (tailloop (stx-cdr stx) (sub1 n)) resyntax?)]))])))
 
-;; stx-replcar : syntax syntax -> syntax
+;; stx-replcar : Stx Stx -> Stx
 (define (stx-replcar stx x resyntax?)
   (cond [(pair? stx)
          (cons x (cdr stx))]
@@ -88,7 +87,7 @@
              (if resyntax? (resyntax result stx dstx) result)))]
         [else (raise-type-error 'stx-replcar "stx-pair" stx)]))
 
-;; stx-replcdr : syntax syntax -> syntax
+;; stx-replcdr : Stx Stx -> Stx
 (define (stx-replcdr stx x resyntax?)
   (cond [(pair? stx)
          (cons (car stx) x)]
