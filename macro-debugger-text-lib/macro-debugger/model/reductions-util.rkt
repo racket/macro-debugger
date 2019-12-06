@@ -232,8 +232,7 @@
 (struct rsfailed (exn))
 
 (define RS/c (or/c rsok? rsfailed?))
-
-(define pattern/c any/c) ;; FIXME?
+(define pattern/c any/c)
 
 (define RST/c
   ;; First two args are any/c instead of syntaxish? because of
@@ -401,7 +400,6 @@
                  (R** f v p s . clauses))
                ke)]))
 
-;; FIXME: WHEN?
 (define-syntax R/set-syntax
   (syntax-parser
     ;; Change syntax
@@ -507,6 +505,7 @@
   (DEBUG
    (eprintf " do-rename-v\n")
    (eprintf "  vt-stx = ~.s\n" (stx->datum (vt->stx vt))))
+  ;; FIXME: this optimization is no longer necessary for eager VT impl
   ;; fictional-subvs is a hash (set) containing all fictional subterms of v
   (define fictional-subvs (make-hash))
   (let loop ([hm hm] [v (stx->datum v)])
@@ -527,14 +526,7 @@
                [(cons path _)
                 (DEBUG
                  (eprintf "  found at ~s, pre = ~.s\n" path (stx->datum pre))
-                 (with-handlers ([exn?
-                                  (lambda (e)
-                                    (eprintf "** vt = \n")
-                                    (parameterize ((pretty-print-columns 160))
-                                      (pretty-print vt))
-                                    (eprintf "\n")
-                                    (raise e))])
-                   (eprintf "    actually = ~.s\n" (stx->datum (path-get v path))))
+                 (eprintf "    actually = ~.s\n" (stx->datum (path-get v path)))
                  (eprintf "  do-rename-v : replace at ~s : ~.s => ~.s\n"
                           path (stx->datum v) (stx->datum (path-replace v path post))))
                 (cons (path-replace v path post #:resyntax? #t)
@@ -566,7 +558,7 @@
 
 (define-syntax R/if
   (syntax-parser
-    ;; Conditional (pattern changes lost afterwards ...) ;; FIXME???
+    ;; Conditional (pattern changes lost afterwards ...)
     [(_ f v p s [#:if test [consequent ...] [alternate ...]] ke)
      #'(RSbind (RSreset (if (with-pattern-match [f p] test)
                             (R** f v p s consequent ...)
@@ -576,7 +568,7 @@
 
 (define-syntax R/when
   (syntax-parser
-    ;; Conditional (pattern changes lost afterwards ...) ;; FIXME???
+    ;; Conditional (pattern changes lost afterwards ...)
     [(_ f v p s [#:when test consequent ...] ke)
      #'(R/if f v p s [#:if test [consequent ...] []] ke)]))
 
@@ -608,7 +600,6 @@
      #'(RSbind (run reducer.c f v p s (quote hole) fill)
                ke)]))
 
-;; FIXME: should this be used more?
 (define-syntax R/in-hole
   (syntax-parser
     [(_ f v p s [#:in-hole hole . clauses] ke)
@@ -628,7 +619,6 @@
   (unless (or (eq? (honesty) 'F) (andmap (macro-policy) ids))
     (DEBUG
      (eprintf "hide-check: hiding with f=~.s, v=~.s\n" (stx->datum f) (stx->datum v)))
-    ;; FIXME: set-honesty needs to rebuild table if honesty strictly *decreases*
     (set-honesty 'F f))
   (k f v p s))
 
