@@ -7,15 +7,16 @@
          "stx-util.rkt")
 (provide (all-defined-out))
 
-#;
-(provide vt-zoom
-         vt-unzoom
-         vt-depth
-         vt-base
-         vt-track
-         vt-merge-at-base
-         vt-seek
-         vt->stx)
+;; This module has two implementations of the VT data structure: a Lazy version
+;; that keeps a history of syntax adjustments and traces the complete history on
+;; each lookup, and an Eager version that maintains a single lookup table and
+;; eagerly updates it on each adjustment.
+
+;; The Lazy version performs badly except for tiny examples, but the code is
+;; left (for now) for reference and (if CHECK-WITH-LAZY? is set to true) to
+;; check the correctness of the Eager version.
+
+(define CHECK-WITH-LAZY? #f)
 
 (module base racket/base
   (provide (all-defined-out))
@@ -50,7 +51,7 @@
 
 ;; ============================================================
 
-;; A VT is (vt:zoom (Listof Path) EagerVT LazyVT)
+;; A VT is (vt:zoom (Listof Path) EagerVT LazyVT/#f)
 (struct vt:zoom (paths evt lvt) #:prefab)
 
 ;; vt-zoom : VT Path -> VT
@@ -68,19 +69,17 @@
 
 ;; vt-track : Stx Stx VT [Any] -> VT
 (define (vt-track from to in [type #f])
-  (check-vt 'vt-track
   (cond [(eq? from to) in]
         [else (match in
                 [(vt:zoom ps evt lvt)
-                 (vt:zoom ps (evt-track from to evt) (lvt-track from to lvt))])])))
+                 (vt:zoom ps (evt-track from to evt) (lvt-track from to lvt))])]))
 
 ;; vt-base : Stx -> VT
 (define (vt-base stx)
-  (vt:zoom null (evt-base stx) (lvt-base stx)))
+  (vt:zoom null (evt-base stx) (and CHECK-WITH-LAZY? (lvt-base stx))))
 
 ;; vt-merge-at-path : Stx/VT Path VT -> VT
 (define (vt-merge-at-path vt path sub-vt)
-  (check-vt 'vt-merge-at-path
   (let ([sub-vt (if (stx? sub-vt) (vt-base sub-vt) sub-vt)])
     (if (equal? path null)
         sub-vt
@@ -90,8 +89,8 @@
            (let ([path (foldl append path zoom-ps)])
              (vt:zoom zoom-ps
                       (evt-merge-at-path evt path sub-evt)
-                      (lvt-merge-at-path lvt path sub-lvt)))]
-          [(? stx? stx) (vt-merge-at-path (vt-base stx) path sub-vt)])))))
+                      (and CHECK-WITH-LAZY? (lvt-merge-at-path lvt path sub-lvt))))]
+          [(? stx? stx) (vt-merge-at-path (vt-base stx) path sub-vt)]))))
 
 ;; vt-seek : Stx VT -> (Listof Path)
 ;; Handles zoomed VTs. The zoom-paths are removed from the prefix of each result
@@ -101,10 +100,11 @@
   (match vt
     [(vt:zoom zoom-ps evt lvt)
      (define e-results (evt-seek want evt))
-     (define l-results (lvt-seek want lvt))
-     (unless (equal? e-results l-results)
-       (set! the-vt-error (list 'seek want vt))
-       (error 'vt-seek "mismatch in results: e=> ~e, l=> ~e" e-results l-results))
+     (when CHECK-WITH-LAZY?
+       (define l-results (lvt-seek want lvt))
+       (unless (equal? e-results l-results)
+         #;(set! the-vt-error (list 'seek want vt))
+         (error 'vt-seek "mismatch in results: e=> ~e, l=> ~e" e-results l-results)))
      (define (cut-prefix p) (foldr path-cut-prefix p zoom-ps))
      (filter list? (map cut-prefix e-results))]))
 
@@ -114,16 +114,17 @@
   (match vt
     [(vt:zoom zoom-ps evt lvt)
      (define e-stx (evt->stx evt))
-     (define l-stx (lvt->stx lvt))
-     (unless (equal? (stx->datum e-stx) (stx->datum l-stx))
-       (set! the-vt-error (list 'to-stx vt))
-       (error 'vt->stx "mismatch in results: e=> ~e, l=> ~e" e-stx l-stx))
+     (when CHECK-WITH-LAZY?
+       (define l-stx (lvt->stx lvt))
+       (unless (equal? (stx->datum e-stx) (stx->datum l-stx))
+         #;(set! the-vt-error (list 'to-stx vt))
+         (error 'vt->stx "mismatch in results: e=> ~e, l=> ~e" e-stx l-stx)))
      (foldr (lambda (p stx) (path-get stx p)) e-stx zoom-ps)]))
-
-(define the-vt-error #f) ;; mutated
 
 ;; ----------------------------------------
 
+#|
+(define the-vt-error #f) ;; mutated
 (define (check-vt who vt)
   (match vt
     [(vt:zoom zoom-ps (vt:eager estx eh) lvt)
@@ -136,11 +137,15 @@
          (set! the-vt-error (list who vt))
          (error who "lookup mismatch on ~e, e=> ~e, l=> ~e" stx (reverse rpath) lpaths)))])
   vt)
+|#
 
 ;; ----------------------------------------
 
-;; An EagerVT is (vt:eager Stx Hash[Stx => ReversedPath])   -- eager composition of VT
+;; An EagerVT is (vt:eager Stx Hash[Stx => EagerResult])
+;; where EagerResult = ReversedPath | (delayed Stx) -- see extend-eager-hash.
+;; The abbreviation "evt" has no relation to synchronizable events.
 (struct vt:eager (stx h) #:prefab)
+(struct delayed (stx) #:prefab)
 
 ;; evt-base : Stx -> EagerVT
 (define (evt-base stx)
@@ -166,20 +171,22 @@
     [(vt:eager stx h)
      (vt:eager stx (extend-eager-hash from to h))]))
 
+;; Case: FROM --> TO (neither arm nor disarm)
+;; - if FROM is visible at P, then map TO to P and recur
+;; - if FROM is not visible, then do not map TO but just recur
 ;; Case: FROM ---arm--> TO
 ;; - if FROM was previously visible at P, then map TO to P
-;; - if FROM was not previously visible, then map TO to (delayed FROM)
+;; - if FROM was not previously visible, then map TO to (delayed FROM) because
+;;   FROM might contain relevant subterms, and we need to connect them when TO
+;;   eventually gets disarmed
 ;; Case: FROM -disarm-> TO
 ;; - if FROM was previously visible at P,
 ;;   then map TO to P and map subterms of TO to extensions of P
-;; - if FROM was mapped to (delayed FROM'), then recur on (FROM' -> TO)
+;; - if FROM was mapped to (delayed FROM'), then recur on (FROM' --> TO)
 ;; - if FROM was not previously visible, stop
-;; Case: FROM --> TO (neither arm nor disarm)
-;; - if FROM is visible at P, then map TO to P and recur
-;; - if FROM is mapped to (delayed FROM') --- cannot happen!
-;; - if FROM is not visible, then do not map TO but just recur
 
-(struct delayed (stx) #:prefab)
+;; Invariant: STX is mapped to (delayed STX*) only if STX is armed.
+;; But armed STX may also be mapped to path, if present in base term.
 
 (define (extend-eager-hash from to old-h)
   (define (stx-armed? x) (and (syntax? x) (syntax-armed? x)))
@@ -202,7 +209,6 @@
                  [else ;; arm
                   (match (hash-ref old-h from #f)
                     [(? list? rpath) (hash-set h to rpath)]
-                    ;;[(delayed from*) (hash-set h to (delayed from*))]
                     ['#f (hash-set h to (delayed from))])])]
           [else
            (cond [(stx-armed? from) ;; disarm
@@ -235,94 +241,13 @@
 
   (loop from to old-h))
 
-#;
-(define (extend-eager-hash from to old-h)
-  (let loop ([from from] [to to] [h old-h])
-    (let ([h (cond [(or (null? from) (null? to)) h]
-                   [(hash-ref old-h from #f)
-                    => (lambda (from-rpath)
-                         (eprintf "adding ~e at ~s\n" to from-rpath)
-                         (hash-set h to from-rpath))]
-                   [else h])])
-      (cond [(and (syntax? from) (syntax? to))
-             (loop (syntax-e from) (syntax-e to) h)]
-            [(syntax? from)
-             (loop (syntax-e from) to h)]
-            [(syntax? to)
-             (loop from (syntax-e to) h)]
-            [(and (pair? from) (pair? to))
-             (loop (car from) (car to)
-                   (loop (cdr from) (cdr to) h))]
-            [else h]))))
-
-#;
-(define (extend-eager-hash from to old-h)
-  (let loop ([from from] [to to] [h old-h])
-    (let ([h (cond [(or (null? from) (null? to)) h]
-                   [(hash-ref old-h from #f)
-                    => (lambda (from-rpath)
-                         (eprintf "adding ~e at ~s\n" to from-rpath)
-                         (hash-set h to from-rpath))]
-                   [else h])])
-      (cond [(and (syntax? from) (syntax? to))
-             (loop (syntax-e from) (syntax-e to) h)]
-            [(syntax? from)
-             (loop (syntax-e from) to h)]
-            [(syntax? to)
-             (loop from (syntax-e to) h)]
-            [(and (pair? from) (pair? to))
-             (loop (car from) (car to)
-                   (loop (cdr from) (cdr to) h))]
-            [else h]))))
-
-#;
-(define (extend-eager-hash from to old-h)
-  (define (loop from to h)
-    (eprintf "LOOP: ~e ==> ~e\n" from to)
-    (cond [(syntax? to)
-           (let ([h (cond [(hash-ref old-h from #f)
-                           => (lambda (from-rpath)
-                                (eprintf "  adding ~e @ ~s\n" to from-rpath)
-                                (hash-set h to from-rpath))]
-                          [else
-                           (eprintf "  no entry for ~e\n" from)
-                           h])])
-             (cond [(syntax-armed/tainted? to) h]
-                   [else (loop (syntax-e to) from h)]))]
-          [(pair? to)
-           (cond [(pair? from)
-                  (loop (car to) (car from)
-                        (loop (cdr to) (cdr from) h))]
-                 [(and (syntax? from) (syntax-armed/tainted? from))
-                  (eprintf "eeh: from is armed/tainted: ~e\n" from)
-                  (cond [(hash-ref old-h from #f)
-                         => (lambda (from-rpath)
-                              (let floop ([to to] [rpath from-rpath])
-                                (cond [(syntax? to)
-                                       (let ([h (hash-set h to rpath)])
-                                         (cond [(syntax-armed/tainted? to) h]
-                                               [else (floop (syntax-e to) rpath h)]))]
-                                      [(pair? to)
-                                       (floop (car to) (path-add-car rpath)
-                                              (floop (cdr to) (path-add-cdr rpath) h))]
-                                      [else h])))]
-                        [else h])]
-                 [(syntax? from)
-                  (loop to (syntax-e from) h)]
-                 [else (error 'extend-eager-hash "mismatch: ~e, ~e" from to)])]
-          ;; FIXME: vector, box, prefab
-          [else h]))
-  (begin0 (loop from to old-h)
-    (eprintf "\n\n")))
-
-(require racket/pretty)
-
 ;; evt-merge-at-path : EagerVT Path EagerVT -> EagerVT
 (define (evt-merge-at-path evt path sub-evt)
   (match-define (vt:eager stx h) evt)
   (match-define (vt:eager sub-stx sub-h) sub-evt)
   (vt:eager (path-replace stx path sub-stx)
             (let ()
+              ;;(local-require racket/pretty)
               ;;(eprintf "MERGE: at path = ~s\n" path)
               ;;(begin (eprintf "nh =\n") (pretty-print h))
               ;;(begin (eprintf "sub-h =\n") (pretty-print sub-h))
@@ -420,22 +345,6 @@
                (loop (car stx) (path-add-car rpath)
                      (loop (cdr stx) (path-add-cdr rpath) h)))]
             [else h])))
-  (vt:base stx h))
-
-#;
-;; lvt-base : Stx -> LazyVT
-(define (lvt-base stx)
-  (define h (make-hash))
-  (let loop ([stx stx] [acc null])
-    (cond [(syntax? stx)
-           (hash-set! h stx (reverse acc))
-           (unless (syntax-armed/tainted? stx)
-             (loop (syntax-e stx) acc))]
-          [(pair? stx)
-           (hash-set! h stx (reverse acc)) ;; FIXME: store pairs too?
-           (loop (car stx) (path-add-car acc))
-           (loop (cdr stx) (path-add-cdr acc))]
-          [else (void)]))
   (vt:base stx h))
 
 ;; lvt-track : Stx Stx LazyVT -> LazyVT
