@@ -2,6 +2,7 @@
 (require (for-syntax racket/base)
          racket/match
          syntax/stx
+         "stx-util.rkt"
          "parser-util.rkt"
          "deriv.rkt"
          "deriv-util.rkt"
@@ -583,9 +584,13 @@
                  ?ESBBRLoop ?EL finish-block)
     (make bderiv $1 $7 $2 $3
           (let* ([letrec-values-id
-                  (syntax-case $7 ()
-                    [((letX . _)) (datum->syntax #'letX 'letrec-values)]
-                    [_ (datum->syntax #f 'letrec-values)])]
+                  (or (syntax-case (stx-disarm $7) ()
+                        [(letX-expr . _)
+                         (syntax-case (stx-disarm #'letX-expr) ()
+                           [(letX-id . _) (datum->syntax #'letX-id 'letrec-values)]
+                           [_ #f])]
+                        [_ #f])
+                      (datum->artificial-syntax 'letrec-values))]
                  [stx `(,letrec-values-id ,(map list (car $4) (cadr $4)) ,@(cddr $4))])
             (block:letrec stx $5 $6)))])
   (ESBBRLoop
