@@ -218,6 +218,7 @@
    'prim-begin-for-syntax   token-prim-begin-for-syntax
    'prim-submodule          token-prim-submodule
    'prim-submodule*         token-prim-submodule*
+   'prim-declare            token-prim-declare
 
    'variable                token-variable
    'enter-check             token-enter-check

@@ -260,6 +260,8 @@
         [#:pattern ?form]
         [Expr ?form exp]
         [LocalActions ?form locals])]
+    [(p:declare e1 e2 rs de1 ?1)
+     (R [! ?1])]
 
     [(p:stop e1 e2 rs de1 ?1)
      (R [! ?1])]
@@ -477,7 +479,7 @@
         ;; FIXME: use renames
         [#:do (learn-binders names)]
         [#:when bindrhs
-         [#:set-syntax (node-z1 bindrhs)] ;; FIXME: use renames?
+         [#:set-syntax (node-z1 (bind-syntaxes-rhs bindrhs))] ;; FIXME: use renames?
          [#:pattern ?form]
          ;; FIXME: use #:with-marking?
          [BindSyntaxes ?form bindrhs]]]]

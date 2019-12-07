@@ -318,7 +318,7 @@
     (make modp1:splice $1 $2 $3)] ;; !!
    [(prim-begin-for-syntax [?1 !] [prep ?PrepareEnv] phase-up [p12 ?Pass1And2Loop]
                            next-group [ev ?Eval] [e2 exit-case])
-    (make p:begin-for-syntax e1 e2 null $1 ?1 prep p12 ev)]
+    (make p:begin-for-syntax e1 #f null $1 ?1 prep p12 ev)]
    [(prim-define-values ! exit-case)
     (make p:define-values e1 $3 null $1 $2 #f)]
    [(prim-define-syntaxes ! ?PrepareEnv phase-up ?EE/LetLifts ?Eval exit-case)
