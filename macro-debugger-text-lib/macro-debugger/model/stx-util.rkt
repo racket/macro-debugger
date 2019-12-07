@@ -1,5 +1,8 @@
 #lang racket/base
+(require syntax/stx)
 (provide stx->datum
+         stxd-car
+         stxd-cdr
          syntaxish?
          stx-disarm
          resyntax
@@ -14,6 +17,9 @@
 
 (define (stx->datum x)
   (syntax->datum (datum->syntax #f x)))
+
+(define (stxd-car x) (stx-car (stx-disarm x)))
+(define (stxd-cdr x) (stx-cdr (stx-disarm x)))
 
 (define (syntaxish? x)
   (or (syntax? x)

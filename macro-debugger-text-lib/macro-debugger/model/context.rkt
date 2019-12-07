@@ -38,10 +38,10 @@
     (match path
       ['() stx]
       [(cons 'car path)
-       (if (stx-pair? stx) (loop (stx-car stx) path) (bad))]
+       (if (stx-pair? stx) (loop (stxd-car stx) path) (bad))]
       [(cons (? exact-positive-integer? n) path)
        (loop (for/fold ([stx stx]) ([_i (in-range n)])
-               (if (stx-pair? stx) (stx-cdr stx) (bad)))
+               (if (stx-pair? stx) (stxd-cdr stx) (bad)))
              path)])))
 
 ;; path-get-until : Stx Path (Stx -> Boolean) -> (values Stx Path)
@@ -53,12 +53,12 @@
     (match path
       ['() (values stx null)]
       [(cons 'car path)
-       (if (stx-pair? stx) (loop (stx-car stx) path) (bad))]
+       (if (stx-pair? stx) (loop (stxd-car stx) path) (bad))]
       [(cons (? exact-positive-integer? n) path)
        (let tailloop ([stx stx] [n n])
          (cond [(zero? n) (loop stx path)]
                [(stop? stx) (values stx (path-add-tail n path))]
-               [(stx-pair? stx) (tailloop (stx-cdr stx) (sub1 n))]
+               [(stx-pair? stx) (tailloop (stxd-cdr stx) (sub1 n))]
                [else (bad)]))]))
   (loop stx path))
 
@@ -70,12 +70,12 @@
       ['() x]
       [(cons 'car path)
        (unless (stx-pair? stx) (bad))
-       (stx-replcar stx (loop (stx-car stx) path) resyntax?)]
+       (stx-replcar stx (loop (stxd-car stx) path) resyntax?)]
       [(cons (? exact-positive-integer? n) path)
        (let tailloop ([stx stx] [n n])
          (cond [(zero? n) (loop stx path)]
                [(not (stx-pair? stx)) (bad)]
-               [else (stx-replcdr stx (tailloop (stx-cdr stx) (sub1 n)) resyntax?)]))])))
+               [else (stx-replcdr stx (tailloop (stxd-cdr stx) (sub1 n)) resyntax?)]))])))
 
 ;; stx-replcar : Stx Stx -> Stx
 (define (stx-replcar stx x resyntax?)

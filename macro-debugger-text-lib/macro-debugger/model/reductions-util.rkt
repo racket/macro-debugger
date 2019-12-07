@@ -91,7 +91,7 @@
   [the-xstate (parameter/c (or/c xstate? #f))]
   [new-xstate (-> xstate?)]
   [next-seqno (-> exact-nonnegative-integer?)]
-  [add-step (-> protostep? void?)])
+  [add-step (->* [protostep?] [any/c] void?)])
  ;; FIXME
  learn-binders 
  learn-definites
@@ -146,7 +146,7 @@
   (set-xstate-endlifts! xst null))
 
 ;; add-step : Step -> Void
-(define (add-step step) (when (honest?) (do-add-step step)))
+(define (add-step step [add? (honest?)]) (when add? (do-add-step step)))
 (define (do-add-step step #:xstate [xst (the-xstate)])
   (set-xstate-steps! xst (cons step (xstate-steps xst))))
 
@@ -497,8 +497,8 @@
       ['T f]
       ['F v]
       [(cons hma hmb)
-       (define c (cons (loop hma (stx-car f) (stx-car v))
-                       (loop hmb (stx-cdr f) (stx-cdr v))))
+       (define c (cons (loop hma (stxd-car f) (stxd-car v))
+                       (loop hmb (stxd-cdr f) (stxd-cdr v))))
        (if resyntax? (restx c v) c)])))
 
 (define (do-rename-v v vt hm pre post)
@@ -522,9 +522,9 @@
     (cond [(and (syntax? pre) (try-rename))
            => (match-lambda [(cons v accren) (k v accren)])]
           [(stx-pair? pre)
-           (loop (stx-car pre) (stx-car post) v accren
+           (loop (stxd-car pre) (stxd-car post) v accren
                  (lambda (v accren)
-                   (loop (stx-cdr pre) (stx-cdr post) v accren k)))]
+                   (loop (stxd-cdr pre) (stxd-cdr post) v accren k)))]
           [else (k v accren)])))
 
 (define-syntax R/rename/mark
