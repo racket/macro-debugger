@@ -576,7 +576,10 @@
 
 (define (call/local-context v proc)
   (define bf (bigframe (the-context) (list v) v))
-  (parameterize ((the-big-context (cons bf (the-big-context))))
+  (parameterize ((the-big-context (cons bf (the-big-context)))
+                 (the-context null)
+                 (honesty 'T) ;; FIXME?
+                 (the-vt #f))
     (proc)))
 
 (define-syntax R/run
