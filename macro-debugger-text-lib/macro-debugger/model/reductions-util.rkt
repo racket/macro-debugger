@@ -505,6 +505,10 @@
   (DEBUG
    (eprintf " do-rename-v\n")
    (eprintf "  vt-stx = ~.s\n" (stx->datum (vt->stx vt))))
+  ;; Note: pre,post can have different shape because of rename-transformers
+  (STRICT-CHECKS
+   (unless (same-contour? pre post)
+     (eprintf "RENAME MISMATCH\npre  = ~s\npost = ~s\n" (stx->datum pre) (stx->datum post))))
   ;; Recur through pre,post to find the largest sub-renames that apply to v.
   (define (init-k v accren) (values v (map car accren) (map cdr accren)))
   (let loop ([pre pre] [post post] [v v] [accren null] [k init-k])
@@ -748,6 +752,12 @@
 (define (revappend a b)
   (cond [(pair? a) (revappend (cdr a) (cons (car a) b))]
         [(null? a) b]))
+
+(define (same-contour? x y)
+  (let loop ([x (stx->datum x)] [y (stx->datum y)])
+    (cond [(and (pair? x) (pair? y))
+           (and (loop (car x) (car y)) (loop (cdr x) (cdr y)))]
+          [else (not (or (pair? x) (pair? y)))])))
 
 (define (stx-eq-diff a b)
   (let loop ([a a] [b b])
