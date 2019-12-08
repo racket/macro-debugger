@@ -161,8 +161,6 @@
 ;; But armed STX may also be mapped to path, if present in base term.
 
 (define (extend-eager-hash from to old-h)
-  (define (stx-armed? x) (and (syntax? x) (syntax-armed? x)))
-  (define (stx-tainted? x) (and (syntax? x) (syntax-tainted? x)))
   (define (stx-e x) (if (syntax? x) (syntax-e x) x))
 
   (define (hash-forward h from to)
@@ -174,23 +172,27 @@
           [else h]))
 
   (define (loop from to h)
-    (cond [(or (stx-tainted? from) (stx-tainted? to)) h]
-          [(stx-armed? to)
-           (cond [(stx-armed? from) ;; no arm/disarm
-                  (hash-forward h from to)]
-                 [else ;; arm
-                  (match (hash-ref old-h from #f)
-                    [(? list? rpath) (hash-set h to rpath)]
-                    ['#f (hash-set h to (delayed from))])])]
-          [else
-           (cond [(stx-armed? from) ;; disarm
+    (cond [(and (syntax? from) (syntax? to))
+           (cond [(or (syntax-tainted? from) (syntax-tainted? to))
+                  h]
+                 [(syntax-armed? to)
+                  (cond [(syntax-armed? from) ;; no arm/disarm
+                         (hash-forward h from to)]
+                        [else ;; arm
+                         (match (hash-ref old-h from #f)
+                           [(? list? rpath) (hash-set h to rpath)]
+                           ['#f (hash-set h to (delayed from))])])]
+                 [(syntax-armed? from) ;; disarm
                   (match (hash-ref old-h from #f)
                     [(? list? rpath) (handle-disarm from to rpath h)]
                     [(delayed from*) (loop from* to h)]
                     ['#f h])]
                  [else ;; no arm/disarm
                   (let ([h (hash-forward h from to)])
-                    (datumloop (stx-e from) (stx-e to) h))])]))
+                    (datumloop (syntax-e from) (syntax-e to) h))])]
+          [(or (syntax? from) (syntax? to))
+           (loop (stx-e from) (stx-e to) h)]
+          [else (datumloop from to h)]))
 
   (define (datumloop from to h)
     (cond [(and (pair? from) (pair? to))
