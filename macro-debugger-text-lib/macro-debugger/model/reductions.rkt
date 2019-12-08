@@ -225,7 +225,9 @@
                (syntax-case (% ?form) ()
                  [(?top . ?var) (identifier? #'?var) (list #'?var)]
                  [?var (identifier? #'?var) (list #'?var)]
-                 [?form (error 'macro-debugger "#%top has wrong form: ~s\n" #'?form)]))])]
+                 [?form (error 'macro-debugger "#%top has wrong form: ~s\n" #'?form)]))]
+        [#:when (not (eq? de1 e2))
+         [#:walk e2 'tag-top]])]
 
     [(p:provide e1 e2 rs de1 ?1 inners ?2)
      (let ([wrapped-inners (map expr->local-action inners)])
