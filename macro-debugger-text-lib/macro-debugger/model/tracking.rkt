@@ -115,8 +115,8 @@
 
 ;; ----------------------------------------
 
-;; An EagerVT is (vt:eager Stx Hash[Stx => EagerResult])
-;; where EagerResult = ReversedPath | (delayed Stx) -- see extend-eager-hash.
+;; An EagerVT is (vt:eager Stx Hash[Syntax => EagerResult])
+;; where EagerResult = ReversedPath | (delayed Syntax) -- see extend-eager-hash.
 ;; The abbreviation "evt" has no relation to synchronizable events.
 (struct vt:eager (stx h) #:prefab)
 (struct delayed (stx) #:prefab)
@@ -126,17 +126,15 @@
   (define h
     (let loop ([stx stx] [rpath null] [h '#hash()])
       (cond [(syntax? stx)
-             #;(eprintf "adding ~e at ~s\n" stx rpath)
              (let ([h (hash-set h stx rpath)])
                (cond [(syntax-armed/tainted? stx) h]
                      [else (loop (syntax-e stx) rpath h)]))]
             [(pair? stx)
-             (let ([h h #;(hash-set h stx rpath)])
+             (let ([h h])
                (loop (car stx) (path-add-car rpath)
                      (loop (cdr stx) (path-add-cdr rpath) h)))]
             ;; FIXME: vector, box, prefab
             [else h])))
-  #;(eprintf "----------------------------------------\n")
   (vt:eager stx h))
 
 ;; evt-track : Stx Stx EagerVT -> EagerVT
@@ -208,7 +206,7 @@
                      [(syntax-armed? to) h]
                      [else (dloop (syntax-e to) rpath h)]))]
             [(pair? to)
-             (let ([h h #;(hash-set h to rpath)])
+             (let ([h h])
                (dloop (car to) (path-add-car rpath)
                       (dloop (cdr to) (path-add-cdr rpath) h)))]
             [else h])))
@@ -323,13 +321,13 @@
 ;; lvt-base : Stx -> LazyVT
 (define (lvt-base stx)
   (define h
-    (let loop ([stx stx] [rpath null] [h '#hash()])
+    (let loop ([stx stx] [rpath null] [h '#hasheq()])
       (cond [(syntax? stx)
              (let ([h (hash-set h stx (reverse rpath))])
                (cond [(syntax-armed/tainted? stx) h]
                      [else (loop (syntax-e stx) rpath h)]))]
             [(pair? stx)
-             (let ([h h #;(hash-set h stx (reverse rpath))])
+             (let ([h h])
                (loop (car stx) (path-add-car rpath)
                      (loop (cdr stx) (path-add-cdr rpath) h)))]
             [else h])))
@@ -344,11 +342,11 @@
   (define h (make-hasheq))
   (define (loop to from rpath)
     (cond [(syntax? to)
-           (hash-set! h to (cons from (reverse rpath)))
+           (when (syntax? from)
+             (hash-set! h to (cons from (reverse rpath))))
            (unless (syntax-armed/tainted? to)
              (loop (syntax-e to) from rpath))]
           [(pair? to)
-           ;;(hash-set! h to (cons from (reverse rpath))) ;; ???
            (cond [(pair? from) ;; rpath = null
                   (loop (car to) (car from) rpath)
                   (loop (cdr to) (cdr from) rpath)]
