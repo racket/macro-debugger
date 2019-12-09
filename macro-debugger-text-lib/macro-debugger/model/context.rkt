@@ -63,7 +63,7 @@
   (loop stx path))
 
 ;; path-replace : Stx Path Stx [Boolean] -> Stx
-(define (path-replace stx path x #:resyntax? [resyntax? #t])
+(define (path-replace stx path x #:resyntax? resyntax?)
   (define (bad) (error 'path-replace "out of bounds: ~s, ~e" path stx))
   (let loop ([stx stx] [path path])
     (match path
@@ -97,7 +97,7 @@
              (if resyntax? (resyntax result stx dstx) result)))]
         [else (raise-type-error 'stx-replcdr "stx-pair" stx)]))
 
-(define ((path-replacer stx path) s #:resyntax? [resyntax? #t])
+(define ((path-replacer stx path #:resyntax? resyntax?) s)
   (path-replace stx path s #:resyntax? resyntax?))
 
 ;; path-cut-prefix : Path Path -> Path/#f

@@ -219,7 +219,7 @@
 (define (evt-merge-at-path evt path sub-evt)
   (match-define (vt:eager stx h) evt)
   (match-define (vt:eager sub-stx sub-h) sub-evt)
-  (vt:eager (path-replace stx path sub-stx)
+  (vt:eager (path-replace stx path sub-stx #:resyntax? #t)
             (hash-add-at-path (hash-remove-with-prefix h path) path sub-h)))
 
 (define (hash-remove-with-prefix h prefix)

@@ -151,7 +151,7 @@
 
 ;; pattern-replace : Pattern Stx Pattern Stx -> Stx
 ;; Like (with-syntax ([p1 stx1]) (with-syntax ([p2 stx2]) (syntax p1))).
-(define (pattern-replace p1 stx1 p2 stx2 #:resyntax? [resyntax? #t])
+(define (pattern-replace p1 stx1 p2 stx2 #:resyntax? resyntax?)
   (define m1 (pattern-match p1 stx1))
   (define m2 (pattern-match p2 stx2))
   (define m-out (pattern-match-update m1 m2))

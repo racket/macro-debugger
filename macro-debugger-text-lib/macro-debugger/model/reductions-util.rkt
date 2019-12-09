@@ -525,7 +525,7 @@
           (eprintf "  found at ~s, pre = ~.s\n" path (stx->datum pre))
           (eprintf "    actually = ~.s\n" (stx->datum (path-get v path)))
           (eprintf "  do-rename-v : replace at ~s : ~.s => ~.s\n"
-                   path (stx->datum v) (stx->datum (path-replace v path post))))
+                   path (stx->datum v) (stx->datum (path-replace v path post #:resyntax? #f))))
          (cons (path-replace v path post #:resyntax? #t)
                (cons (cons pre post) accren))]
         [else #f]))
@@ -640,7 +640,7 @@
                      (when (> (length unique-paths) 1)
                        (eprintf "seek-check: multiple paths found for ~.s\n paths = ~v\n"
                                 (stx->datum f) unique-paths))))
-            (define vctx (path-replacer v path))
+            (define vctx (path-replacer v path #:resyntax? #t))
             ((parameterize ((the-context (cons vctx (the-context)))
                             (honesty 'T)
                             (the-vt #f))
@@ -693,7 +693,7 @@
          ['() (RSunit f v p s)]))]))
 
 (define (run/path reducer f v p s path fill)
-  (define fctx (path-replacer f path))
+  (define fctx (path-replacer f path #:resyntax? #f))
   (define sub-f (path-get f path))
   (define sub-hm (honesty-at-path (honesty) path))
   (DEBUG (eprintf "run/path: honesty ~s at path ~s => ~s\n" (honesty) path sub-hm))
@@ -703,13 +703,13 @@
            ;; probably not much point in narrowing VT (and nontrivial to do right)
            ;; FIXME: it would be slightly better to know whether we were *inside* an F,
            ;;   because we care about whether the context is honest, not the term
-           (define (identity-vctx x #:resyntax? [resyntax? #f]) x)
+           (define (identity-vctx x) x)
            (define sub-v v)
            (define sub-vt (the-vt))
            (values identity-vctx sub-v sub-vt)]
           [else
            ;; can take vctx, but must also take narrowed VT (when sub-hm != 'T)
-           (define vctx (path-replacer v path))
+           (define vctx (path-replacer v path #:resyntax? #t))
            (define sub-v (path-get v path))
            (define sub-vt (if (eq? sub-hm 'T) #f (vt-zoom (the-vt) path)))
            (values vctx sub-v sub-vt)]))
@@ -749,7 +749,7 @@
                   (eprintf "  vt => ~e\n" (the-vt))
                   (when (the-vt)
                     (eprintf "  vt-stx => ~.s\n" (stx->datum (vt->stx (the-vt))))))
-                 (RSunit (fctx f2 #:resyntax? #f) (vctx v2 #:resyntax? #t) p s)))
+                 (RSunit (fctx f2) (vctx v2) p s)))
              (lambda (exn)
                (lambda () (RSfail exn)))))))
 
