@@ -632,7 +632,7 @@
          (match (vt-seek f (the-vt))
            ['()
             (DEBUG (eprintf "seek-check: no paths found for ~.s\n" (stx->datum f))
-                   #;(eprintf "  the-vt = ~v\n" (the-vt)))
+                   #;(begin (eprintf "  the-vt =\n") (pretty-print (the-vt)) (eprintf "\n")))
             (k f v p s)]
            [(cons path more-paths)
             (DEBUG (eprintf "seek-check: found path ~s for ~.s within ~.s\n"
