@@ -89,7 +89,7 @@
    local-remark         ; (listof (U string syntax))
    local-artificial-step ; (list syntax syntax syntax syntax)
 
-   track-syntax         ; (list* (U 'track-origin 'arm 'disarm 'rearm) Syntax Syntax) -- new old
+   track-syntax         ; (list* Symbol Syntax Syntax) -- op new old
    local-value          ; identifier
    local-value-result   ; boolean
    local-value-binding  ; result of identifier-binding; added by trace.rkt, not expander
