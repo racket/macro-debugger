@@ -470,7 +470,7 @@
          (do-rename* f v p s ren-p pre-renames renames description mode)]))
 
 (define (do-rename* f v p s ren-p pre-renames renames description mode)
-  (define f2 (pattern-replace p f ren-p renames))
+  (define f2 (pattern-replace p f ren-p renames #:resyntax? #f))
   ;; renaming preserves honesty
   (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
   ;; ----
