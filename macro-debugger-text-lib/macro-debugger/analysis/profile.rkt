@@ -169,7 +169,7 @@
   (#%expression
     (match deriv
       ;; ====
-      [(mrule z1 z2 rs de1 ?1 me1 locals me2 ?2 etx next)
+      [(mrule z1 z2 rs de1 ?1 me1 locals me2 ?2 etx retx next)
        (define macro-id (and (pair? rs) (resolves->macro-id rs (phase))))
        (define macro-scope (and z1 me1 (get-new-scope z1 me1 (phase))))
        (define z1-scope (get-macro-scope z1 scope=>context (phase)))
@@ -180,12 +180,12 @@
        (recur locals next)
        (when macro-id
          (define adj (apply + (map profile/local (or locals null))))
-         (push! mocs (moc context* (term-size z1) (term-size etx) adj))
+         (push! mocs (moc context* (term-size z1) (term-size retx) adj))
          (when #f
            (eprintf "* macro-id ~e\n" macro-id)
            (eprintf "  ctx = ~e\n" context)
            (eprintf "  from (~s): ~e\n" (term-size z1) (syntax->datum z1))
-           (eprintf "  to   (~s): ~e\n" (term-size etx) (syntax->datum etx))
+           (eprintf "  to   (~s): ~e\n" (term-size retx) (syntax->datum retx))
            (unless (zero? adj)
              (eprintf "  with local adjustment: ~s\n" adj))))]
       ;; ====

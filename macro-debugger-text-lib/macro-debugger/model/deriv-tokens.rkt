@@ -30,10 +30,10 @@
   #:tokens
   (visit                ; Syntax
    resolve              ; identifier
-   enter-macro          ; Syntax                  -- orig-stx
-   macro-pre-x          ; Syntax                  -- marked-cleaned-stx
-   macro-post-x         ; (list* Syntax Syntax)   -- (list* transformed-stx marked-cleaned-stx)
-   exit-macro           ; Syntax                  -- unmarked-transformed-stx
+   enter-macro          ; (list* Syntax Syntax)   -- (list* disarmed orig)
+   macro-pre-x          ; Syntax                  -- marked-cleaned
+   macro-post-x         ; (list* Syntax Syntax)   -- (list* transformed marked-cleaned)
+   exit-macro           ; (list* Syntax Syntax)   -- (list* rearmed-unmarked unmarked)
    enter-prim           ; Syntax
    exit-prim            ; Syntax
    return               ; Syntax

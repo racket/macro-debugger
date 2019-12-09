@@ -92,7 +92,7 @@
        (recur next)]
       [(lift/let-deriv z1 z2 first lift-stx second)
        (recur first second)]
-      [(mrule z1 z2 rs da ?1 me1 locals me2 ?2 etx next)
+      [(mrule z1 z2 rs da ?1 me1 locals me2 ?2 etx retx next)
        (recur locals next)]
       [(local-exn exn)
        (void)]

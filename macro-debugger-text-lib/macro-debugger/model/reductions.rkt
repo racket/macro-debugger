@@ -303,20 +303,21 @@
         [LocalActions ?forms locals])]
 
     ;; Macros
-    [(mrule e1 e2 rs de1 ?1 me1 locals me2 ?2 etx next)
+    [(mrule e1 e2 rs de1 ?1 me1 locals me2 ?2 etx retx next)
      (R [! ?1]
         [#:pattern ?form]
         [#:hide-check rs]
         [#:do (learn-definites rs)]
-        [#:let old-state (current-state-with (% ?form) (list (% ?form)))]
+        [#:let old-state (current-state-with e1 (list e1))] ;; use (non-disarmed) e1
         [#:with-marking
          [#:rename/mark ?form me1]
          [#:when (pair? locals)
           [LocalActions ?form locals]]
          [! ?2]
          [#:set-syntax me2]
-         [#:rename/unmark ?form etx]]
-        [#:walk etx 'macro #:from-state old-state]
+         [#:rename/unmark ?form etx]
+         [#:rename ?form retx]]
+        [#:walk retx 'macro #:from-state old-state]
         [Expr ?form next])]
 
     [(tagrule e1 e2 tagged-stx next)

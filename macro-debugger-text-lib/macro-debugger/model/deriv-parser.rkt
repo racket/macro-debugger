@@ -16,6 +16,9 @@
              start name value)
       (error 'derivation-parser "bad token #~a" start)))
 
+(define (car/f x) (and x (car x)))
+(define (cdr/f x) (and x (cdr x)))
+
 (use-tokens! macro-expansion-tokens)
 
 ;; ----------------------------------------
@@ -144,8 +147,7 @@
    #:args (e1 rs next)
    [(enter-macro ! macro-pre-x ?LocalActions macro-post-x ! exit-macro)
     (let ([e2 (and next (wderiv-e2 next))])
-      (make mrule e1 e2 rs #f $2 ;; FIXME: disarmed
-            $3 $4 (and $5 (car $5)) $6 $7 next))])
+      (make mrule e1 e2 rs (car $1) $2 $3 $4 (car/f $5) $6 (cdr/f $7) (car/f $7) next))])
 
   ;; Keyword resolution
   (Resolves
@@ -197,7 +199,7 @@
        (make local-expansion
              before after #f mbefore
              (make mrule mbefore mafter ids #f #f ;; FIXME: disarmed
-                   before null after #f mafter
+                   before null after #f mafter mafter
                    (make p:stop mafter mafter null #f #f))
              #f after #f)])]
    [(local-mess)

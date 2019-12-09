@@ -45,8 +45,8 @@
 ;; ============================================================
 ;; Macros
 
-;; A MRule is (mrule <Base> Stx LocalActions ?Exn Stx Deriv)
-(struct mrule base (me1 locals me2 ?2 etx next) #:transparent)
+;; A MRule is (mrule <Base> Stx LocalActions ?Exn Stx Stx Deriv)
+(struct mrule base (me1 locals me2 ?2 etx retx next) #:transparent)
 
 ;; A LocalAction is one of:
 ;; - (local-exn Exn)
