@@ -48,7 +48,8 @@
   [the-context (parameter/c list?)]
   [the-big-context (parameter/c (listof bigframe?))]
   [call-with-initial-context (-> (-> any) #:xstate xstate? any)])
- honest?)
+ honest?
+ not-complete-fiction?)
 
 (define the-phase (make-parameter 0))
 (define the-context (make-parameter null))

@@ -86,10 +86,12 @@
   ;; This arms the artificial intermediate terms, since
   ;; the expander generally (always?) re-arms the result
   ;; of expanding an armed term.
-  (cond [(and (syntax? e1) (syntax-armed? e1))
+  (cond [(and (syntax? e1) (syntax-armed? e1) (not-complete-fiction?))
          (define (rearm-frame x)
-           (syntax-property (syntax-rearm (datum->artificial-syntax x) e1)
-                            property:unlocked-by-expander #t))
+           (let ([x (datum->artificial-syntax x)])
+             (cond [(syntax-armed/tainted? x) x]
+                   [else (syntax-property (syntax-rearm (datum->artificial-syntax x) e1)
+                                          property:unlocked-by-expander #t)])))
          (cons rearm-frame (the-context))]
         [else (the-context)]))
 
