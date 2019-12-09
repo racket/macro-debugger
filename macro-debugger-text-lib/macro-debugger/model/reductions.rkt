@@ -579,9 +579,6 @@
         [! ?2]
         [#:pattern ?forms]
         [BlockPass ?forms rest])]
-
-    ;; FIXME: are these pass1/2 necessary?
-
     [(cons (b:defvals head da ?1 rename ?2) rest)
      (R [#:pattern (?first . ?rest)]
         [Expr ?first head]
