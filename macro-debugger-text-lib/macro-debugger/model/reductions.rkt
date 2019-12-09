@@ -720,6 +720,12 @@
          #:foci (stx->list (stx-cdr begin-form)) #:from-foci (list begin-form)]
         [#:rename ?forms tail #;'track-origin]
         [ModulePass1 ?forms rest])]
+    [(cons (modp1*:case (? p:submodule? deriv)) rest)
+     (R [#:pattern (?first . ?rest)]
+        ;; For submodules, there is an implicit rename: remove use-site scopes
+        [#:rename ?first (wderiv-e1 deriv)]
+        [Expr ?first deriv]
+        [ModulePass1 ?rest rest])]
     [(cons (modp1*:case (? prule? prim)) rest)
      (R [#:pattern (?firstP . ?rest)]
         [Expr ?firstP prim]
@@ -796,6 +802,8 @@
         [ModulePass4 ?rest rest])]
     [(cons (? p:submodule*? deriv) rest)
      (R [#:pattern (?first . ?rest)]
+        ;; Implicit rename: remove use-site scopes, possibly phase-shift
+        [#:rename ?first (wderiv-e1 deriv)]
         [Expr ?first deriv]
         [ModulePass4 ?rest rest])]))
 
