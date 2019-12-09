@@ -102,3 +102,15 @@
 (define-syntax-rule (pidn e)
   (pid5 (pid4 (pid3 (pid2 (pid1 (pid0 e)))))))
 (define-syntax-rule (pxid (_ e)) (let () e))
+
+;; Macros that manipulate scopes
+
+(define-syntax (sclist2 stx)
+  (syntax-case stx ()
+    [(_ a b) #`(list #,(syntax-local-introduce #'a)
+                     #,((make-syntax-introducer) #'b))]))
+
+(define-syntax (scplist2 stx)
+  (syntax-case stx ()
+    [(_ a b) #`(list #,(syntax-local-introduce (syntax-protect #'a))
+                     #,(syntax-protect ((make-syntax-introducer) #'b)))]))

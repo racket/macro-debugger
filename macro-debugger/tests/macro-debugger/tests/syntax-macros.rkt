@@ -172,6 +172,20 @@
          (macro (pidn (pidn (Tid 'a))))
          (macro (pidn (pidn 'a)))])
 
+  (test "sclist2 with Tid x2"
+        (sclist2 (Tid 'a) (Tid 'b))
+        #;[#:steps ...] ;; complicated, skip it
+        [#:hidden-steps
+         (macro (sclist2 'a (Tid 'b)))
+         (macro (sclist2 'a 'b))])
+
+  (test "scplist2 with Tid x2"
+        (scplist2 (Tid 'a) (Tid 'b))
+        #;[#:steps ...] ;; complicated, skip it
+        [#:hidden-steps
+         (macro (scplist2 'a (Tid 'b)))
+         (macro (scplist2 'a 'b))])
+
   [#:suite "set! macros"
            (test "set! (macro)"
                  (set! the-current-output-port 'a)
