@@ -280,6 +280,7 @@
     [(p:set!-macro e1 e2 rs de1 ?1 deriv)
      (R [! ?1]
         [#:pattern ?form]
+        [#:rename ?form e1] ;; macro starts from e1, not de1
         [Expr ?form deriv])]
     [(p:set! e1 e2 rs de1 ?1 id-rs ?2 rhs)
      (R [! ?1]
