@@ -464,6 +464,12 @@
    (eprintf "do-rename(~s): ~.s at ~s\n" (or mode description) (stx->datum renames) ren-p)
    (eprintf "  v = ~.s\n" (stx->datum v)))
   (define pre-renames (pattern-template ren-p (pattern-match p f)))
+  (cond [(equal? pre-renames renames)
+         (RSunit f v p s)]
+        [else
+         (do-rename* f v p s ren-p pre-renames renames description mode)]))
+
+(define (do-rename* f v p s ren-p pre-renames renames description mode)
   (define f2 (pattern-replace p f ren-p renames))
   ;; renaming preserves honesty
   (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
