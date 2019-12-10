@@ -14,6 +14,7 @@
          syntax/modcode
          setup/collects ;; setup/path-to-relative
          macro-debugger/model/deriv
+         macro-debugger/model/deriv-util
          "private/util.rkt")
 (provide (all-defined-out))
 
@@ -189,76 +190,6 @@
            (unless (zero? adj)
              (eprintf "  with local adjustment: ~s\n" adj))))]
       ;; ====
-      [(lift-deriv z1 z2 first lift-stx second)
-       (recur first second)]
-      [(tagrule z1 z2 tagged-stx next)
-       (recur next)]
-      [(lift/let-deriv z1 z2 first lift-stx second)
-       (recur first second)]
-      [(local-exn exn)
-       (void)]
-      [(local-expansion z1 z2 for-stx? me1 inner lifted me2 opaque)
-       (if for-stx? (recur/phase-up inner) (recur inner))]
-      [(local-lift-expr ids orig renamed)
-       (void)]
-      [(local-lift-end orig renamed wrapped)
-       (void)]
-      [(local-lift-require req expr mexpr)
-       (void)]
-      [(local-lift-provide prov)
-       (void)]
-      [(local-lift-module orig renamed)
-       (void)]
-      [(local-bind names ?1 renames bindrhs)
-       (recur bindrhs)]
-      [(local-value name ?1 resolves bound? binding)
-       (void)]
-      [(track-syntax operation new-stx old-stx)
-       (void)]
-      [(local-remark contents)
-       (void)]
-      [(p:variable z1 z2 rs de1 ?1)
-       (void)]
-      [(p:module z1 z2 rs de1 ?1 prep rename ensure-mb body shift)
-       (recur prep ensure-mb body)]
-      [(mod:ensure-mb track1 check add-mb track2)
-       (recur check add-mb)]
-      [(mod:add-mb ?1 tag track check ?2)
-       (recur check)]
-      [(p:#%module-begin z1 z2 rs de1 ?1 me pass12 ?2 pass3 ?3 pass4)
-       (recur pass12 pass3 pass4)]
-      [(p:define-syntaxes z1 z2 rs de1 ?1 prep rhs locals)
-       (recur prep locals)
-       (recur/phase-up rhs)]
-      [(p:define-values z1 z2 rs de1 ?1 rhs)
-       (recur rhs)]
-      [(p:begin-for-syntax z1 z2 rs de1 ?1 prep body locals)
-       (recur prep locals)
-       (recur/phase-up body)]
-      [(p:#%expression z1 z2 rs de1 ?1 inner untag)
-       (recur inner)]
-      [(p:if z1 z2 rs de1 ?1 test then else)
-       (recur test then else)]
-      [(p:wcm z1 z2 rs de1 ?1 key mark body)
-       (recur key mark body)]
-      [(p:set! _ _ _ _ _ id-resolves ?2 rhs)
-       (recur rhs)]
-      [(p:set!-macro _ _ _ _ _ deriv)
-       (recur deriv)]
-      [(p:#%app _ _ _ _ _ derivs)
-       (recur derivs)]
-      [(p:begin _ _ _ _ _ derivs)
-       (recur derivs)]
-      [(p:begin0 _ _ _ _ _ derivs)
-       (recur derivs)]
-      [(p:lambda _ _ _ _ _ renames body)
-       (recur body)]
-      [(p:case-lambda _ _ _ _ _ renames+bodies)
-       (recur renames+bodies)]
-      [(p:let-values _ _ _ _ _ renames rhss body)
-       (recur rhss body)]
-      [(p:letrec-values _ _ _ _ _ renames rhss body)
-       (recur rhss body)]
       [(p:letrec-syntaxes+values z1 _ rs de1 _ srenames prep sbindrhss vrhss body)
        (recur prep sbindrhss vrhss body)
        (when #t ;; syntax bindings get dropped
@@ -277,69 +208,10 @@
            (when #f
              (eprintf "* lsv-id-id = ~e\n" lsv-id)
              (eprintf "  ctx       = ~e\n" context))))]
-      [(p:provide _ _ _ _ _ inners ?2)
-       (recur inners)]
-      [(p:require _ _ _ _ _ locals)
-       (recur locals)]
-      [(p:submodule _ _ _ _ _ exp locals)
-       (recur exp locals)]
-      [(p:submodule* _ _ _ _ _ exp locals)
-       (recur exp locals)]
-      [(p:#%stratified-body _ _ _ _ _ bderiv)
-       (recur bderiv)]
-      [(p:stop _ _ _ _ _) (void)]
-      [(p:unknown _ _ _ _ _) (void)]
-      [(p:#%top _ _ _ _ _) (void)]
-      [(p:#%datum _ _ _ _ _) (void)]
-      [(p:quote _ _ _ _ _) (void)]
-      [(p:quote-syntax z1 z2 _ _ _) (void)]
-      [(p:#%variable-reference _ _ _ _ _) (void)]
-      [(lderiv _ _ ?1 derivs)
-       (recur derivs)]
-      [(bderiv _ _ _ pass1 pass2)
-       (recur pass1 pass2)]
-      [(block:letrec _ rhss body)
-       (recur rhss body)]
-      [(b:error ?1) (void)]
-      [(b:expr head)
-       (recur head)]
-      [(b:splice head _ ?1 tail ?2)
-       (recur head)]
-      [(b:defvals head _ ?1 rename ?2)
-       (recur head)]
-      [(b:defstx head _ ?1 rename ?2 prep bindrhs)
-       (recur head prep bindrhs)]
-      [(bind-syntaxes rhs locals)
-       (recur/phase-up rhs)
-       (recur locals)]
-      [(clc ?1 renames body)
-       (recur body)]
-      [(mod:pass-1-and-2 pass1 pass2)
-       (recur pass1 pass2)]
-      [(modp1:prim head prim)
-       (recur head prim)]
-      [(modp1:lift head _ _ _ mods)
-       (recur head mods)]
-      [(modp1:splice _ _ _)
-       (void)]
-      [(modp2:skip)
-       (void)]
-      [(modp2:cons deriv locals)
-       (recur deriv locals)]
-      [(modp2:lift deriv locals _ _ _ mods defs)
-       (recur deriv locals mods defs)]
-      [(mod:lift-end tail)
-       (void)]
-      [(modp34:bfs derivs)
-       (recur derivs)]
-      ;; Shouldn't occur in module expansion.
-      ;; (Unless code calls 'expand' at compile-time; weird, but possible.)
-      [(ecte _ _ locals first second locals2)
-       (recur locals first second locals2)]
-      [(bfs:lift lderiv lifts)
-       (recur lderiv)]
-      [#f
-       (void)])))
+      ;; ====
+      ;; Otherwise, recur through children
+      [deriv (for-subnodes deriv #:recur recur #:recur/phase-up recur/phase-up)])))
+
 
 ;; profile/local : LocalAction -> Integer
 ;; Adjustment to mrule's delta due to local actions.
