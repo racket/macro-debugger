@@ -222,42 +222,15 @@
   (match-define (vt:eager stx h) evt)
   (match-define (vt:eager sub-stx sub-h) sub-evt)
   (vt:eager (path-replace stx path sub-stx #:resyntax? #t)
-            (hash-add-at-path (hash-remove-with-prefix h path) path sub-h)))
+            (hash-add-at-path (hash-remove-with-prefix/suffix h path) path sub-h)))
 
-(define (hash-remove-with-prefix h prefix)
+(define (hash-remove-with-prefix/suffix h prefix)
   (for/fold ([h h]) ([(k rpath) (in-hash h)] #:when (list? rpath))
-    (if (rpath-prefix? prefix rpath) (hash-remove h k) h)))
+    (if (rpath-prefix/suffix? prefix rpath) (hash-remove h k) h)))
 
-(define (rpath-prefix? prefix rpath)
-  (path-prefix? prefix (reverse rpath))
-  #;
-  (null?
-   ;; loop : ReversedPath -> Path | #f
-   ;; Returns #f (not a prefix) or tail of prefix not satisfied by rpath
-   (let loop ([rpath rpath])
-     (match rpath
-       ['() prefix]
-       [(cons 'car rpath)
-        (match (loop rpath)
-          ['() '()]
-          [(cons 'car prefix) prefix]
-          [_ #f])]
-       [(cons (? exact-positive-integer? n) rpath)
-        (let tailloop ([n n] [rpath rpath])
-          (match rpath
-            [(cons (? exact-positive-integer? n2) rpath)
-             (tailloop (+ n n2) rpath)]
-            [_ (match (loop rpath)
-                 ['() '()]
-                 [(cons (? exact-positive-integer? prefix-n) prefix)
-                  (let ptailloop ([prefix-n prefix-n] [prefix prefix])
-                    (match prefix
-                      [(cons (? exact-positive-integer? prefix-n2) prefix)
-                       (ptailloop (+ prefix-n prefix-n2) prefix)]
-                      [_ (cond [(< n prefix-n) #;(cons prefix-n prefix) #f]
-                               [(= n prefix-n) prefix]
-                               [(> n prefix-n) (if (null? prefix) null #f)])]))]
-                 [_ #f])]))]))))
+(define (rpath-prefix/suffix? prefix rpath)
+  (define path (reverse rpath))
+  (or (path-prefix? prefix path) (path-prefix? path prefix)))
 
 (define (hash-add-at-path h prefix sub-h)
   (define rprefix (reverse prefix))
