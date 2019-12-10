@@ -641,11 +641,7 @@
             (k f v p s)]
            [(cons path more-paths)
             (DEBUG (eprintf "seek-check: found path ~s for ~.s within ~.s\n"
-                            path (stx->datum f) (stx->datum v))
-                   (let ([unique-paths (remove-duplicates (cons path more-paths))])
-                     (when (> (length unique-paths) 1)
-                       (eprintf "seek-check: multiple paths found for ~.s\n paths = ~v\n"
-                                (stx->datum f) unique-paths))))
+                            path (stx->datum f) (stx->datum v)))
             (define vctx (path-replacer v path #:resyntax? #t))
             ((parameterize ((the-context (cons vctx (the-context)))
                             (honesty 'T)
