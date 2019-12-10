@@ -114,3 +114,9 @@
   (syntax-case stx ()
     [(_ a b) #`(list #,(syntax-local-introduce (syntax-protect #'a))
                      #,(syntax-protect ((make-syntax-introducer) #'b)))]))
+
+(define-syntax (scplist2e stx)
+  (syntax-case stx ()
+    [(_ a b) #`(#%app ;; note explicit app
+                list #,(syntax-local-introduce (syntax-protect #'a))
+                     #,(syntax-protect ((make-syntax-introducer) #'b)))]))

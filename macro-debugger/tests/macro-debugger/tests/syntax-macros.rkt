@@ -198,6 +198,13 @@
          (macro (pid1 (scplist2 'a (Tid 'b))))
          (macro (pid1 (scplist2 'a 'b)))])
 
+  (test "protected scplist2e from pid0 in let-values"
+        (let-values () (pid0 (scplist2e (Tid 'a) (Tid 'b))))
+        [#:hidden-steps
+         (rename-letX _)
+         (macro (let-values () (pid0 (scplist2e 'a (Tid 'b)))))
+         (macro (let-values () (pid0 (scplist2e 'a 'b))))])
+
   (test "protected scplist2 from pid0 in let-values"
         (let-values () (pid0 (scplist2 (Tid 'a) (Tid 'b))))
         [#:hidden-steps
