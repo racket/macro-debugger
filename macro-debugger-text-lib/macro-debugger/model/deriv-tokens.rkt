@@ -75,7 +75,8 @@
    opaque-expr          ; opaque-syntax
 
    variable             ; (cons identifier identifier)
-   tag                  ; syntax
+   tag                  ; Syntax
+   tag2                 ; (list* Syntax Syntax)
    tag/context          ; Syntax
 
    rename-one           ; syntax
@@ -235,6 +236,7 @@
    'module-lift-loop        token-module-lift-loop
    'start                   token-start
    'tag                     token-tag
+   'tag2                    token-tag2
    'local-bind              token-local-bind
    'enter-bind              token-enter-bind
    'exit-bind               token-exit-bind

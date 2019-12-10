@@ -38,8 +38,8 @@
 ;; A Deriv is one of
 ;; - MRule
 ;; - PrimDeriv
-;; - (tagrule Stx Stx Stx Deriv)
-(struct tagrule deriv (tagged-stx next) #:transparent)
+;; - (tagrule Stx Stx Stx Stx Deriv)
+(struct tagrule deriv (untagged-stx tagged-stx next) #:transparent)
 
 
 ;; ============================================================

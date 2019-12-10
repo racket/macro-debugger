@@ -129,11 +129,13 @@
     (make p:stop e1 $1 rs #f #f)]
    [(variable return)
     (make p:variable e1 $2 rs #f #f)]
-   [(tag ?EE/k)
-    (let ([next ($2 $1 rs)])
-      (make tagrule e1 (wderiv-e2 next) $1 next))]
+   [(tag2 ?EE/k)
+    (match $1
+      [(list* tagged-stx disarmed-untagged-stx)
+       (define next ($2 tagged-stx rs))
+       (make tagrule e1 (wderiv-e2 next) disarmed-untagged-stx tagged-stx next)])]
    [(tag/context ?EE)
-    (make tagrule e1 (wderiv-e2 $2) $1 $2)]
+    (make tagrule e1 (wderiv-e2 $2) e1 $1 $2)]
    [(opaque-expr)
     (make p:opaque e1 $1 rs #f #f)]
    [(enter-prim ?Prim exit-prim/return)

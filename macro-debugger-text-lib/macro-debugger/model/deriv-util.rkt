@@ -110,7 +110,7 @@
      (recur first second)]
     [(lift/let-deriv z1 z2 first lift-stx second)
      (recur first second)]
-    [(tagrule z1 z2 tagged-stx next)
+    [(tagrule z1 z2 untagged-stx tagged-stx next)
      (recur next)]
     [(mrule z1 z2 rs da ?1 me1 locals me2 ?2 etx retx next)
      (recur locals next)]

@@ -147,7 +147,6 @@
      (R [! ?1]
         [#:pattern (?expr-kw ?inner)]
         [Expr ?inner inner]
-        ;; FIXME: untag
         [#:when untag
          [#:rename ?inner untag 'track-origin]
          [#:pattern ?form]
@@ -320,16 +319,20 @@
         [#:walk retx 'macro #:from-state old-state]
         [Expr ?form next])]
 
-    [(tagrule e1 e2 tagged-stx next)
+    [(tagrule e1 e2 disarmed-untagged-stx tagged-stx next)
      (R [#:pattern ?form]
         [#:hide-check (list (stx-car tagged-stx))]
-        [#:walk tagged-stx
-                (case (syntax-e (stx-car tagged-stx))
-                  ((#%app) 'tag-app)
-                  ((#%datum) 'tag-datum)
-                  ((#%top) 'tag-top)
-                  (else
-                   (error 'reductions "unknown tagged syntax: ~s" tagged-stx)))]
+        [#:let old-state (current-state-with e1 (list e1))]
+        [#:let disarmed-tagged-stx (cons (stxd-car tagged-stx) disarmed-untagged-stx)]
+        [#:rename ?form disarmed-untagged-stx] ;; disarm
+        [#:set-syntax disarmed-tagged-stx]
+        [#:rename ?form tagged-stx] ;; rearm
+        [#:walk tagged-stx (case (syntax-e (stx-car disarmed-tagged-stx))
+                             [(#%app) 'tag-app]
+                             [(#%datum) 'tag-datum]
+                             [(#%top) 'tag-top]
+                             [else (error 'reductions "unknown tagged syntax: ~s" tagged-stx)])
+         #:from-state old-state]
         [Expr ?form next])]
 
     ;; expand/compile-time-evals
