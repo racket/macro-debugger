@@ -46,7 +46,9 @@
   (cond [(eq? from to) in]
         [else (match in
                 [(vt:zoom ps evt lvt)
-                 (vt:zoom ps (evt-track from to evt) (lvt-track from to lvt))])]))
+                 (vt:zoom ps
+                          (evt-track from to evt)
+                          (and CHECK-WITH-LAZY? (lvt-track from to lvt)))])]))
 
 ;; vt-base : Stx -> VT
 (define (vt-base stx)
