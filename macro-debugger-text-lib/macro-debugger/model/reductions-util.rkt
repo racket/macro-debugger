@@ -498,23 +498,8 @@
            (values (honesty-composite (honesty) f2 v2)
                    ;; Must include pre-renames,renames for true part (FIXME: need narrowing?)
                    (cons foci1 pre-renames) (cons foci2 renames))]))
-  (begin ;; DEBUG
-   (with-handlers ([exn:fail?
-                    (lambda (e)
-                      (eprintf "\n####################\n")
-                      (eprintf "pattern = ~s, honesty = ~s\n" p (honesty))
-                      (eprintf "ren-p = ~s, mode = ~s, desc = ~s\n" ren-p mode description)
-                      (eprintf "pre  = ~s\n" (stx->datum pre-renames))
-                      (eprintf "post = ~s\n" (stx->datum renames))
-
-                      (eprintf "v -> v2 diff\n")
-                      (parameterize ((pretty-print-columns 160))
-                        (pretty-print (stx-contour-diff v v2)))
-                      (eprintf "\n")
-
-                      (eprintf "\nv = ~s\n" (stx->datum v))
-                      (raise e))])
-     (eprintf "  renamed: diff=~s, v2 = ~.s \n" (stx-eq-diff v2 v) (stx->datum v2))))
+  (DEBUG
+   (eprintf "  renamed: diff=~s, v2 = ~.s \n" (stx-eq-diff v2 v) (stx->datum v2)))
   (when (and (not (memq description '(#f sync)))
              (not-complete-fiction?))
     ;; FIXME: better condition/heuristic for when to add rename step?
