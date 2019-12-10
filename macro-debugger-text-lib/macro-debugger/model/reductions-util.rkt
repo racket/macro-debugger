@@ -471,6 +471,14 @@
          (do-rename* f v p s ren-p pre-renames renames description mode)]))
 
 (define (do-rename* f v p s ren-p pre-renames renames description mode)
+  (STRICT-CHECKS
+   (let ([pre (stx->datum pre-renames)] [post (stx->datum renames)])
+     (unless (equal? pre post)
+       (error 'rename "different!\n  diff: ~s\n  pre:  ~s\n  post: ~s"
+              (stx-eq-diff pre post) pre post)))
+   (unless (same-contour? pre-renames renames)
+     (error 'rename "different contours!\n  contour-diff: ~s\n  pre:  ~s\n  post: ~s"
+            (stx-contour-diff pre-renames renames) pre-renames renames)))
   (define f2 (pattern-replace p f ren-p renames #:resyntax? #f))
   ;; renaming preserves honesty
   (when (the-vt) (the-vt (vt-track pre-renames renames (the-vt) description)))
@@ -490,7 +498,23 @@
            (values (honesty-composite (honesty) f2 v2)
                    ;; Must include pre-renames,renames for true part (FIXME: need narrowing?)
                    (cons foci1 pre-renames) (cons foci2 renames))]))
-  (DEBUG (eprintf "  renamed: diff=~s, v2 = ~.s \n" (stx-eq-diff v2 v) (stx->datum v2)))
+  (begin ;; DEBUG
+   (with-handlers ([exn:fail?
+                    (lambda (e)
+                      (eprintf "\n####################\n")
+                      (eprintf "pattern = ~s, honesty = ~s\n" p (honesty))
+                      (eprintf "ren-p = ~s, mode = ~s, desc = ~s\n" ren-p mode description)
+                      (eprintf "pre  = ~s\n" (stx->datum pre-renames))
+                      (eprintf "post = ~s\n" (stx->datum renames))
+
+                      (eprintf "v -> v2 diff\n")
+                      (parameterize ((pretty-print-columns 160))
+                        (pretty-print (stx-contour-diff v v2)))
+                      (eprintf "\n")
+
+                      (eprintf "\nv = ~s\n" (stx->datum v))
+                      (raise e))])
+     (eprintf "  renamed: diff=~s, v2 = ~.s \n" (stx-eq-diff v2 v) (stx->datum v2))))
   (when (and (not (memq description '(#f sync)))
              (not-complete-fiction?))
     ;; FIXME: better condition/heuristic for when to add rename step?
@@ -765,6 +789,17 @@
     (cond [(and (pair? x) (pair? y))
            (and (loop (car x) (car y)) (loop (cdr x) (cdr y)))]
           [else (not (or (pair? x) (pair? y)))])))
+
+(define (stx-contour-diff x y)
+  (let loop ([x (stx->datum x)] [y (stx->datum y)])
+    (cond [(and (pair? x) (pair? y))
+           (let ([d1 (loop (car x) (car y))]
+                 [d2 (loop (cdr x) (cdr y))])
+             (cond [(and (eq? d1 '_) (eq? d2 '_)) '_]
+                   [else (cons d1 d2)]))]
+          [(and (null? x) (null? y)) '()]
+          [(equal? x y) '_]
+          [else `#s(DIFF ,x ,y)])))
 
 (define (stx-eq-diff a b)
   (let loop ([a a] [b b])
