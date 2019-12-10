@@ -472,10 +472,6 @@
 
 (define (do-rename* f v p s ren-p pre-renames renames description mode)
   (STRICT-CHECKS
-   (let ([pre (stx->datum pre-renames)] [post (stx->datum renames)])
-     (unless (equal? pre post)
-       (error 'rename "different!\n  diff: ~s\n  pre:  ~s\n  post: ~s"
-              (stx-eq-diff pre post) pre post)))
    (unless (same-contour? pre-renames renames)
      (error 'rename "different contours!\n  contour-diff: ~s\n  pre:  ~s\n  post: ~s"
             (stx-contour-diff pre-renames renames) pre-renames renames)))
