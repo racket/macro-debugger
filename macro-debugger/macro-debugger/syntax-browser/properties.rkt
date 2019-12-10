@@ -296,9 +296,9 @@
         (syntax-tainted? (datum->syntax stx 'dummy)))
       (display "Tamper status: " key-sd)
       (display (cond [(syntax-tainted? stx)
-                      "tainted"]
+                      "tainted (💥)"]
                      [(syntax-armed? stx)
-                      "armed"]
+                      "armed (🔒)"]
                      [else "clean"])
                #f)
       (display "\n\n" #f))

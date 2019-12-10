@@ -30,9 +30,8 @@
 (struct wrapped-stx (contents mode)
   #:property prop:custom-write
   (lambda (self out mode)
-    (fprintf out "~a~s"
-             (wrapped-mode-prefix (wrapped-stx-mode self))
-             (wrapped-stx-contents self))))
+    (fprintf out "~a" (wrapped-mode-prefix (wrapped-stx-mode self)))
+    (fprintf out "~s" (wrapped-stx-contents self))))
 
 (define (wrapped-mode-prefix mode)
   (case mode
@@ -101,15 +100,20 @@
   (let/ec escape
     (let ([flat=>stx (make-hasheq)]
           [stx=>flat (make-hasheq)])
+      (define (link! stx flat)
+        (hash-set! flat=>stx flat stx)
+        (hash-set! stx=>flat stx flat)
+        flat)
       (define (loop obj)
-        (cond [(and (syntax? obj) (syntax-tainted? obj) (show-tainted-stx?))
+        (cond [(not (syntax? obj)) (loop* obj)]
+              [(and (syntax-tainted? obj) (show-tainted-stx?))
                (parameterize ((show-tainted-stx? #f))
-                 (wrapped-stx (loop* obj) 'tainted))]
-              [(and (syntax? obj) (syntax-armed-unlocked? obj))
-               (wrapped-stx (loop* obj) 'armed-unlocked)]
-              [(and (syntax? obj) (syntax-armed? obj))
-               (wrapped-stx (loop* obj) 'armed)]
-              [else (loop* obj)]))
+                 (link! obj (wrapped-stx (loop* obj) 'tainted)))]
+              [(syntax-armed-unlocked? obj)
+               (link! obj (wrapped-stx (loop* obj) 'armed-unlocked))]
+              [(syntax-armed? obj)
+               (link! obj (wrapped-stx (loop* obj) 'armed))]
+              [else (link! obj (loop* obj))]))
       (define (loop* obj)
         (cond [(hash-ref stx=>flat obj #f)
                => (lambda (datum) datum)]
@@ -118,27 +122,17 @@
                           (> (send/i partition partition<%> count) limit))
                  (call-with-values (lambda () (table stx partition #f 'always abbrev?))
                                    escape))
-               (let ([lp-datum (make-identifier-proxy obj)])
-                 (hash-set! flat=>stx lp-datum obj)
-                 (hash-set! stx=>flat obj lp-datum)
-                 lp-datum)]
+               (make-identifier-proxy obj)]
               [(and (syntax? obj) abbrev? (check+convert-special-expression obj))
                => (lambda (newobj)
                     (when partition (send/i partition partition<%> get-partition obj))
                     (let* ([inner (cadr newobj)]
-                           [lp-inner-datum (loop inner)]
-                           [lp-datum (list (car newobj) lp-inner-datum)])
-                      (hash-set! flat=>stx lp-inner-datum inner)
-                      (hash-set! stx=>flat inner lp-inner-datum)
-                      (hash-set! flat=>stx lp-datum obj)
-                      (hash-set! stx=>flat obj lp-datum)
-                      lp-datum))]
+                           [lp-inner-datum (loop inner)])
+                      (link! inner lp-inner-datum)
+                      (list (car newobj) lp-inner-datum)))]
               [(syntax? obj)
                (when partition (send/i partition partition<%> get-partition obj))
-               (let ([lp-datum (loop (syntax-e* obj))])
-                 (hash-set! flat=>stx lp-datum obj)
-                 (hash-set! stx=>flat obj lp-datum)
-                 lp-datum)]
+               (loop (syntax-e* obj))]
               ;; -- Traversable structures
               [(pair? obj)
                (pairloop obj)]
