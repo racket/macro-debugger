@@ -8,6 +8,7 @@
          macro-debugger/syntax-browser/interfaces
          macro-debugger/model/stx-util
          syntax/modcollapse
+         "hrule-snip.rkt"
          "util.rkt"
          macro-debugger/util/mpi)
 (provide properties-view%
@@ -39,9 +40,6 @@
     ;; selected-syntax : syntax
     (field (selected-syntax #f))
 
-    ;; mode : maybe symbol in '(term stxobj)
-    (define mode 'term)
-
     ;; text : text%
     (field (text (new color-text%)))
     (field (pdisplayer (new properties-displayer% (text text) (view this))))
@@ -52,34 +50,26 @@
               (refresh)))
     (super-new)
 
-    ;; get-mode : -> symbol
-    (define/public (get-mode) mode)
-
-    ;; set-mode : symbol -> void
-    (define/public (set-mode m)
-      (set! mode m)
-      (refresh))
-
     ;; refresh : -> void
     (define/public (refresh)
       (with-unlock text
         (send text erase)
         (if (syntax? selected-syntax)
-            (refresh/mode mode)
+            (refresh/mode #t)
             (refresh/mode #f)))
       (send text scroll-to-position 0))
 
     ;; refresh/mode : symbol -> void
     (define/public (refresh/mode mode)
       (case mode
-        ((term) (send pdisplayer display-meaning-info selected-syntax))
-        ((stxobj) (send pdisplayer display-stxobj-info selected-syntax))
+        ((#t) (send pdisplayer display-info selected-syntax))
         ((#f) (send pdisplayer display-null-info))
         (else (error 'properties-view-base:refresh
                      "internal error: no such mode: ~s" mode))))
 
     (send text set-styles-sticky #f)
-    #;(send text hide-caret #t)
+    (send text auto-wrap #t)
+    (send text hide-caret #t)
     (send text lock #t)
     (refresh)))
 
@@ -89,7 +79,6 @@
   (class (properties-view-base-mixin editor-snip%)
     (inherit-field text)
     (inherit-field pdisplayer)
-    (inherit set-mode)
 
     (define/private outer:insert
       (case-lambda
@@ -107,10 +96,7 @@
 
     (define outer-text (new text%))
     (super-new (editor outer-text))
-    (outer:insert "Term" style:hyper (lambda _ (set-mode 'term)))
-    (outer:insert " ")
-    (outer:insert "Syntax Object" style:hyper (lambda _ (set-mode 'stxobj)))
-    (outer:insert "\n")
+    (outer:insert "Information\n")
     (outer:insert (new editor-snip% (editor text)))
     (send outer-text hide-caret #t)
     (send outer-text lock #t)))
@@ -121,24 +107,9 @@
     (init parent)
     (inherit-field text)
     (inherit-field pdisplayer)
-    (inherit set-mode)
-
-    ;; get-tab-choices : (listof (cons string thunk))
-    ;; Override to add or remove panels
-    (define/public (get-tab-choices)
-      (list (cons "Term" 'term)
-            (cons "Syntax Object" 'stxobj)))
-
     (super-new)
-    (define tab-choices (get-tab-choices))
-    (define tab-panel
-      (new tab-panel% 
-           (choices (map car tab-choices))
-           (parent parent)
-           (callback
-            (lambda (tp e)
-              (set-mode (cdr (list-ref tab-choices (send tp get-selection))))))))
-    (define ecanvas (new canvas:color% (editor text) (parent tab-panel)))))
+
+    (define ecanvas (new canvas:color% (editor text) (parent parent)))))
 
 ;; properties-displayer%
 (define properties-displayer%
@@ -164,6 +135,8 @@
     ;; display-info : Syntax -> Void
     (define/public (display-info stx)
       (display-meaning-info stx)
+      (display (new hrule-snip%))
+      (display "\n")
       (display-stxobj-info stx))
 
     ;; display-meaning-info : syntax -> void
@@ -196,52 +169,52 @@
       (unless (identifier? stx)
         (display "Not applicable\n\n" n/a-sd))
       (when (identifier? stx)
-        (cond #;[(eq? (identifier-binding stx) 'lexical)
-               (display "lexical (all phases)\n" #f)]
-              [else
-               (let ([bindings (for/hash ([phase (in-list phases-to-search)])
-                                 (values phase (identifier-binding stx phase)))])
-                 (cond [(for/or ([(p b) (in-hash bindings)]) b)
-                        (for ([phase (in-list phases-to-search)])
-                          (display-binding-kvs phase (hash-ref bindings phase #f) stx))]
-                       [else (display "none\n" #f)]))])
+        (let ([bindings (for/hash ([phase (in-list phases-to-search)])
+                          (values phase (identifier-binding stx phase #t)))])
+          (cond [(for/or ([(p b) (in-hash bindings)]) b)
+                 (for ([phase (in-list phases-to-search)])
+                   (cond [(hash-ref bindings phase #f)
+                          => (lambda (b) (display-binding-kvs phase b stx))]
+                         [else (void)]))]
+                [else (display "none\n" #f)]))
         (display "\n" #f)))
 
     ;; display-binding-kvs : phase bindinginfo identifier -> void
     (define/private (display-binding-kvs phase v stx)
-      (when v
-        (display (format "in phase ~a~a:"
-                         phase
-                         (case phase
-                           ((1) " (transformer phase)")
-                           ((-1) " (template phase)")
-                           ((#f) " (label phase)")
-                           (else "")))
-                 sub-key-sd)
-        (display "\n" #f)
-        (match v
-          [(list* def-mpi def-sym imp-mpi imp-sym defined-at-phase _)
-           (display-subkv/mpi "  defined in" def-mpi)
-           (unless (eq? def-sym (syntax-e stx))
-             (display-subkv "    as" def-sym))
-           (display-subkv/mpi "  imported from" imp-mpi)
-           (unless (eq? imp-sym (syntax-e stx))
-             (display-subkv "    provided as" (list-ref v 3)))
-           (unless (zero? defined-at-phase)
-             (display-subkv "  defined at phase" defined-at-phase))]
-          ['lexical
-           (display "lexical\n")]
-          [_ (void)])))
+      (define (phase-label)
+        (case phase
+          [(1) " (transformer phase)"]
+          [(-1) " (template phase)"]
+          [(#f) " (label phase)"]
+          [else ""]))
+      (display (format "in phase ~a~a: " phase (phase-label)) sub-key-sd)
+      (match v
+        [(list* def-mpi def-sym imp-mpi imp-sym defined-at-phase _)
+         (display "\n" #f)
+         (display-subkv/mpi "  defined in" def-mpi)
+         (unless (eq? def-sym (syntax-e stx))
+           (display-subkv "    as" def-sym))
+         (display-subkv/mpi "  imported from" imp-mpi)
+         (unless (eq? imp-sym (syntax-e stx))
+           (display-subkv "    provided as" (list-ref v 3)))
+         (unless (zero? defined-at-phase)
+           (display-subkv "  defined at phase" defined-at-phase))]
+        ['lexical
+         (display "lexical\n")]
+        [(list top-level-sym)
+         (display "at top-level\n")
+         (display-subkv "  as" top-level-sym)]
+        [_ (display "\n")]))
 
     ;; display-stxobj-info : syntax -> void
     (define/public (display-stxobj-info stx)
       (display-source-info stx)
       (display "\n")
-      (display-extra-source-info stx)
+      (display-scopes stx)
+      (display "\n")
+      (display-builtin-properties stx)
       (display "\n")
       (display-symbol-property-info stx)
-      (display "\n")
-      (display-scopes stx)
       (display "\n")
       (display-artificial stx))
 
@@ -264,8 +237,8 @@
               (display-subkv "span" s-span))
             (display "No source location available\n" n/a-sd))))
 
-    ;; display-extra-source-info : syntax -> void
-    (define/private (display-extra-source-info stx)
+    ;; display-builtin-properties : syntax -> void
+    (define/private (display-builtin-properties stx)
       (define (syntax-armed? stx)
         (syntax-tainted? (datum->syntax stx 'dummy)))
       (display (list (toggle 'props #t) "Built-in properties\n") key-sd)
@@ -274,9 +247,7 @@
                        (cond [(syntax-tainted? stx) "tainted (💥)"]
                              [(syntax-armed? stx) "armed (🔒)"]
                              [else "unarmed"]))
-        (display-subkv "source module"
-                       (let ([mod (syntax-source-module stx)])
-                         (and mod (mpi->string mod))))
+        (display-subkv/mpi "source module" (syntax-source-module stx))
         (display-subkv "original?" (syntax-original? stx))))
 
     ;; display-symbol-property-info : syntax -> void
@@ -336,12 +307,12 @@
 
     ;; FIXME: add option to show mpi path instead of collapsed?
     (define (display-subkv/mpi key mpi)
-      (define mod (collapse-module-path-index mpi))
+      (define mod (and mpi (collapse-module-path-index mpi)))
       (cond [mod (display-subkv key (format "~s" mod))]
             [else (display-subkv key (mpi->string mpi))]))
 
     (define/public (display-subkv/value k v)
-      (display-subkv k v)
+      (display-subkv k (format "~v" v))
       #|
       (begin
         (display (format "~a:\n" k) sub-key-sd)
