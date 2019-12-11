@@ -71,13 +71,12 @@
 
     (sync             . "Sync with expander")
 
-    (rename-lambda    . "Rename formal parameters")
-    (rename-letX      . "Rename bound names")
+    (rename-lambda    . "Introduce scope for local bindings")
+    (rename-letX      . "Introduce scope for local bindings")
     (rename-block     . "Introduce scope for internal definition context")
     (rename-module    . "Introduce scope for module")
     (rename-mod-shift . "Shift the self module-path-index")
     (rename-modbeg    . "Introduce scope for module body")
-    (lsv-remove-syntax . "Remove syntax bindings")
 
     (resolve-variable . "Resolve variable (remove extra marks)")
     (tag-module-begin . "Tag #%module-begin")
@@ -85,6 +84,8 @@
     (tag-datum        . "Tag datum")
     (tag-top          . "Tag top-level variable")
     (capture-lifts    . "Capture lifts")
+    (lsv-remove-syntax . "Remove syntax bindings")
+
     (provide          . "Expand provide-specs")
 
     (local-lift       . "Macro lifted expression to top-level")
