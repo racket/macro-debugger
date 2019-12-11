@@ -5,7 +5,6 @@
 (provide partition<%>
          (all-defined-out))
 
-;; not in notify.rkt because notify depends on gui
 (define-interface-expander methods:notify
   (lambda (stx)
     (syntax-case stx ()
@@ -97,7 +96,7 @@
 
 ;; range<%>
 (define-interface range<%> ()
-  (;; get-ranges : datum -> (list-of (cons number number))
+  (;; get-ranges : Syntax -> (listof Range)
    get-ranges
 
    ;; get-treeranges : -> (listof TreeRange)
@@ -111,12 +110,12 @@
    get-identifier-list))
 
 
-;; A Range is (make-range datum number number)
-(define-struct range (obj start end))
+;; A Range is (range Syntax Nat Nat Nat)
+(struct range (stx start pstart end))
 
-;; A TreeRange is (make-treerange syntax nat nat (listof TreeRange))
+;; A TreeRange is (treerange Syntax Nat Nat (Listof TreeRange))
 ;; where subs are disjoint, in order, and all contained within [start, end]
-(define-struct treerange (obj start end subs))
+(struct treerange (stx start end subs))
 
 ;; syntax-prefs<%>
 (define-interface syntax-prefs<%> ()
