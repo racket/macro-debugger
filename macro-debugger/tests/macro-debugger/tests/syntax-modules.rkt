@@ -225,7 +225,7 @@
              (#%require 'helper)
              (define-values (_) 'a)
              (#%expression _))))
-         (macro ;; #%expression
+         (finish-expr
           (module m '#%kernel
             (#%module-begin
              (#%require 'helper)
@@ -244,7 +244,7 @@
             (#%module-begin
              (#%require 'helper)
              (define-values (x) (#%expression _)))))
-         (macro ;; #%expression
+         (finish-expr
           (module m '#%kernel
             (#%module-begin
              (#%require 'helper)
@@ -331,7 +331,7 @@
              (#%require 'helper)
              (define-values (x) 'a)
              (#%expression x))))
-         (macro ;; #%expression
+         (finish-expr
           (module m '#%kernel
             (#%module-begin
              (#%require 'helper)
@@ -480,7 +480,7 @@
               (let-values ([(or-part) 'a])
                 (if or-part or-part (#%expression 'b)))
               'c)))
-         (macro ;; FIXME: 'untag-expr
+         (finish-expr
            (module m mzscheme
              (#%plain-module-begin
               (#%require (for-syntax mzscheme))
@@ -521,7 +521,7 @@
               (#%require (for-syntax mzscheme))
               (let-values ([(or-part) 'a])
                 (if or-part or-part (#%expression 'b))))))
-         (macro ;; FIXME: 'untag-expr
+         (finish-expr
            (module m mzscheme
              (#%plain-module-begin
               (#%require (for-syntax mzscheme))

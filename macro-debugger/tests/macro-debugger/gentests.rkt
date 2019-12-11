@@ -124,9 +124,9 @@
                      (map bigframe-term (state-lctx (protostep-s1 thing)))))]))
 
 (define (interesting-step? st)
-  (not (memq (protostep-type st)
-             '(resolve-variable rename-block rename-module rename-modbeg rename-mod-shift
-                                track-origin))))
+  (define type (protostep-type st))
+  (or (step-type? type #:kinds '(rw ac er))
+      (and (memq type '(rename-lambda rename-letX)) #t)))
 
 (define (reduction-sequence? rs)
   (andmap protostep? rs))

@@ -142,7 +142,7 @@
           (#%stratified-body (define-values (x) 'a) 'b)
           [#:steps (block->letrec (#%stratified-body (letrec-values ([(x) 'a]) (#%stratified-body 'b))))
                    (macro (#%stratified-body (letrec-values ([(x) 'a]) 'b)))
-                   (finish-letrec (#%stratified-body (letrec-values ([(x) 'a]) 'b)))
+                   (finish-block (#%stratified-body (letrec-values ([(x) 'a]) 'b)))
                    (macro (letrec-values ([(x) 'a]) 'b))]
           [#:hidden-steps
            (block->letrec (#%stratified-body (letrec-values ([(x) 'a]) (#%stratified-body 'b))))])
@@ -152,7 +152,7 @@
            (splice-block (#%stratified-body (define-values (x) 'a) 'b))
            (block->letrec (#%stratified-body (letrec-values ([(x) 'a]) (#%stratified-body 'b))))
            (macro (#%stratified-body (letrec-values ([(x) 'a]) 'b)))
-           (finish-letrec (#%stratified-body (letrec-values ([(x) 'a]) 'b)))
+           (finish-block (#%stratified-body (letrec-values ([(x) 'a]) 'b)))
            (macro (letrec-values ([(x) 'a]) 'b))]
           [#:hidden-steps
            (splice-block (#%stratified-body (define-values (x) 'a) 'b))
@@ -163,7 +163,7 @@
            (splice-block (#%stratified-body (define-values (x) 'a) 'b))
            (block->letrec (#%stratified-body (letrec-values ([(x) 'a]) (#%stratified-body 'b))))
            (macro (#%stratified-body (letrec-values ([(x) 'a]) 'b)))
-           (finish-letrec (#%stratified-body (letrec-values ([(x) 'a]) 'b)))
+           (finish-block (#%stratified-body (letrec-values ([(x) 'a]) 'b)))
            (macro (letrec-values ([(x) 'a]) 'b))])]
 
   [#:suite
@@ -192,7 +192,7 @@
           (lambda () (define-values (x) 'a) 'b)
           [#:steps (rename-lambda (lambda () (define-values (x) 'a) 'b))
                    (block->letrec (lambda () (letrec-values ([(x) 'a]) 'b)))
-                   (finish-letrec (lambda () (let-values ([(x) 'a]) 'b)))]
+                   (finish-block (lambda () (let-values ([(x) 'a]) 'b)))]
           #:same-hidden-steps)
    (testK "internal define-values in begin"
           (lambda () (begin (define-values (x) 'a)) 'b)
@@ -200,7 +200,7 @@
            (rename-lambda (lambda () (begin (define-values (x) 'a)) 'b))
            (splice-block (lambda () (define-values (x) 'a) 'b))
            (block->letrec (lambda () (letrec-values ([(x) 'a]) 'b)))
-           (finish-letrec (lambda () (let-values ([(x) 'a]) 'b)))]
+           (finish-block (lambda () (let-values ([(x) 'a]) 'b)))]
           #:same-hidden-steps)
    (testK "internal begin, then define-values"
           (lambda () (begin) (define-values (x) 'a) 'b)
@@ -208,7 +208,7 @@
            (rename-lambda (lambda () (begin) (define-values (x) 'a) 'b))
            (splice-block (lambda () (define-values (x) 'a) 'b))
            (block->letrec (lambda () (letrec-values ([(x) 'a]) 'b)))
-           (finish-letrec (lambda () (let-values ([(x) 'a]) 'b)))]
+           (finish-block (lambda () (let-values ([(x) 'a]) 'b)))]
           #:same-hidden-steps)
    (testK "define-values after expr"
           (lambda () 'a (define-values (x) 'b) 'c)
@@ -216,9 +216,7 @@
            (rename-lambda (lambda () 'a (define-values (x) 'b) 'c))
            (block->letrec (lambda () (letrec-values ([() (begin 'a (values))] [(x) 'b]) 'c)))
            (tag-app (lambda () (letrec-values ([() (begin 'a (#%app values))] [(x) 'b]) 'c)))
-           (finish-letrec (lambda () (let-values ([() (begin 'a (#%app values))]) (let-values ([(x) 'b]) 'c))))
-           ;; FIXME: should have TAG step for transform to nested let-values
-           ]
+           (finish-block (lambda () (let-values ([() (begin 'a (#%app values))]) (let-values ([(x) 'b]) 'c))))]
           [#:hidden-steps
            (rename-lambda (lambda () 'a (define-values (x) 'b) 'c))
            (block->letrec (lambda () (letrec-values ([() (begin 'a (values))] [(x) 'b]) 'c)))])]

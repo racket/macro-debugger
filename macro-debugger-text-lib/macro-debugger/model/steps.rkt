@@ -67,60 +67,53 @@
 ;; A StepType is a Symbol in the following alist.
 
 (define step-type-meanings
-  '((macro            . "Macro transformation")
+  ;; Kinds: rw=rewrite, sc=scope, tr=track, ac=action, er=error
+  '((macro            rw "Macro transformation")
 
-    (sync             . "Sync with expander")
+    (tag-module-begin rw "Add explicit #%module-begin")
+    (tag-app          rw "Add explicit #%app")
+    (tag-datum        rw "Add explicit #%datum")
+    (tag-top          rw "Add explicit #%top")
 
-    (rename-lambda    . "Introduce scope for local bindings")
-    (rename-letX      . "Introduce scope for local bindings")
-    (rename-block     . "Introduce scope for internal definition context")
-    (rename-module    . "Introduce scope for module")
-    (rename-mod-shift . "Shift the self module-path-index")
-    (rename-modbeg    . "Introduce scope for module body")
+    (finish-block     rw "Finish block")
+    (finish-lsv       rw "Finish letrec-syntaxes+values")
+    (finish-expr      rw "Finish #%expression")
 
-    (resolve-variable . "Resolve variable (remove extra marks)")
-    (tag-module-begin . "Tag #%module-begin")
-    (tag-app          . "Tag application")
-    (tag-datum        . "Tag datum")
-    (tag-top          . "Tag top-level variable")
-    (capture-lifts    . "Capture lifts")
-    (lsv-remove-syntax . "Remove syntax bindings")
+    (block->letrec    rw "Transform block to letrec")
+    (splice-block     rw "Splice block-level begin")
+    (splice-module    rw "Splice module-level begin")
+    (splice-lifts     rw "Splice definitions from lifted expressions")
+    (splice-end-lifts rw "Splice lifted module declarations")
+    (capture-lifts    rw "Capture lifts")
 
-    (provide          . "Expand provide-specs")
+    (provide          rw "Expand provide-specs")
 
-    (local-lift       . "Macro lifted expression to top-level")
-    (module-lift      . "Macro lifted declaration to end of module")
-    (block->letrec    . "Transform block to letrec")
-    (finish-letrec    . "Finish letrec")
-    (splice-block     . "Splice block-level begin")
-    (splice-module    . "Splice module-level begin")
-    (splice-lifts     . "Splice definitions from lifted expressions")
-    (splice-end-lifts . "Splice lifted module declarations")
+    (rename-lambda    sc "Introduce scope for local bindings")
+    (rename-letX      sc "Introduce scope for local bindings")
+    (rename-block     sc "Introduce scope for internal definition context")
+    (rename-module    sc "Introduce scope for module")
+    (rename-mod-shift sc "Shift the self module-path-index")
+    (rename-modbeg    sc "Introduce scope for module body")
 
-    (remark           . "Macro made a remark")
-    (track-origin     . "Macro called syntax-track-origin")
+    (resolve-variable sc "Resolve variable (remove extra scopes)") ;; rw?
 
-    (error            . "Error")))
+    (local-lift       ac "Lift")
+    (remark           ac "Macro made a remark")
+
+    (sync             -- "Sync with expander")
+    (error            er "Error")))
 
 (define (step-type->string x)
-  (cond [(assq x step-type-meanings) => cdr]
+  (cond [(assq x step-type-meanings) => caddr]
         [(string? x) x]
         [else (error 'step-type->string "not a step type: ~s" x)]))
 
-(define step-type?
-  (let ([step-types (map car step-type-meanings)])
-    (lambda (x)
-      (and (memq x step-types) #t))))
+(define (step-type? x #:kinds [kinds #f])
+  (cond [(assq x step-type-meanings)
+         => (lambda (c)
+              (define kind (cadr c))
+              (or (not kinds) (and (memq kind kinds) #t)))]
+        [else #f]))
 
-(define (rename-step? x)
-  (memq (protostep-type x) 
-        '(rename-lambda
-          rename-letX
-          rename-block
-          rename-module
-          rename-mod-shift
-          rename-modbeg
-          track-origin)))
-
-(define (rewrite-step? x)
-  (and (step? x) (not (rename-step? x))))
+(define (rename-step? x) (step-type? x #:kinds '(sc)))
+(define (rewrite-step? x) (step-type? x #:kinds '(rw er)))

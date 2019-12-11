@@ -148,9 +148,9 @@
         [#:pattern (?expr-kw ?inner)]
         [Expr ?inner inner]
         [#:when untag
-         [#:rename ?inner untag 'track-origin]
+         [#:rename ?inner untag #;'track]
          [#:pattern ?form]
-         [#:walk untag 'macro]])] ;; FIXME: untag-expr ?
+         [#:walk untag 'finish-expr]])]
     [(p:if e1 e2 rs de1 ?1 test then else)
      (R [! ?1]
         [#:pattern (?if TEST THEN ELSE)]
@@ -214,7 +214,7 @@
         [Expr (?vrhs ...) vrhss]
         [Block ?body body]
         [#:pattern ?form]
-        [#:walk e2 'lsv-remove-syntax])]
+        [#:walk e2 'finish-lsv])]
     [(p:#%datum e1 e2 rs de1 ?1)
      (R [! ?1]
         [#:hide-check rs]
@@ -541,7 +541,7 @@
         [BlockPass ?block pass1]
         [#:if (block:letrec? pass2)
               ([BlockLetrec ?block pass2]
-               [#:walk es2 'finish-letrec])
+               [#:walk es2 'finish-block])
               ([#:rename ?block (wlderiv-es1 pass2)]
                [List ?block pass2])])]
     ;; Alternatively, allow lists, since `let`, etc., bodies
@@ -581,7 +581,7 @@
         [#:pattern ?forms]
         [#:walk (append (stx->list (stx-cdr begin-form)) rest-forms) 'splice-block
          #:foci (stx->list (stx-cdr begin-form)) #:from-foci (list begin-form)]
-        [#:rename ?forms tail #;'track-origin]
+        [#:rename ?forms tail #;'track]
         [! ?2]
         [#:pattern ?forms]
         [BlockPass ?forms rest])]
@@ -722,7 +722,7 @@
         [#:pattern ?forms]
         [#:walk (append (stx->list (stx-cdr begin-form)) (stx->list rest-forms)) 'splice-module
          #:foci (stx->list (stx-cdr begin-form)) #:from-foci (list begin-form)]
-        [#:rename ?forms tail #;'track-origin]
+        [#:rename ?forms tail #;'track]
         [ModulePass1 ?forms rest])]
     [(cons (modp1*:case (? p:submodule? deriv)) rest)
      (R [#:pattern (?first . ?rest)]
