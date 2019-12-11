@@ -7,6 +7,7 @@
          racket/class/iop
          macro-debugger/syntax-browser/interfaces
          macro-debugger/model/stx-util
+         syntax/modcollapse
          "util.rkt"
          macro-debugger/util/mpi)
 (provide properties-view%
@@ -145,43 +146,57 @@
     (init-field text
                 view)
 
-    ;; display-null-info : -> void
+    (define/private (refresh-view) (send view refresh))
+
+    ;; Mapping of keys to toggle boxes (per stepper view, not persistent)
+    (define toggles (make-hash))
+    (define (toggle key [default #f])
+      (hash-ref! toggles key (lambda () (box default))))
+    (define (toggled? key)
+      (cond [(hash-ref toggles key #f) => unbox] [else #f]))
+
+    ;; ----
+
+    ;; display-null-info : -> Void
     (define/public (display-null-info)
       (display "No syntax selected\n" n/a-sd))
 
+    ;; display-info : Syntax -> Void
+    (define/public (display-info stx)
+      (display-meaning-info stx)
+      (display-stxobj-info stx))
+
     ;; display-meaning-info : syntax -> void
     (define/public (display-meaning-info stx)
-      (when (and (identifier? stx)
-                 (uninterned? (syntax-e stx)))
-        (display "Uninterned symbol!\n\n" key-sd))
-      (display-binding-info stx)
-      (display-indirect-binding-info stx))
+      (when (identifier? stx)
+        (define sym (syntax-e stx))
+        (cond [(symbol-interned? sym) (void)]
+              [(symbol-unreadable? sym)
+               (display "The identifier contains an unreadable symbol.\n\n")]
+              [else
+               (display "The identifier contains an uninterned symbol.\n\n")]))
+      ;; Binding info
+      (display (list (toggle 'binding #t) "Apparent identifier binding\n") key-sd)
+      (when (toggled? 'binding)
+        (display-bindings stx))
+      ;; Indirect binding info
+      (display (list (toggle '#%top) "Binding if used for #%top\n") key-sd)
+      (when (toggled? '#%top)
+        (display-bindings (datum->syntax stx '#%top)))
+      (display (list (toggle '#%app) "Binding if used for #%app\n") key-sd)
+      (when (toggled? '#%app)
+        (display-bindings (datum->syntax stx '#%app)))
+      (display (list (toggle '#%datum) "Binding if used for #%datum\n") key-sd)
+      (when (toggled? '#%datum)
+        (display-bindings (datum->syntax stx '#%datum))))
 
-    ;; display-binding-info : syntax -> void
-    (define/private (display-binding-info stx)
-      (display "Apparent identifier binding\n" key-sd)
-      (display-bindings stx))
-
-    ;; display-indirect-binding-info : syntax -> void
-    (define/private (display-indirect-binding-info stx)
-      (cond
-       [(identifier? stx)
-        (display "Binding if used for #%top\n" key-sd)
-        (display-bindings (datum->syntax stx '#%top))]
-       [(and (syntax? stx) (pair? (syntax-e stx)))
-        (display "Binding if used for #%app\n" key-sd)
-        (display-bindings (datum->syntax stx '#%app))]
-       [else
-        (display "Binding if used for #%datum\n" key-sd)
-        (display-bindings (datum->syntax stx '#%datum))]))
-
-    ;; display-bindings : syntax -> void
+    ;; display-bindings : Syntax -> Void
     (define/private (display-bindings stx)
       (define phases-to-search '(0 1 -1 #f 2 3 4 5 -2 -3 -4 -5))
       (unless (identifier? stx)
         (display "Not applicable\n\n" n/a-sd))
       (when (identifier? stx)
-        (cond [(eq? (identifier-binding stx) 'lexical)
+        (cond #;[(eq? (identifier-binding stx) 'lexical)
                (display "lexical (all phases)\n" #f)]
               [else
                (let ([bindings (for/hash ([phase (in-list phases-to-search)])
@@ -206,23 +221,28 @@
         (display "\n" #f)
         (match v
           [(list* def-mpi def-sym imp-mpi imp-sym defined-at-phase _)
-           (display-subkv "  defined in" (mpi->string def-mpi))
+           (display-subkv/mpi "  defined in" def-mpi)
            (unless (eq? def-sym (syntax-e stx))
              (display-subkv "    as" def-sym))
-           (display-subkv "  imported from" (mpi->string imp-mpi))
+           (display-subkv/mpi "  imported from" imp-mpi)
            (unless (eq? imp-sym (syntax-e stx))
              (display-subkv "    provided as" (list-ref v 3)))
            (unless (zero? defined-at-phase)
              (display-subkv "  defined at phase" defined-at-phase))]
+          ['lexical
+           (display "lexical\n")]
           [_ (void)])))
 
     ;; display-stxobj-info : syntax -> void
     (define/public (display-stxobj-info stx)
       (display-source-info stx)
+      (display "\n")
       (display-extra-source-info stx)
+      (display "\n")
       (display-symbol-property-info stx)
-      (display-marks stx)
-      (when #t (display-taint stx))
+      (display "\n")
+      (display-scopes stx)
+      (display "\n")
       (display-artificial stx))
 
     ;; display-source-info : syntax -> void
@@ -233,75 +253,71 @@
       (define s-position (syntax-position stx))
       (define s-span (syntax-span stx))
       (define s-span-known? (not (memv s-span '(0 #f))))
-      (display "Source location\n" key-sd)
-      (if (or s-source s-line s-column s-position s-span-known?)
-          (begin
-            (display-subkv "source" (prettify-source s-source))
-            (display-subkv "line" s-line)
-            (display-subkv "column" s-column)
-            (display-subkv "position" s-position)
-            (display-subkv "span" s-span))
-          (display "No source location available\n" n/a-sd))
-      (display "\n" #f))
+      (display (list (toggle 'srcloc #t) "Source location\n") key-sd)
+      (when (toggled? 'srcloc)
+        (if (or s-source s-line s-column s-position s-span-known?)
+            (begin
+              (display-subkv "source" (prettify-source s-source))
+              (display-subkv "line" s-line)
+              (display-subkv "column" s-column)
+              (display-subkv "position" s-position)
+              (display-subkv "span" s-span))
+            (display "No source location available\n" n/a-sd))))
 
     ;; display-extra-source-info : syntax -> void
     (define/private (display-extra-source-info stx)
-      (display "Built-in properties\n" key-sd)
-      (display-subkv "source module"
-                     (let ([mod (syntax-source-module stx)])
-                       (and mod (mpi->string mod))))
-      (display-subkv "original?" (syntax-original? stx))
-      (display "\n" #f))
+      (define (syntax-armed? stx)
+        (syntax-tainted? (datum->syntax stx 'dummy)))
+      (display (list (toggle 'props #t) "Built-in properties\n") key-sd)
+      (when (toggled? 'props)
+        (display-subkv "tamper status"
+                       (cond [(syntax-tainted? stx) "tainted (💥)"]
+                             [(syntax-armed? stx) "armed (🔒)"]
+                             [else "unarmed"]))
+        (display-subkv "source module"
+                       (let ([mod (syntax-source-module stx)])
+                         (and mod (mpi->string mod))))
+        (display-subkv "original?" (syntax-original? stx))))
 
     ;; display-symbol-property-info : syntax -> void
     (define/private (display-symbol-property-info stx)
-      (let ([keys (syntax-property-symbol-keys stx)])
-        (display "Additional properties\n" key-sd)
+      (display (list (toggle 'more-props #t) "Additional properties\n") key-sd)
+      (when (toggled? 'more-props)
+        (define keys (syntax-property-symbol-keys stx))
         (when (null? keys)
           (display "No additional properties available.\n" n/a-sd))
         (when (pair? keys)
-          (for-each (lambda (k) (display-subkv/value k (syntax-property stx k)))
-                    keys))
-        (display "\n" #f)))
+          (for ([k (in-list keys)]) (display-subkv/value k (syntax-property stx k))))))
 
     (define marks-phase 0)
 
-    ;; display-marks : syntax -> void
-    (define/private (display-marks stx)
-      (for ([phase (append (l:range (add1 marks-phase))
-                           (reverse (l:range (- marks-phase) 0)))])
-        (define info (syntax-debug-info stx phase))
-        (define ctx (hash-ref info 'context null))
-        (when (pair? ctx)
-          (display (format "Scopes at phase ~s:\n" phase) key-sd)
-          (for ([scope (in-list ctx)])
-            (display (format "~s\n" scope) #f))
-          (display "\n" #f)))
-      (display "Show scopes at more phases\n"
-               link-sd
-               (lambda _
-                 (set! marks-phase (add1 marks-phase))
-                 (send view refresh)))
-      (when (positive? marks-phase)
-        (display "Show scopes at fewer phases\n"
+    ;; display-scopes : syntax -> void
+    (define/private (display-scopes stx)
+      (display (list (toggle 'scopes #t) "Scopes\n") key-sd)
+      (when (toggled? 'scopes)
+        (for ([phase (append (l:range (add1 marks-phase))
+                             (reverse (l:range (- marks-phase) 0)))])
+          (define info (syntax-debug-info stx phase))
+          (define ctx (hash-ref info 'context null))
+          (when (pair? ctx)
+            (display (format "scopes at phase ~s:\n" phase) sub-key-sd)
+            (for ([scope (in-list ctx)])
+              (display (format "~s\n" scope) #f))
+            (display "\n" #f)))
+        (display "Show scopes at ")
+        (display "more phases"
                  link-sd
                  (lambda _
-                   (set! marks-phase (max 0 (sub1 marks-phase)))
-                   (send view refresh))))
-      (display "\n" #f))
-
-    ;; display-taint : syntax -> void
-    (define/private (display-taint stx)
-      (define (syntax-armed? stx)
-        (syntax-tainted? (datum->syntax stx 'dummy)))
-      (display "Tamper status: " key-sd)
-      (display (cond [(syntax-tainted? stx)
-                      "tainted (💥)"]
-                     [(syntax-armed? stx)
-                      "armed (🔒)"]
-                     [else "clean"])
-               #f)
-      (display "\n\n" #f))
+                   (set! marks-phase (add1 marks-phase))
+                   (refresh-view)))
+        (when (positive? marks-phase)
+          (display " | ")
+          (display "fewer phases"
+                   link-sd
+                   (lambda _
+                     (set! marks-phase (max 0 (sub1 marks-phase)))
+                     (refresh-view))))
+        (display ".\n")))
 
     ;; display-artificial : syntax -> void
     (define/private (display-artificial stx)
@@ -317,6 +333,12 @@
     (define/public (display-subkv k v)
       (display (format "~a: " k) sub-key-sd)
       (display (format "~a\n" v) #f))
+
+    ;; FIXME: add option to show mpi path instead of collapsed?
+    (define (display-subkv/mpi key mpi)
+      (define mod (collapse-module-path-index mpi))
+      (cond [mod (display-subkv key (format "~s" mod))]
+            [else (display-subkv key (mpi->string mpi))]))
 
     (define/public (display-subkv/value k v)
       (display-subkv k v)
@@ -336,21 +358,22 @@
           #|(send ecanvas add-wide-snip value-snip)|#))
       |#)
 
-    ;; display : string style-delta -> void
-    (define/private (display item sd [clickback #f])
-      (let ([p0 (send text last-position)])
-        (send text insert item)
-        (let ([p1 (send text last-position)])
-          (send text change-style sd p0 p1)
-          (when clickback
-            (send text set-clickback p0 p1 clickback)))))
+    ;; display : (U String ...) StyleDelta -> Void
+    (define/private (display item [sd #f] [clickback #f])
+      (define p0 (send text last-position))
+      (let loop ([item item])
+        (cond [(list? item) (for-each loop item)]
+              [(box? item)
+               (display (if (unbox item) "▽ " "▶ ")
+                        #f
+                        (lambda _ (set-box! item (not (unbox item))) (refresh-view)))]
+              [else (send text insert item)]))
+      (define p1 (send text last-position))
+      (when sd (send text change-style sd p0 p1))
+      (when clickback (send text set-clickback p0 p1 clickback)))
 
     (super-new)))
 
-
-;; lift/id : (identifier -> void) 'a -> void
-(define (lift/id f)
-  (lambda (stx) (when (identifier? stx) (f stx))))
 
 (define (uninterned? s)
   (not (eq? s (string->symbol (symbol->string s)))))
