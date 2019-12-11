@@ -2,8 +2,10 @@
 (require (only-in racket/list [range l:range])
          racket/class
          racket/match
+         racket/pretty
          racket/gui/base
          framework
+         mrlib/interactive-value-port
          racket/class/iop
          macro-debugger/syntax-browser/interfaces
          macro-debugger/model/stx-util
@@ -42,7 +44,7 @@
 
     ;; text : text%
     (field (text (new color-text%)))
-    (field (pdisplayer (new properties-displayer% (text text) (view this))))
+    (field (pdisplayer (new properties-displayer% (text text) (view this) (controller controller))))
 
     (send/i controller selection-manager<%> listen-selected-syntax
             (lambda (stx)
@@ -115,7 +117,8 @@
 (define properties-displayer%
   (class* object% ()
     (init-field text
-                view)
+                view
+                controller)
 
     (define/private (refresh-view) (send view refresh))
 
@@ -312,22 +315,27 @@
             [else (display-subkv key (mpi->string mpi))]))
 
     (define/public (display-subkv/value k v)
-      (display-subkv k (format "~v" v))
-      #|
+      #;(display-subkv k (format "~v" v))
       (begin
         (display (format "~a:\n" k) sub-key-sd)
         (let* ([value-text (new text:standard-style-list% (auto-wrap #t))]
                [value-snip (new editor-snip% (editor value-text))]
-               [value-port (make-text-port value-text)])
-          (set-interactive-write-handler value-port)
-          (set-interactive-print-handler value-port)
-          (set-interactive-display-handler value-port)
-          (write v value-port)
+               [value-port
+                (open-output-text-editor value-text)
+                #; (make-text-port value-text)])
+          (parameterize ((pretty-print-size-hook
+                          (lambda (v mode p) (if (syntax? v) 1 #f)))
+                         (pretty-print-print-hook
+                          (lambda (v mode p)
+                            (if (syntax? v)
+                                (write-special (make-syntax-snip v) p)
+                                (write v p))))
+                         (pretty-print-columns 'infinity))
+            (pretty-print v value-port))
           (send value-text lock #t)
           (send text insert value-snip)
           (send text insert "\n")
-          #|(send ecanvas add-wide-snip value-snip)|#))
-      |#)
+          #;(send ecanvas add-wide-snip value-snip))))
 
     ;; display : (U String ...) StyleDelta -> Void
     (define/private (display item [sd #f] [clickback #f])
@@ -345,6 +353,8 @@
 
     (super-new)))
 
+(require racket/lazy-require)
+(lazy-require ["snip-decorated.rkt" (make-syntax-snip)])
 
 (define (uninterned? s)
   (not (eq? s (string->symbol (symbol->string s)))))
