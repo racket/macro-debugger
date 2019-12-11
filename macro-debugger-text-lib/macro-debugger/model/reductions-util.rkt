@@ -110,15 +110,19 @@
    endlifts     ;; (Listof Syntax)
    frontier     ;; ImmutableHashEq[Syntax => #t]
    steps        ;; ReductionSequence
+   all-steps    ;; (Listof AnnotatedStep) or #f
    ) #:transparent #:mutable)
 ;; where Lift = (list 'def Ids Syntax) | (list 'req Syntax) | (list 'mod Syntax)
+
+;; An AnnotatedStep is (annotated Boolean HonestyMask Step)
+(struct annotated (shown? hm step) #:transparent)
 
 ;; the-xstate : (Parameterof XState/#f)
 (define the-xstate (make-parameter #f))
 
 ;; new-xstate : -> XState
 (define (new-xstate)
-  (xstate 0 '#hasheq() '#hasheq() null null '#hasheq() null))
+  (xstate 0 '#hasheq() '#hasheq() null null '#hasheq() null #f))
 
 ;; next-seqno : -> Nat
 (define (next-seqno #:xstate [xst (the-xstate)])
@@ -147,9 +151,10 @@
   (set-xstate-endlifts! xst null))
 
 ;; add-step : Step -> Void
-(define (add-step step [add? (honest?)]) (when add? (do-add-step step)))
-(define (do-add-step step #:xstate [xst (the-xstate)])
-  (set-xstate-steps! xst (cons step (xstate-steps xst))))
+(define (add-step step [add? (honest?)] #:xstate [xst (the-xstate)])
+  (when add? (set-xstate-steps! xst (cons step (xstate-steps xst))))
+  (let ([all-steps (xstate-all-steps xst)])
+    (when all-steps (set-xstate-all-steps! xst (cons (annotated add? (honesty) step) all-steps)))))
 
 ;; ----------------------------------------
 ;; Lifts
@@ -369,7 +374,7 @@
      #:declare maybe-exn (expr/c #'(or/c exn? #f))
      #'(let ([x maybe-exn.c])
          (if x
-             (begin (do-add-step (stumble v x))
+             (begin (add-step (stumble v x) #t)
                     (RSfail x))
              (ke f v p s)))]))
 
@@ -442,8 +447,7 @@
 (define (do-walk f v p s state1 f1 fs1 f2 fs2 type k)
   (define s1 (or state1 (current-state-with f1 fs1)))
   (define s2 (current-state-with f2 fs2))
-  (when (and type (honest?))
-    (do-add-step (make step type s1 s2)))
+  (when type (add-step (make step type s1 s2)))
   (k f2 (change-visible-term f f2 v) p s2))
 
 (define-syntax R/rename
@@ -496,10 +500,10 @@
                    (cons foci1 pre-renames) (cons foci2 renames))]))
   (DEBUG
    (eprintf "  renamed: diff=~s, v2 = ~.s \n" (stx-eq-diff v2 v) (stx->datum v2)))
-  (when (and (not (memq description '(#f sync)))
-             (not-complete-fiction?))
+  (when (not (memq description '(#f sync)))
     ;; FIXME: better condition/heuristic for when to add rename step?
-    (do-add-step (walk v v2 description #:foci1 foci1 #:foci2 foci2)))
+    (add-step (walk v v2 description #:foci1 foci1 #:foci2 foci2)
+              (not-complete-fiction?)))
   (RSunit f2 v2 p s))
 
 (define (honesty-composite hm f v #:resyntax? [resyntax? #t])
