@@ -4,7 +4,7 @@
          racket/struct
          syntax/stx
          "../model/stx-util.rkt"
-         "interfaces.rkt")
+         "partition.rkt")
 (provide (all-defined-out))
 
 ;; Problem: If stx1 and stx2 are two distinguishable syntax objects, it
