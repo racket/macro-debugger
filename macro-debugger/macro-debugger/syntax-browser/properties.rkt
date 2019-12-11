@@ -315,7 +315,8 @@
             [else (display-subkv key (mpi->string mpi))]))
 
     (define/public (display-subkv/value k v)
-      #;(display-subkv k (format "~v" v))
+      (display-subkv k (format "~v" v))
+      #;
       (begin
         (display (format "~a:\n" k) sub-key-sd)
         (let* ([value-text (new text:standard-style-list% (auto-wrap #t))]
@@ -353,8 +354,8 @@
 
     (super-new)))
 
-(require racket/lazy-require)
-(lazy-require ["snip-decorated.rkt" (make-syntax-snip)])
+;;(require racket/lazy-require)
+;;(lazy-require ["snip-decorated.rkt" (make-syntax-snip)])
 
 (define (uninterned? s)
   (not (eq? s (string->symbol (symbol->string s)))))
