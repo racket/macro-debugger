@@ -89,8 +89,28 @@
          (send text change-style base-style start-position end-position #f)))
       (with-log-time "applying primary styles"
         (uninterruptible (apply-primary-partition-styles)))
+      (when #f
+        (with-log-time "autocorrect icon sizes"
+          (autocorrect-icon-sizes)))
       (with-log-time "adding clickbacks"
         (uninterruptible (add-clickbacks))))
+
+    (define/private (autocorrect-icon-sizes)
+      (define ratio
+        (let ([dc (send text get-dc)])
+          (define-values (xw _xh _xd _xa) (send dc get-text-extent "x"))
+          (define-values (aw _ah _ad _aa) (send dc get-text-extent "🔒"))
+          #;(define-values (cw _ch _cd _ca) (send dc get-text-extent "💥"))
+          (/ xw (max aw #;cw xw))))
+      (when (< ratio 0.90) ;; tolerance
+        (with-unlock text
+          (define sd (make-object style-delta%))
+          (send sd set-size-mult (max ratio 2/3))
+          (for ([r (in-list (send/i range range<%> all-ranges))]
+                #:when (not (= (range-start r) (range-pstart r))))
+            (send text change-style sd
+                  (relative->text-position (range-start r))
+                  (relative->text-position (range-pstart r)))))))
 
     ;; add-clickbacks : -> void
     (define/private (add-clickbacks)
