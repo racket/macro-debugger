@@ -92,7 +92,7 @@
              (cond [(syntax-armed/tainted? x) x]
                    [else (syntax-property (syntax-rearm (datum->artificial-syntax x) e1)
                                           property:unlocked-by-expander #t)])))
-         (cons rearm-frame (the-context))]
+         (cons (immediate-frame rearm-frame) (the-context))]
         [else (the-context)]))
 
 (define (Expr* d)

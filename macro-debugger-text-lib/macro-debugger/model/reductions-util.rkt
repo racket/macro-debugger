@@ -165,6 +165,7 @@
 ;; Creating steps
 
 (provide
+ immediate-frame
  (contract-out
   [current-state-with
    (-> syntaxish? syntaxish?
@@ -185,9 +186,27 @@
 
 (define (current-state-with e fs)
   (define xst (the-xstate))
-  (make state e (foci fs) (the-context) (the-big-context)
-        (xstate-binders xst) (xstate-definites xst)
-        (xstate-frontier xst) (xstate-seqno xst)))
+  (let loop ([e e] [fs (foci fs)] [ctx (the-context)])
+    (cond [(and (pair? ctx) (immediate-frame? (car ctx)))
+           (define e* ((car ctx) e))
+           (loop e*
+                 (for/list ([f (in-list fs)])
+                   (if (eq? f e) e* f))
+                 (cdr ctx))]
+          [else
+           (make state e fs ctx (the-big-context)
+                 (xstate-binders xst) (xstate-definites xst)
+                 (xstate-frontier xst) (xstate-seqno xst))])))
+
+;; An immediate-frame's procedure should not add syntactic structure; it should
+;; only add/adjust syntax properties, rearm terms, etc. When the current state
+;; is captured, any immediate frames at the top of the context are applied to
+;; the visible term and any focus identical to the visible term. This preserves
+;; eq? connections between term and foci; without it, whole-term steps lose
+;; their focus highlighting. See add-rearm-frame in reductions.rkt
+
+(struct immediate-frame (f)
+  #:property prop:procedure (lambda (self x) ((immediate-frame-f self) x)))
 
 (define (walk e1 e2 type
               #:foci1 [foci1 e1]
@@ -709,10 +728,9 @@
            ;; probably not much point in narrowing VT (and nontrivial to do right)
            ;; FIXME: it would be slightly better to know whether we were *inside* an F,
            ;;   because we care about whether the context is honest, not the term
-           (define (identity-vctx x) x)
            (define sub-v v)
            (define sub-vt (the-vt))
-           (values identity-vctx sub-v sub-vt)]
+           (values #f sub-v sub-vt)]
           [else
            ;; can take vctx, but must also take narrowed VT (when sub-hm != 'T)
            (define vctx (path-replacer v path #:resyntax? #t))
@@ -721,7 +739,7 @@
            (values vctx sub-v sub-vt)]))
   (DEBUG (eprintf "run/path: run ~s on f=~.s; v=~.s\n"
                   reducer (stx->datum sub-f) (stx->datum sub-v)))
-  ((parameterize ((the-context (cons vctx (the-context)))
+  ((parameterize ((the-context (if vctx (cons vctx (the-context)) (the-context)))
                   (honesty sub-hm)
                   (the-vt sub-vt))
      (RScase ((reducer fill) sub-f sub-v (quote-pattern _) s)
@@ -735,7 +753,7 @@
                  (DEBUG
                   (eprintf "\n<< run/path merge old ~s and sub ~s => ~s\n"
                            (honesty) end-hm merged-hm)
-                  (eprintf "  v => ~.s\n" (stx->datum (vctx v2))))
+                  (eprintf "  v => ~.s\n" (stx->datum (if vctx (vctx v2) v2))))
                  (honesty merged-hm)
                  (the-vt (cond
                            ;; Case: sub-hm = F
@@ -755,7 +773,7 @@
                   (eprintf "  vt => ~e\n" (the-vt))
                   (when (the-vt)
                     (eprintf "  vt-stx => ~.s\n" (stx->datum (vt->stx (the-vt))))))
-                 (RSunit (fctx f2) (vctx v2) p s)))
+                 (RSunit (fctx f2) (if vctx (vctx v2) v2) p s)))
              (lambda (exn)
                (lambda () (RSfail exn)))))))
 
