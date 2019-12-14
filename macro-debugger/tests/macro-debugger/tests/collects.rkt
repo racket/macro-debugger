@@ -118,4 +118,11 @@
   (parameterize ((verbose #t))
     (run-tests
      (test-libs "Trace and step collections" modules-for-test
+                #:reductions? #t #:hiding? #f))))
+
+(module+ main
+  (require rackunit/text-ui)
+  (parameterize ((verbose #t))
+    (run-tests
+     (test-libs "Trace and step collections" modules-for-test
                 #:reductions? #t #:hiding? #t))))
