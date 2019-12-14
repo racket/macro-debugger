@@ -1,30 +1,20 @@
 #lang racket/base
 (require racket/class/iop
-         (for-syntax racket/base))
-(provide (all-defined-out))
+         (only-in macro-debugger/syntax-browser/partition partition<%>)
+         (for-syntax racket/base racket/syntax))
+(provide partition<%>
+         (all-defined-out))
 
-;; Helpers
-
-(define-for-syntax (join . args)
-  (define (->string x)
-    (cond [(string? x) x]
-          [(symbol? x) (symbol->string x)]
-          [(identifier? x) (symbol->string (syntax-e x))]
-          [else (error '->string)]))
-  (string->symbol (apply string-append (map ->string args))))
-
-;; not in notify.rkt because notify depends on gui
 (define-interface-expander methods:notify
   (lambda (stx)
     (syntax-case stx ()
       [(_ name ...)
-       (datum->syntax #f
-         (apply append
-                (for/list ([name (syntax->list #'(name ...))])
-                  (list ;; (join "init-" #'name)
-                   (join "get-" name)
-                   (join "set-" name)
-                   (join "listen-" name)))))])))
+       (with-syntax ([((method-name ...) ...)
+                      (for/list ([name (syntax->list #'(name ...))])
+                        (list (format-id name "get-~a" name)
+                              (format-id name "set-~a" name)
+                              (format-id name "listen-~a" name)))])
+         #'(method-name ... ...))])))
 
 ;; Interfaces
 
@@ -106,7 +96,7 @@
 
 ;; range<%>
 (define-interface range<%> ()
-  (;; get-ranges : datum -> (list-of (cons number number))
+  (;; get-ranges : Syntax -> (listof Range)
    get-ranges
 
    ;; get-treeranges : -> (listof TreeRange)
@@ -120,12 +110,12 @@
    get-identifier-list))
 
 
-;; A Range is (make-range datum number number)
-(define-struct range (obj start end))
+;; A Range is (range Syntax Nat Nat Nat)
+(struct range (stx start pstart end))
 
-;; A TreeRange is (make-treerange syntax nat nat (listof TreeRange))
+;; A TreeRange is (treerange Syntax Nat Nat (Listof TreeRange))
 ;; where subs are disjoint, in order, and all contained within [start, end]
-(define-struct treerange (obj start end subs))
+(struct treerange (stx start end subs))
 
 ;; syntax-prefs<%>
 (define-interface syntax-prefs<%> ()
@@ -172,13 +162,3 @@
    erase-all
    get-controller
    get-text))
-
-(define-interface partition<%> ()
-  (;; get-partition : any -> number
-   get-partition
-
-   ;; same-partition? : any any -> number
-   same-partition?
-
-   ;; count : -> number
-   count))

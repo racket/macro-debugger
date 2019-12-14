@@ -300,7 +300,7 @@
                                    dx dy)
                        (when label
                          (let* ([lx (+ endx dx fw)]
-                                [ly (- (+ endy dy) fh)])
+                                [ly (+ (+ endy dy) fh)])
                            (send* dc
                              (set-brush billboard-brush)
                              (set-font (billboard-font dc))
