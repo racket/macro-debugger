@@ -9,7 +9,6 @@
          racket/class/iop
          macro-debugger/syntax-browser/interfaces
          macro-debugger/model/stx-util
-         syntax/modcollapse
          "hrule-snip.rkt"
          "util.rkt"
          macro-debugger/util/mpi)
@@ -310,9 +309,7 @@
 
     ;; FIXME: add option to show mpi path instead of collapsed?
     (define (display-subkv/mpi key mpi)
-      (define mod (and mpi (collapse-module-path-index mpi)))
-      (cond [mod (display-subkv key (format "~s" mod))]
-            [else (display-subkv key (mpi->string mpi))]))
+      (display-subkv key (collapse-mpi->string mpi)))
 
     (define/public (display-subkv/value k v)
       (display-subkv k (format "~v" v))

@@ -206,15 +206,19 @@
                   [else "?"])
             (if phase 'end 'start)))
 
-    (define/private (add-binding-billboard start range id definite?)
-      (match (identifier-binding id)
+    (define/private (add-binding-billboard start range id phase)
+      (match (identifier-binding id (or phase 0))
         [(list-rest src-mod src-name nom-mod nom-name _)
          (for ([id-r (in-list (send/i range range<%> get-ranges id))])
            (send -text add-billboard
                  (+ start (range-start id-r))
                  (+ start (range-end id-r))
-                 (string-append "from " (mpi->string src-mod))
-                 (if definite? "blue" "purple")))]
+                 (string-append
+                  (cond [(and phase (not (eqv? phase 0)))
+                         (format "(phase ~s) " phase)]
+                        [else ""])
+                  "from " (collapse-mpi->string src-mod))
+                 (if phase "blue" "purple")))]
         [_ (void)]))
 
     (define/public (add-separator)
