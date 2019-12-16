@@ -30,7 +30,7 @@
       (new vertical-panel% (parent parent)))
     (define -split-panel
       (new panel:horizontal-dragable% (parent -main-panel)))
-    (define -text (new browser-text%))
+    (define -text (new browser-text% (keymap (setup-keymap))))
     (let loop ([win parent])
       (cond
         [(is-a? win frame:searchable<%>)
@@ -48,7 +48,6 @@
 
     (define/public (setup-keymap)
       (new syntax-keymap% 
-           (editor -text)
            (controller controller)
            (config config)))
 
@@ -254,7 +253,6 @@
 
     ;; Initialize
     (super-new)
-    (setup-keymap)
 
     (send/i config config<%> listen-props-shown?
            (lambda (show?)
