@@ -185,6 +185,7 @@
     [(p:#%top _ _ _ _ _) (void)]
     [(p:#%datum _ _ _ _ _) (void)]
     [(p:quote _ _ _ _ _) (void)]
+    [(p:declare _ _ _ _ _) (void)]
     [(p:quote-syntax z1 z2 _ _ _) (void)]
     [(p:#%variable-reference _ _ _ _ _) (void)]
     [(lderiv _ _ ?1 derivs)
