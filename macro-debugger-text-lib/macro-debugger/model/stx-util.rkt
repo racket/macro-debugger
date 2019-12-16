@@ -38,8 +38,10 @@
 (define (resyntax v stx [dstx (stx-disarm stx)] #:rearm? [rearm? #t])
   (unless (and (syntax? stx) (syntax? dstx))
     (error 'resyntax "not syntax: ~e, ~e" stx dstx))
-  (define stx* (mark-artificial (datum->syntax dstx v stx stx)))
-  (if rearm? (syntax-rearm stx* stx) stx*))
+  (let* ([vstx (datum->artificial-inner-syntax v)]
+         [vstx (datum->syntax dstx vstx stx stx)]
+         [vstx (if rearm? (syntax-rearm vstx stx) vstx)])
+    (if (eq? v vstx) vstx (mark-artificial vstx))))
 
 (define (restx v stx [dstx (stx-disarm stx)] #:rearm? [rearm? #t])
   (if (syntax? stx) (resyntax v stx dstx #:rearm? rearm?) v))
@@ -62,14 +64,16 @@
   (syntax-property stx property:artificial #t))
 
 (define (datum->artificial-syntax x)
-  (define (loop x)
-    (cond [(pair? x) (mark-artificial (datum->syntax #f (tailloop x)))]
+  (let loop ([x x])
+    (cond [(pair? x) (mark-artificial (datum->syntax #f (datum->artificial-inner-syntax x)))]
           [(syntax? x) x]
-          [else (mark-artificial (datum->syntax #f x))]))
-  (define (tailloop x)
-    (cond [(pair? x) (cons (loop (car x)) (tailloop (cdr x)))]
-          [else (loop x)]))
-  (loop x))
+          [else (mark-artificial (datum->syntax #f x))])))
+
+(define (datum->artificial-inner-syntax x)
+  (let tailloop ([x x])
+    (cond [(pair? x) (cons (datum->artificial-syntax (car x)) (tailloop (cdr x)))]
+          [(null? x) null]
+          [else (datum->artificial-syntax x)])))
 
 (define (syntax-artificial? stx)
   (syntax-property stx property:artificial))
