@@ -102,7 +102,7 @@
       [(p:quote-syntax z1 z2 _ _ _)
        (when z2 (analyze/quote-syntax z2))]
       ;; Otherwise, recur through children
-      [deriv (for-subnodes deriv #:recur recur #:recur/phase-up recur/phase-up)]))
+      [deriv (for-subnodes deriv #:recur recur #:recur1/phase-up recur/phase-up)]))
 
   (analyze-deriv deriv0)
   refs)
