@@ -95,11 +95,11 @@
 
 ;; for-subnodes : X (X -> Void) -> Void
 ;; where X is one of the structs listed in deriv-c.rkt; includes some non-Node structs
-(define (for-subnodes x #:recur recur1 #:recur1/phase-up [recur1/phase-up recur1])
+(define (for-subnodes x #:recur recur1 #:recur/phase-up [recur1/phase-up recur1])
   (define (recur* node)
     (if (list? node) (for-each recur* node) (recur1 node)))
   (define (recur*/phase-up nodes)
-    (if (list? node) (for-each recur*/phase-up node) (recur1/phase-up node)))
+    (if (list? nodes) (for-each recur*/phase-up nodes) (recur1/phase-up nodes)))
   (define (recur . nodes) (recur* nodes))
   (define (recur/phase-up . nodes) (recur*/phase-up nodes))
   ;; Handle variants
@@ -180,14 +180,8 @@
      (recur exp locals)]
     [(p:#%stratified-body _ _ _ _ _ bderiv)
      (recur bderiv)]
-    [(p:stop _ _ _ _ _) (void)]
-    [(p:unknown _ _ _ _ _) (void)]
-    [(p:#%top _ _ _ _ _) (void)]
-    [(p:#%datum _ _ _ _ _) (void)]
-    [(p:quote _ _ _ _ _) (void)]
+    [(? p::STOP?) (void)]
     [(p:declare _ _ _ _ _) (void)]
-    [(p:quote-syntax z1 z2 _ _ _) (void)]
-    [(p:#%variable-reference _ _ _ _ _) (void)]
     [(lderiv _ _ ?1 derivs)
      (recur derivs)]
     [(bderiv _ _ _ pass1 pass2)
