@@ -653,7 +653,7 @@
   (parser #:start Expansion
           #:end EOF
           #:src-pos
-          #:debug "/tmp/DEBUG-PARSER.txt"
+          ;; #:debug "/tmp/DEBUG-PARSER.txt"
           #:error deriv-error))
 
 ;; ----------------------------------------
