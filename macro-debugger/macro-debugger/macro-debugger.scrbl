@@ -393,8 +393,7 @@ printed with the module's classification and supporting
 information. @margin-note*{When run via @exec{raco check-requires},
 only DROP recommendations are printed by default.} Output may be
 suppressed based on classification via @racket[show-keep?],
-@racket[show-bypass?], and @racket[show-drop?]; by default, only
-BYPASS and DROP recommendations are printed.
+@racket[show-bypass?], and @racket[show-drop?].
 
 Modules required @racket[for-label] are not analyzed.
 
