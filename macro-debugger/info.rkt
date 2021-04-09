@@ -12,6 +12,7 @@
                "parser-tools-lib"
                "macro-debugger-text-lib"
                "snip-lib"
+               "wxme-lib"
                ("draw-lib" #:version "1.7")))
 (define build-deps '("racket-index"
                      "rackunit-lib"

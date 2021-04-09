@@ -5,12 +5,14 @@
          racket/snip
          racket/draw
          racket/math
+         wxme
          "base.rkt")
 (provide steps-to-arrow-snip%
-         snip-class)
+         snip-class
+         reader)
 
 (define steps-to-arrow-snip%
-  (class one-cell-snip%
+  (class* one-cell-snip% (readable-snip<%>)
     (init [style #f])
     (inherit set-style get-style get/cache-extent set-snipclass
              get-text-pen-color draw-background)
@@ -44,6 +46,9 @@
         (send dc set-smoothing saved-smoothing)))
 
     (define/override (get-whole-text) "→")
+    (define/override (copy) (new this% (style (get-style))))
+    (define/public (read-special src line col pos)
+      (datum->syntax #f this (list src line col pos 1)))
     ))
 
 (define steps-to-arrow-snip-class%
@@ -51,7 +56,9 @@
     (inherit set-classname set-version)
     (super-new)
 
-    (set-classname (~s '(lib "steps-to-arrow.rkt" "macro-debugger" "syntax-browser" "icons")))
+    (set-classname
+     (let ([c '(lib "steps-to-arrow.rkt" "macro-debugger" "syntax-browser" "icons")])
+       (format "~s" (list c c))))
     (set-version 1)
 
     (define/override (read f)
@@ -59,3 +66,13 @@
     ))
 
 (define snip-class (new steps-to-arrow-snip-class%))
+
+(define steps-to-arrow-reader%
+  (class* object% (snip-reader<%>)
+    (define/public (read-header version stream) (void))
+    (define/public (read-snip text-only? version stream)
+      (cond [text-only? (string->bytes/utf-8 "→")]
+            [else (new steps-to-arrow-snip%)]))
+    (super-new)))
+
+(define reader (new steps-to-arrow-reader%))
