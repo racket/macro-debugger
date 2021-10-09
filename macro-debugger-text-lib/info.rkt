@@ -9,3 +9,6 @@
 (define pkg-desc "The macro debugger tool with a console interface")
 
 (define pkg-authors '(ryanc))
+
+(define license
+  '(Apache-2.0 OR MIT))
