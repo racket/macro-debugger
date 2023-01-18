@@ -151,7 +151,8 @@
                (let ([constructor
                       (cond [(hash-equal? obj) make-immutable-hash]
                             [(hash-eqv? obj) make-immutable-hasheqv]
-                            [(hash-eq? obj) make-immutable-hasheq])])
+                            [(hash-eq? obj) make-immutable-hasheq]
+                            [(hash-equal-always? obj) make-immutable-hashalw])])
                  (constructor
                   (for/list ([(k v) (in-hash obj)])
                     (cons k (loop v)))))]
