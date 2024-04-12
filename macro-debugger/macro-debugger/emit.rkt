@@ -2,7 +2,8 @@
 (require racket/contract/base)
 
 (define syntax-local-expand-observer
-  (dynamic-require ''#%expobs 'syntax-local-expand-observer))
+  (lambda ()
+    ((dynamic-require ''#%expobs 'syntax-local-expand-observer))))
 
 (define (emit-remark #:unmark? [unmark? (syntax-transforming?)] . args)
   (let ([observe (syntax-local-expand-observer)])
