@@ -411,6 +411,7 @@
          [#:rename/unmark ?form me1]
          [#:with-marking
           [Expr ?form inner]]
+         [#:set-syntax me2]
          [#:rename/mark ?form e2]
          [#:do (when opaque
                  (hash-set! opaque-table (syntax-e opaque) e2))]])]
@@ -424,6 +425,7 @@
           [Expr ?form inner]]
          ;; FIXME: catch lifts
          [#:set-syntax lifted]
+         [#:set-syntax me2]
          [#:rename/mark ?form e2]
          [#:do (when opaque
                  (hash-set! opaque-table (syntax-e opaque) e2))]])]

@@ -238,4 +238,33 @@
                          (convert-error (lambda))))])
         (check-pred deriv? d)
         (check-pred ok-node? d)))
+
+    ;; Added 7/19/2025, see racket/racket#5305
+    (test-case "local-expand/capture-lifts empty"
+      (define d (trace '(module m racket/base
+                          (#%plain-module-begin
+                           (require (for-syntax racket/base))
+                           (define-syntaxes (boop)
+                             (lambda (stx)
+                               (local-expand/capture-lifts #'(void) 'expression '())
+                               #'(void)))
+                           (boop)))))
+      (check-pred deriv? d)
+      (define rs (parameterize ((macro-policy hide-none-policy))
+                   (reductions d)))
+      (check-pred list? rs))
+    (test-case "local-expand/capture-lifts non-empty"
+      (define d (trace '(module m racket/base
+                          (#%plain-module-begin
+                           (require (for-syntax racket/base)
+                                    tests/macro-debugger/helper/helper)
+                           (define-syntaxes (boop)
+                             (lambda (stx)
+                               (local-expand/capture-lifts #'(lift 'abc) 'expression '())
+                               #'(void)))
+                           (void (boop))))))
+      (check-pred deriv? d)
+      (define rs (parameterize ((macro-policy hide-none-policy))
+                   (reductions d)))
+      (check-pred list? rs))
     ))
