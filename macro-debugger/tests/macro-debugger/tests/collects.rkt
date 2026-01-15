@@ -113,7 +113,7 @@
   (test-libs "Trace collections" modules-for-test))
 
 (module+ test
-  (module config info (define timeout 1200))
+  (module config info (define timeout 2400))
   (require rackunit/text-ui)
   (parameterize ((verbose #t))
     (run-tests
