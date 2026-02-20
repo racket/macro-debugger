@@ -601,6 +601,8 @@ module path and the module paths of its immediate dependents.
 
 @section-index["raco macro-profiler"]
 
+@defmodule[macro-debugger/analysis/profile]
+
 The Macro Profiler shows what macros contribute most to the
 @emph{expanded code size} of programs. Use the Macro Profiler when
 your program has compiled files that are larger than expected. (The
@@ -656,5 +658,7 @@ used in the macro's result. Macros that violate this assumption will
 have correspondingly incorrect profile costs.}
 
 ]
+
+@defproc[(term-size [stx any/c]) exact-nonnegative-integer?]{}
 
 @close-eval[the-eval]
